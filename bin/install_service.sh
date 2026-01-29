@@ -165,7 +165,7 @@ EOF
     fi
 
 elif [ "$INIT_SYSTEM" == "sysvinit" ]; then
-    INIT_SCRIPT="/etc/init.d/$APP_NAME"
+    STATUS_SCRIPT="$DEST_DIR/bin/status.sh"
 
     cat <<EOF > "$INIT_SCRIPT"
 #!/bin/bash
@@ -183,8 +183,11 @@ case "\$1" in
         \$0 stop
         \$0 start
         ;;
+    status)
+        su - $REAL_USER -c "$STATUS_SCRIPT"
+        ;;
     *)
-        echo "사용법: \$0 {start|stop|restart}" 
+        echo "사용법: \$0 {start|stop|restart|status}" 
         exit 1
 esac
 exit 0
