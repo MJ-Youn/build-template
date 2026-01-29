@@ -1,0 +1,12 @@
+services:
+  app:
+    image: build_test:latest
+    container_name: build_test_app
+    ports:
+      - "8080:8080"
+    volumes:
+      # 로컬의 log 폴더를 컨테이너 로그 경로에 마운트하여 호스트에서 확인 가능
+      - ./log:/app/log
+    environment:
+      - TZ=Asia/Seoul
+    restart: unless-stopped
