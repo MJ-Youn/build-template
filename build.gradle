@@ -1,0 +1,95 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+
+plugins {
+	id 'java'
+	id 'org.springframework.boot' version '4.0.2'
+	id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'io.github.mjyoun'
+version = '0.0.1-SNAPSHOT'
+description = 'Demo project for Spring Boot'
+
+java {
+	toolchain {
+		languageVersion = JavaLanguageVersion.of(21)
+	}
+}
+
+repositories {
+	mavenCentral()
+}
+
+dependencies {
+	implementation 'org.springframework.boot:spring-boot-starter-web'
+	implementation 'org.springframework.boot:spring-boot-starter-log4j2'
+	implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
+	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+configurations {
+	all {
+		exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
+	}
+}
+
+tasks.named('test') {
+	useJUnitPlatform()
+}
+
+bootJar {
+	// 실행 가능한 JAR 생성 시 설정 파일 제외 (외부 config 사용 위함)
+	// src/main/resources에 있는 application.yml 등을 제외하여 빌드 결과물을 환경 독립적으로 만듦
+	exclude 'application*.yml', 'application*.properties', 'log4j2*'
+}
+
+// 배포용 패키지 생성 태스크
+// 배포용 패키지 생성 태스크
+// 실행 가능한 JAR, 설정 파일(config), 시작/종료 스크립트(bin)를 묶어 zip 파일로 생성
+// 'package'는 예약어일 수 있으므로 따옴표로 감싸서 Task 이름으로 정의
+task 'package'(type: Zip) {
+	dependsOn bootJar
+
+	def distName = "${project.name}-${project.version}"
+	def envSuffix = ""
+
+	// config 디렉토리 처리 (환경 파라미터 -Penv=dev/prod 에 따른 분기)
+	if (project.hasProperty('env')) {
+		// 특정 환경이 지정된 경우 (예: ./gradlew zipDist -Penv=prod)
+		def env = project.property('env')
+		println "Building distribution for environment: $env"
+		envSuffix = "-${env}"
+		
+		from("config/$env") {
+			into 'config'
+		}
+	} else {
+		// 환경이 지정되지 않은 경우 (기존 동작)
+		println "Building distribution with full config structure (no environment specified)"
+		from('config') {
+			into 'config'
+		}
+	}
+
+	// 생성될 zip 파일 이름 설정 (예: project-version-prod.dist.zip)
+	archiveFileName = "${distName}${envSuffix}.dist.zip"
+	// zip 파일이 생성될 경로 (build/dist)
+	destinationDirectory = file("${buildDir}/dist")
+
+	// bin 디렉토리 포함 (스크립트 파일)
+	from('bin') {
+		into 'bin'
+		filter(ReplaceTokens, tokens: [appName: project.name])
+	}
+
+	// bootJar 태스크로 생성된 jar 파일을 libs 폴더에 포함
+	from(bootJar.outputs.files) {
+		into 'libs'
+	}
+}
+
+// 표준 'build' 태스크 실행 시 'package' 태스크도 함께 실행되도록 설정
+tasks.named('build') {
+	dependsOn 'package'
+}
