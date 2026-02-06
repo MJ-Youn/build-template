@@ -189,27 +189,54 @@ curl -v http://localhost:8080/
 ## 🧜‍♀️ 개발 워크플로우 (Workflow)
 
 ```mermaid
-graph TD
-    A[📂 Template Project] -->|Fork / Copy| B(✨ New Project);
-    
-    B --> C[🛠️ Step 1: Config APP_NAME];
-    C --> D[🛠️ Step 2: Develop Logic];
-    
-    D --> F{📦 Build Strategy};
-    
-    F -->|Docker Build| G[🐳 dockerBuild Task];
-    G --> H[📦 Zip: Image + Scripts];
-    H --> I[🚀 Server: install_docker_service.sh];
-    
-    F -->|Standard Build| J[☕ package Task];
-    J --> K[📦 Zip: Jar + Scripts];
-    K --> L[🚀 Server: install_service.sh];
+flowchart TD
+    Start["🚀 1. 프로젝트 생성"] --> Dev["💻 2. 개발 및 커스터마이징"]
+    Dev --> BuildSelect{"🛠️ 3. 빌드 방식 선택"}
 
-    I --> M[✅ Service Running];
-    L --> M;
-    
-    style A fill:#E1BEE7,stroke:#4A148C,stroke-width:2px,color:#000
-    style M fill:#C8E6C9,stroke:#2E7D32,stroke-width:2px,color:#000
+    %% 서브그래프 정의 (노드만 포함)
+    subgraph Legacy ["🅰️ Legacy Path"]
+        direction TB
+        LegacyBuild["☕ 4. Legacy 빌드<br/>(Jar + Scripts)"]
+        LegacyBuild --> LegacyDeploy["⚙️ 5. 서비스 등록<br/>(Systemd/SysVinit)"]
+    end
+
+    subgraph Docker ["🅱️ Docker Path"]
+        direction TB
+        DockerBuild["🐳 4. Docker 빌드<br/>(Image + Compose)"]
+        DockerBuild --> DockerDeploy["🚢 5. Docker 배포<br/>(Compose Up)"]
+    end
+
+    subgraph K8s ["☸️ Kubernetes Path"]
+        direction TB
+        K8sBuild["☸️ 4. K8s 빌드<br/>(Manifests)"]
+        K8sBuild --> K8sDeploy["☁️ 5. K8s 배포<br/>(Kubectl Apply)"]
+    end
+
+    %% 서브그래프 진입/진출 연결 (외부에서 정의)
+    BuildSelect -->|Legacy| LegacyBuild
+    BuildSelect -->|Docker| DockerBuild
+    BuildSelect -->|K8s| K8sBuild
+
+    LegacyDeploy --> Monitor["📈 6. 통합 모니터링"]
+    DockerDeploy --> Monitor
+    K8sDeploy --> Monitor
+
+    %% 스타일 정의
+    classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
+    classDef start fill:#E1F5FE,stroke:#01579B,stroke-width:2px,color:#000;
+    classDef process fill:#FFF3E0,stroke:#E65100,stroke-width:2px,color:#000;
+    classDef decision fill:#F3E5F5,stroke:#4A148C,stroke-width:2px,color:#000;
+    classDef legacy fill:#FFEBEE,stroke:#B71C1C,stroke-width:2px,color:#000;
+    classDef docker fill:#E3F2FD,stroke:#0D47A1,stroke-width:2px,color:#000;
+    classDef k8s fill:#E8EAF6,stroke:#1A237E,stroke-width:2px,color:#000;
+    classDef endNode fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#000;
+
+    class Start,Dev start;
+    class BuildSelect decision;
+    class LegacyBuild,LegacyDeploy legacy;
+    class DockerBuild,DockerDeploy docker;
+    class K8sBuild,K8sDeploy k8s;
+    class Monitor endNode;
 ```
 
 
