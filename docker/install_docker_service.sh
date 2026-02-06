@@ -51,7 +51,8 @@ else
     echo "알림: $IMAGE_TAR 파일이 없습니다. 이미지가 이미 로드되어 있거나 레지스트리에서 pull 해야 합니다."
 fi
 
-# docker-compose 명령 확인
+# Docker Compose 명령어 호환성 확인
+# v1 (docker-compose) 또는 v2 (docker compose) 중 사용 가능한 명령어를 선택합니다.
 if command -v docker-compose >/dev/null 2>&1; then
     DOCKER_COMPOSE_CMD="docker-compose"
 elif docker compose version >/dev/null 2>&1; then

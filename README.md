@@ -102,6 +102,29 @@ cd {APP_NAME}
 sudo ./bin/install_service.sh
 ```
 
+### ☸️ Kubernetes 배포 (K8s)
+Docker 배포를 넘어, Kubernetes 환경을 위한 매니페스트(`yaml`)도 자동으로 생성해줍니다.
+
+**1. 빌드 (Development PC)**
+```bash
+# K8s 배포 패키지 생성 (Docker 빌드도 포함됨)
+./gradlew k8sBuild -Penv=prod
+```
+- **결과물**: `build/dist/{APP_NAME}-k8s-prod.zip`
+- **내용**: `deployment.yaml`, `service.yaml`, `configmap.yaml` (프로젝트 이름 자동 적용됨)
+
+**2. 배포 (K8s Cluster)**
+```bash
+# 압축 해제
+unzip {APP_NAME}-k8s-prod.zip -d k8s-deploy
+cd k8s-deploy/k8s
+
+# 클러스터에 적용
+kubectl apply -f configmap.yaml
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+```
+
 ---
 
 ## ✅ 배포 검증 (Verification)
@@ -188,3 +211,5 @@ graph TD
     style A fill:#E1BEE7,stroke:#4A148C,stroke-width:2px,color:#000
     style M fill:#C8E6C9,stroke:#2E7D32,stroke-width:2px,color:#000
 ```
+
+

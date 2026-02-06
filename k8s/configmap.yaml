@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: @appName@-config
+data:
+  # 애플리케이션 환경 변수 설정
+  # application.yml의 설정보다 우선순위가 높을 수 있습니다(설정 방식에 따라 다름)
+  LOG_PATH: "/app/log"
+  SPRING_PROFILES_ACTIVE: "prod"

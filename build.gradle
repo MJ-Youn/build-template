@@ -45,7 +45,6 @@ bootJar {
 }
 
 // 배포용 패키지 생성 태스크
-// 배포용 패키지 생성 태스크
 // 실행 가능한 JAR, 설정 파일(config), 시작/종료 스크립트(bin)를 묶어 zip 파일로 생성
 // 'package'는 예약어일 수 있으므로 따옴표로 감싸서 Task 이름으로 정의
 task 'package'(type: Zip) {
@@ -111,7 +110,7 @@ tasks.named('build') {
 task dockerBuild {
 	dependsOn 'package'
 	group = 'build'
-	description = 'Builds Docker image and creates a deployment zip with image tar, script, and compose file'
+	description = 'Docker 이미지를 빌드하고 배포용 스크립트와 함께 Zip으로 패키징합니다.'
 
 	doLast {
 		def distName = "${project.name}-${project.version}"
@@ -186,5 +185,32 @@ task dockerBuild {
 		ant.zip(destfile: "${buildDir}/dist/${dockerDistZipName}", basedir: dockerDistDir)
 		
 		println "=== Docker Deployment Pkg Created: ${buildDir}/dist/${dockerDistZipName} ==="
+	}
+}
+
+task k8sBuild(type: Zip) {
+	dependsOn dockerBuild
+	group = 'distribution'
+	description = 'Kubernetes 배포용 매니페스트(YAML) 패키지를 생성합니다.'
+
+	def distName = "${project.name}-k8s"
+	def envSuffix = ""
+	
+	if (project.hasProperty('env')) {
+		def env = project.property('env')
+		envSuffix = "-${env}"
+		println "Building K8s distribution for environment: $env"
+	}
+	
+	archiveFileName = "${distName}${envSuffix}.zip"
+	destinationDirectory = file("${buildDir}/dist")
+	
+	from('k8s') {
+		into 'k8s'
+		filter(ReplaceTokens, tokens: [appName: project.name])
+	}
+	
+	doLast {
+		println "=== K8s Deployment Pkg Created: ${destinationDirectory.get()}/${archiveFileName.get()} ==="
 	}
 }

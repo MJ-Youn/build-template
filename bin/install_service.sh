@@ -25,14 +25,15 @@ PREVIOUS_INSTALL_LOC=""
 if command -v systemctl >/dev/null 2>&1; then
     SERVICE_PATH=$(systemctl show -p FragmentPath "$APP_NAME.service" 2>/dev/null | cut -d= -f2)
     if [ -f "$SERVICE_PATH" ]; then
-        # ExecStart에서 경로 추출 (/path/to/bin/start.sh)
+        # ExecStart 라인에서 실제 실행 스크립트 경로 추출
         EXEC_START=$(grep "ExecStart=" "$SERVICE_PATH" | cut -d= -f2)
         if [ -n "$EXEC_START" ]; then
+             # .../bin/start.sh -> .../bin -> 부모 디렉토리
              PREVIOUS_INSTALL_LOC=$(dirname "$(dirname "$EXEC_START")")
         fi
     fi
 elif [ -f "/etc/init.d/$APP_NAME" ]; then
-     # init 스크립트에서 경로 추출 (단순 파싱 시도)
+     # init 스크립트에서 실행 경로 추출 시도
      EXEC_START=$(grep "su - $REAL_USER -c" "/etc/init.d/$APP_NAME" | head -n 1 | awk -F '"' '{print $2}')
       if [ -n "$EXEC_START" ]; then
              PREVIOUS_INSTALL_LOC=$(dirname "$(dirname "$EXEC_START")")
@@ -126,9 +127,10 @@ echo "파일 복사 중..."
 # 기존 파일 덮어쓰기
 cp -f "$PKG_ROOT/libs/"*.jar "$DEST_DIR/libs/"
 cp -f "$PKG_ROOT/bin/"*.sh "$DEST_DIR/bin/"
-# Config는 덮어쓰기 주의? 요구사항: "재배포" -> 보통 덮어쓰거나 유지. 
-# 여기서는 덮어쓰되 .bak을 만들거나 그냥 덮어씀. 
-# 사용자 요구사항에 명시되지 않았으므로 덮어쓰기로 진행 (배포 패키지의 설정이 우선)
+
+# 설정 파일(config) 복사
+# 배포 패키지에 포함된 설정 파일로 덮어씁니다.
+# (사용자별 커스텀 설정 보존이 필요하다면 별도 백업 로직이 필요할 수 있습니다)
 cp -rf "$PKG_ROOT/config/"* "$DEST_DIR/config/"
 
 # 만약 위에서 사용자 입력으로 LOG_PATH가 변경되었다면, 
