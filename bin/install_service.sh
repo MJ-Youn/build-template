@@ -67,7 +67,58 @@ echo "서비스 실행 유저: $REAL_USER"
 echo "디렉토리 생성 중..."
 mkdir -p "$DEST_DIR/bin"
 mkdir -p "$DEST_DIR/config"
-mkdir -p "$DEST_DIR/log"
+# 로그 경로 설정 로직
+# 1. properties 파일에서 확인
+LOG_PATH=""
+PROP_FILE="$PKG_ROOT/bin/.app-env.properties"
+
+if [ -f "$PROP_FILE" ]; then
+    # PROJECT_ROOT를 DEST_DIR로 치환하여 평가 필요
+    PROJECT_ROOT="$DEST_DIR"
+    # source로 변수 로드 (LOG_PATH)
+    source "$PROP_FILE"
+fi
+
+# 2. properties에 없으면 사용자 입력
+if [ -z "$LOG_PATH" ]; then
+    DEFAULT_LOG_PATH="$DEST_DIR/log"
+    echo "기본 로그 경로: $DEFAULT_LOG_PATH"
+    read -p "로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
+    LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
+    
+    # 입력받은 값을 properties 파일에 저장 (선택 사항)
+    # 여기서는 앱 구동 시 start.sh가 사용할 수 있도록 properties 파일을 수정하거나 생성해야 함.
+    # 하지만 PKG_ROOT의 bin은 이미 복사되었음 ($DEST_DIR/bin).
+    # 따라서 대상 디렉토리의 properties를 업데이트해야 함.
+    DEST_PROP_FILE="$DEST_DIR/bin/.app-env.properties"
+    
+    # 만약 properties 파일이 없으면 생성
+    if [ ! -f "$DEST_PROP_FILE" ]; then
+        mkdir -p "$(dirname "$DEST_PROP_FILE")"
+        echo "# Application Deployment Configuration" > "$DEST_PROP_FILE"
+    fi
+    
+    # LOG_PATH 추가 (기존 값 있으면 덮어쓰기는 복잡하므로, 일단 추가/수정 로직 간단히)
+    # sed로 LOG_PATH 라인이 있으면 변경, 없으면 추가
+    if grep -q "^LOG_PATH=" "$DEST_PROP_FILE"; then
+        # Mac/Linux 호환 sed (임시 파일 사용)
+        grep -v "^LOG_PATH=" "$DEST_PROP_FILE" > "$DEST_PROP_FILE.tmp"
+        echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP_FILE.tmp"
+        mv "$DEST_PROP_FILE.tmp" "$DEST_PROP_FILE"
+    else
+        echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP_FILE"
+    fi
+else
+    echo "설정 파일에 정의된 로그 경로를 사용합니다: $LOG_PATH"
+fi
+
+echo "로그 경로: $LOG_PATH"
+
+# 디렉토리 생성
+echo "디렉토리 생성 중..."
+mkdir -p "$DEST_DIR/bin"
+mkdir -p "$DEST_DIR/config"
+mkdir -p "$LOG_PATH"
 mkdir -p "$DEST_DIR/libs"
 
 # 파일 복사
@@ -80,8 +131,24 @@ cp -f "$PKG_ROOT/bin/"*.sh "$DEST_DIR/bin/"
 # 사용자 요구사항에 명시되지 않았으므로 덮어쓰기로 진행 (배포 패키지의 설정이 우선)
 cp -rf "$PKG_ROOT/config/"* "$DEST_DIR/config/"
 
+# 만약 위에서 사용자 입력으로 LOG_PATH가 변경되었다면, 
+# 복사된 bin/.app-env.properties는 원본(빌드 시점) 파일임.
+# 따라서 사용자 입력값으로 다시 갱신해줘야 함.
+if [ -n "$INPUT_LOG_PATH" ]; then
+    DEST_PROP_FILE="$DEST_DIR/bin/.app-env.properties"
+    if grep -q "^LOG_PATH=" "$DEST_PROP_FILE"; then
+        grep -v "^LOG_PATH=" "$DEST_PROP_FILE" > "$DEST_PROP_FILE.tmp"
+        echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP_FILE.tmp"
+        mv "$DEST_PROP_FILE.tmp" "$DEST_PROP_FILE"
+    else
+        echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP_FILE"
+    fi
+fi
+
 # 권한 설정
 chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR"
+# 로그 디렉토리가 DEST_DIR 외부에 있을 수 있으므로 별도 권한 설정
+chown -R $REAL_USER:$SERVICE_GROUP "$LOG_PATH"
 chmod +x "$DEST_DIR/bin/"*.sh
 
 # tail-log 스크립트 생성 및 설치 (인라인 생성)
@@ -98,7 +165,7 @@ TARGET_TAIL_SCRIPT="$USER_BIN/$TAIL_SCRIPT_NAME"
 echo "로그 확인 스크립트 생성 중: $TARGET_TAIL_SCRIPT"
 cat <<EOF > "$TARGET_TAIL_SCRIPT"
 #!/bin/bash
-LOG_FILE="$DEST_DIR/log/${APP_NAME}.log"
+LOG_FILE="$LOG_PATH/${APP_NAME}.log"
 if [ ! -f "\$LOG_FILE" ]; then
     echo "로그 파일을 찾을 수 없습니다: \$LOG_FILE"
     echo "서비스가 실행 중인지 확인해주세요."

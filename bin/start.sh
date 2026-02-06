@@ -10,9 +10,16 @@ APP_NAME="@appName@"
 # 기본 설정 파일 위치 (config 폴더)
 CONFIG_LOC="file:$PROJECT_ROOT/config/"
 
-# 로그 경로 설정 (기본값: bin 폴더의 상위 폴더의 log 폴더)
+# 환경 설정 파일 로드 (존재 시)
+# bin/.app-env.properties 위치 (스크립트와 동일 위치, 숨김 파일)
+ENV_FILE="$SCRIPT_DIR/.app-env.properties"
+if [ -f "$ENV_FILE" ]; then
+    source "$ENV_FILE"
+fi
+
+# 로그 경로 설정 (환경 변수 > 기본값)
 # install_service.sh에 의해 구축된 구조: ROOT/bin, ROOT/log, ROOT/config
-LOG_PATH="$PROJECT_ROOT/log"
+LOG_PATH="${LOG_PATH:-$PROJECT_ROOT/log}"
 
 # 로그 폴더가 없으면 생성 (권한 문제 없다고 가정)
 if [ ! -d "$LOG_PATH" ]; then

@@ -12,7 +12,7 @@ description = 'Demo project for Spring Boot'
 
 java {
 	toolchain {
-		languageVersion = JavaLanguageVersion.of(21)
+		languageVersion = JavaLanguageVersion.of(25)
 	}
 }
 
@@ -50,13 +50,14 @@ bootJar {
 // 'package'는 예약어일 수 있으므로 따옴표로 감싸서 Task 이름으로 정의
 task 'package'(type: Zip) {
 	dependsOn bootJar
+	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
 	def distName = "${project.name}-${project.version}"
 	def envSuffix = ""
 
-	// config 디렉토리 처리 (환경 파라미터 -Penv=dev/prod 에 따른 분기)
+	// 1. Environment Specific Files (Priority: High)
+	// 먼저 추가된 파일이 우선순위를 가짐 (EXCLUDE 전략)
 	if (project.hasProperty('env')) {
-		// 특정 환경이 지정된 경우 (예: ./gradlew zipDist -Penv=prod)
 		def env = project.property('env')
 		println "Building distribution for environment: $env"
 		envSuffix = "-${env}"
@@ -64,26 +65,39 @@ task 'package'(type: Zip) {
 		from("config/$env") {
 			into 'config'
 		}
+		
+		from("bin/$env") {
+			into 'bin'
+			filter(ReplaceTokens, tokens: [appName: project.name])
+		}
 	} else {
-		// 환경이 지정되지 않은 경우 (기존 동작)
-		println "Building distribution with full config structure (no environment specified)"
-		from('config') {
-			into 'config'
+		println "Building distribution without specific environment overlay"
+	}
+
+	// 2. Base Files (Priority: Low)
+	// 이미 추가된 파일(환경별 파일)이 있다면 이 파일들은 무시됨
+	from('config') {
+		into 'config'
+		// 환경별 폴더가 Zip 루트에 그대로 들어가는 것을 방지 (깔끔한 패키징)
+		exclude 'dev', 'prod', 'local', 'test', 'stage'
+		if (project.hasProperty('env')) {
+			exclude project.property('env')
 		}
 	}
 
-	// 생성될 zip 파일 이름 설정 (예: project-version-prod.dist.zip)
-	archiveFileName = "${distName}${envSuffix}.dist.zip"
-	// zip 파일이 생성될 경로 (build/dist)
-	destinationDirectory = file("${buildDir}/dist")
-
-	// bin 디렉토리 포함 (스크립트 파일)
 	from('bin') {
 		into 'bin'
 		filter(ReplaceTokens, tokens: [appName: project.name])
+		exclude 'dev', 'prod', 'local', 'test', 'stage'
+		if (project.hasProperty('env')) {
+			exclude project.property('env')
+		}
 	}
 
-	// bootJar 태스크로 생성된 jar 파일을 libs 폴더에 포함
+	archiveFileName = "${distName}${envSuffix}.dist.zip"
+	destinationDirectory = file("${buildDir}/dist")
+
+	// 3. Libs
 	from(bootJar.outputs.files) {
 		into 'libs'
 	}
@@ -92,4 +106,85 @@ task 'package'(type: Zip) {
 // 표준 'build' 태스크 실행 시 'package' 태스크도 함께 실행되도록 설정
 tasks.named('build') {
 	dependsOn 'package'
+}
+
+task dockerBuild {
+	dependsOn 'package'
+	group = 'build'
+	description = 'Builds Docker image and creates a deployment zip with image tar, script, and compose file'
+
+	doLast {
+		def distName = "${project.name}-${project.version}"
+		def envSuffix = project.hasProperty('env') ? "-${project.property('env')}" : ""
+		def distZipName = "${distName}${envSuffix}.dist.zip"
+		// 최종 생성될 Docker 배포용 Zip 이름 e.g., build_test-docker-prod.zip
+		def dockerDistZipName = "${project.name}-docker${envSuffix}.zip" 
+		
+		def dockerContext = file("${buildDir}/docker-build")
+		def dockerDistDir = file("${buildDir}/docker-dist") // Zip으로 압축할 파일들이 모이는 곳
+		def tagName = "${project.name}:latest"
+		def tarName = "${project.name}.tar"
+
+		println "=== Docker Deployment Build Start ==="
+		println "Target Distribution: $distZipName"
+		
+		// 1. Clean & Prepare
+		delete dockerContext
+		mkdir dockerContext
+		
+		delete dockerDistDir
+		mkdir dockerDistDir
+
+		// 2. Prepare Docker Build Context
+		// 기존 패키지 압축 해제 (libs, config 등 필요)
+		def distZipFile = file("${buildDir}/dist/${distZipName}")
+		if (!distZipFile.exists()) {
+			throw new GradleException("Distribution file not found: $distZipFile")
+		}
+
+		copy {
+			from zipTree(distZipFile)
+			into dockerContext
+		}
+
+		// Dockerfile 복사 (docker/Dockerfile -> build/docker-build/Dockerfile)
+		copy {
+			from file('docker/Dockerfile')
+			into dockerContext
+		}
+
+		// 3. Execute Docker Build
+		println "Executing docker build..."
+		def buildProc = ['docker', 'build', '-t', tagName, '.'].execute(null, dockerContext)
+		buildProc.waitForProcessOutput(System.out, System.err)
+		
+		if (buildProc.exitValue() != 0) {
+			throw new GradleException("Docker build failed")
+		}
+		
+		// 4. Export Docker Image (docker save)
+		println "Exporting docker image to ${dockerDistDir}/${tarName}..."
+		def saveProc = ['docker', 'save', '-o', "${dockerDistDir}/${tarName}", tagName].execute()
+		saveProc.waitForProcessOutput(System.out, System.err)
+
+		if (saveProc.exitValue() != 0) {
+			throw new GradleException("Docker save failed")
+		}
+
+		// 5. Copy Scripts and Compose File (to dist dir)
+		println "Copying deployment scripts..."
+		copy {
+			from 'docker'
+			include 'docker-compose.yml'
+			include 'install_docker_service.sh'
+			into dockerDistDir
+			filter(ReplaceTokens, tokens: [appName: project.name])
+		}
+		
+		// 6. Create Final Zip
+		println "Creating final zip: ${buildDir}/dist/${dockerDistZipName}"
+		ant.zip(destfile: "${buildDir}/dist/${dockerDistZipName}", basedir: dockerDistDir)
+		
+		println "=== Docker Deployment Pkg Created: ${buildDir}/dist/${dockerDistZipName} ==="
+	}
 }
