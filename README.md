@@ -27,19 +27,24 @@
 이 프로젝트를 Fork하거나 복사하여 새로운 서비스를 만들 때, 다음 4단계만 수정하면 됩니다.
 
 ### 1단계: 프로젝트 이름 설정 (필수!)
+
 가장 중요합니다. 이 이름이 `서비스명`, `로그파일명`, `Docker이미지명`이 됩니다.
 
 - **파일**: `settings.gradle`
+
 ```groovy
 rootProject.name = 'my-awesome-service' // 👈 여기에 원하는 이름 입력
 ```
 
 ### 2단계: 패키지 및 그룹명 변경
+
 - **파일**: `build.gradle`
+
 ```groovy
 group = 'com.mycompany.service' // 👈 팀/회사 도메인으로 변경
 version = '1.0.0'
 ```
+
 - **폴더 변경 (Package Structure)**:
   `group` 설정에 맞춰 소스 폴더를 변경합니다. 보통 `group` + `rootProject.name` 조합을 사용하지만, **반드시 프로젝트 이름과 같을 필요는 없습니다.**
     - **권장 (Standard)**: `src/main/java/{group}/{rootProject.name}`
@@ -48,53 +53,66 @@ version = '1.0.0'
         - 예: `src/main/java/com/mycompany/service`
 
 ### 3단계: 포트 및 기본 설정
+
 - **파일**: `config/application.yml`
+
 ```yaml
 server:
-  port: 8080 # 👈 충돌하지 않는 포트로 변경
+    port: 8080 # 👈 충돌하지 않는 포트로 변경
 spring:
-  application:
-    name: my-awesome-service # 👈 (선택 사항) Spring 내부 식별용 이름
+    application:
+        name: my-awesome-service # 👈 (선택 사항) Spring 내부 식별용 이름
 ```
+
 > 💡 **참고**: `spring.application.name`은 Spring Cloud나 로깅 등 내부 식별용이며, **빌드되는 파일명(`rootProject.name`)과는 달라도 상관없습니다.**
 
 ### 4단계: 비즈니스 로직 개발
+
 이제 `src/main/java`에 여러분만의 코드를 작성하세요!
 
 ---
 
 ## 📦 빌드 및 배포 (Build & Deploy)
 
-### 🅰️ Docker 배포 (추천)
+### 🐳 Docker 배포 (추천)
+
 서버에 Docker가 설치되어 있다면 가장 간편하고 깔끔한 방법입니다.
 
 **1. 빌드 (Development PC)**
+
 ```bash
 # 운영(prod) 환경 배포용 빌드
 ./gradlew dockerBuild -Penv=prod
 ```
+
 - **결과물**: `build/dist/{APP_NAME}-docker-prod.zip`
 - **내용**: `image.tar`, `docker-compose.yml`, `install_docker_service.sh`
 
 **2. 배포 (Server)**
+
 ```bash
 # 압축 해제 후 스크립트 실행
 unzip {APP_NAME}-docker-prod.zip -d deploy
 cd deploy
 sudo ./install_docker_service.sh
 ```
+
 - **자동 수행**: Docker 이미지 로드 -> 서비스 등록 -> 실행
 
-### 🅱️ 일반 서버 배포 (Legacy)
+### 🖥️ 일반 서버 배포 (Legacy)
+
 Docker 없이 Java만 설치된 서버에 직접 배포합니다.
 
 **1. 빌드 (Development PC)**
+
 ```bash
 ./gradlew package -Penv=prod
 ```
+
 - **결과물**: `build/dist/{APP_NAME}-{version}-prod.dist.zip`
 
 **2. 배포 (Server)**
+
 ```bash
 # 압축 해제 후 스크립트 실행
 unzip {APP_NAME}-*.dist.zip -d {APP_NAME}
@@ -103,17 +121,21 @@ sudo ./bin/install_service.sh
 ```
 
 ### ☸️ Kubernetes 배포 (K8s)
+
 Docker 배포를 넘어, Kubernetes 환경을 위한 매니페스트(`yaml`)도 자동으로 생성해줍니다.
 
 **1. 빌드 (Development PC)**
+
 ```bash
 # K8s 배포 패키지 생성 (Docker 빌드도 포함됨)
 ./gradlew k8sBuild -Penv=prod
 ```
+
 - **결과물**: `build/dist/{APP_NAME}-k8s-prod.zip`
 - **내용**: `deployment.yaml`, `service.yaml`, `configmap.yaml` (프로젝트 이름 자동 적용됨)
 
 **2. 배포 (K8s Cluster)**
+
 ```bash
 # 압축 해제
 unzip {APP_NAME}-k8s-prod.zip -d k8s-deploy
@@ -132,31 +154,34 @@ kubectl apply -f service.yaml
 배포가 정상적으로 완료되었는지 확인하는 3단계 루틴입니다.
 
 ### 1. 프로세스 및 포트 확인
+
 서비스가 실행 중이고 포트(8080)가 열려있는지 확인합니다.
 
 ```bash
-# 🅰️ Docker 배포 시
+# 🐳 Docker 배포 시
 docker ps | grep my-service
 
-# 🅱️ 일반 배포 시
+# 🖥️ 일반 배포 시
 ps -ef | grep java
 # 또는
 netstat -anlp | grep :8080
 ```
 
 ### 2. 로그 확인 (필수)
+
 애플리케이션이 에러 없이 부팅되었는지 로그를 확인하세요.
 `Started Application` 문구가 보이면 성공입니다.
 
 ```bash
-# 🅰️ Docker 배포 시
+# 🐳 Docker 배포 시
 docker logs -f my-service-app
 
-# 🅱️ 일반 배포 시 (편의 스크립트)
+# 🖥️ 일반 배포 시 (편의 스크립트)
 tail-log-my-service.sh
 ```
 
 ### 3. API 응답 확인 (e.g. Health Check)
+
 실제로 요청을 보내 응답이 오는지 테스트합니다.
 
 ```bash
@@ -174,12 +199,13 @@ curl -v http://localhost:8080/
 `bin`과 `config` 폴더는 **"덮어쓰기 전략"** 을 따릅니다.
 환경별로 다른 설정이 필요하면, `prod` 폴더를 만들고 파일을 넣으세요.
 
-| 경로 | 역할 | 우선순위 |
-|---|---|---|
+| 경로                           | 역할                              | 우선순위                            |
+| ------------------------------ | --------------------------------- | ----------------------------------- |
 | `bin/prod/.app-env.properties` | **운영 환경 전용** (로그 경로 등) | 🥇 1순위 (Zip에 이 파일이 덮어써짐) |
-| `bin/.app-env.properties` | **공통 기본값** | 🥈 2순위 |
+| `bin/.app-env.properties`      | **공통 기본값**                   | 🥈 2순위                            |
 
 **예시: 운영 서버 로그 경로 변경**
+
 1. `bin/prod/.app-env.properties` 생성
 2. 내용 작성: `LOG_PATH="/var/log/my-service"`
 3. `./gradlew package -Penv=prod` 실행 시 자동으로 적용됨.
@@ -194,13 +220,13 @@ flowchart TD
     Dev --> BuildSelect{"🛠️ 3. 빌드 방식 선택"}
 
     %% 서브그래프 정의 (노드만 포함)
-    subgraph Legacy ["🅰️ Legacy Path"]
+    subgraph Legacy ["🐳 Legacy Path"]
         direction TB
         LegacyBuild["☕ 4. Legacy 빌드<br/>(Jar + Scripts)"]
         LegacyBuild --> LegacyDeploy["⚙️ 5. 서비스 등록<br/>(Systemd/SysVinit)"]
     end
 
-    subgraph Docker ["🅱️ Docker Path"]
+    subgraph Docker ["🖥️ Docker Path"]
         direction TB
         DockerBuild["🐳 4. Docker 빌드<br/>(Image + Compose)"]
         DockerBuild --> DockerDeploy["🚢 5. Docker 배포<br/>(Compose Up)"]
@@ -239,4 +265,50 @@ flowchart TD
     class Monitor endNode;
 ```
 
+## 🧜‍♀️ 개발 시퀀스 (Sequence Diagram)
 
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as 🧑‍💻 개발자
+    participant Gradle as 🐘 Gradle (Build)
+    participant Server as 🖥️ 운영 서버
+    participant K8s as ☸️ K8s 클러스터
+
+    Dev->>Gradle: 1. 빌드 명령 실행 (./gradlew ...)
+    activate Gradle
+
+    alt 🐳 Legacy 배포 (package)
+        Gradle->>Gradle: Jar 빌드 + 스크립트 패키징
+        Gradle-->>Dev: {APP_NAME}.dist.zip 생성
+        deactivate Gradle
+        Dev->>Server: 2. Zip 파일 전송 & 압축 해제
+        activate Server
+        Dev->>Server: 3. install_service.sh 실행
+        Server->>Server: Systemd/SysVinit 서비스 등록
+        Server-->>Dev: 서비스 시작 완료
+        deactivate Server
+
+    else 🖥️ Docker 배포 (dockerBuild)
+        activate Gradle
+        Gradle->>Gradle: Docker 빌드 (Image) + 스크립트 패키징
+        Gradle-->>Dev: {APP_NAME}-docker.zip 생성
+        deactivate Gradle
+        Dev->>Server: 2. Zip 파일 전송 & 압축 해제
+        activate Server
+        Dev->>Server: 3. install_docker_service.sh 실행
+        Server->>Server: Docker Image 로드 & Compose Up
+        Server-->>Dev: 컨테이너 실행 완료
+        deactivate Server
+
+    else ☸️ K8s 배포 (k8sBuild)
+        activate Gradle
+        Gradle->>Gradle: K8s 매니페스트 생성 (YAML)
+        Gradle-->>Dev: {APP_NAME}-k8s.zip 생성
+        deactivate Gradle
+        Dev->>K8s: 2. kubectl apply -f ...
+        activate K8s
+        K8s-->>Dev: Pod/Service 배포 완료
+        deactivate K8s
+    end
+```
