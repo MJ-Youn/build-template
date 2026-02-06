@@ -185,6 +185,6 @@ graph TD
     I --> M[✅ Service Running];
     L --> M;
     
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style M fill:#9f9,stroke:#333,stroke-width:2px
+    style A fill:#E1BEE7,stroke:#4A148C,stroke-width:2px,color:#000
+    style M fill:#C8E6C9,stroke:#2E7D32,stroke-width:2px,color:#000
 ```
