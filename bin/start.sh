@@ -40,12 +40,15 @@ echo "설정 경로: $CONFIG_LOC"
 echo "로그 경로: $LOG_PATH"
 
 # 애플리케이션 실행
-# nohup을 사용하여 쉘이 닫혀도 실행이 유지되도록 함
-# 수동으로 실행할 경우 백그라운드에서 실행됨
-# -Dlog.path 옵션으로 로그 경로 전달
-# -Dapp.name 옵션으로 앱 이름 전달 (Log4j2 등에서 사용)
-nohup java -jar -Dspring.config.location="$CONFIG_LOC" -Dlog.path="$LOG_PATH" -Dapp.name="$APP_NAME" "$JAR_FILE" > /dev/null 2>&1 &
-
-PID=$!
-echo "애플리케이션이 시작되었습니다. PID: $PID"
-echo $PID > "$SCRIPT_DIR/application.pid"
+# Docker 환경에서는 exec를 사용하여 프로세스를 PID 1로 포그라운드 실행
+# (Docker 컨테이너가 즉시 종료되는 것을 방지하고 시그널 전달을 원활하게 함)
+if [ -f /.dockerenv ] || [ "$$" -eq 1 ]; then
+    echo "Docker 환경 감지: 포그라운드 모드로 실행합니다."
+    exec java -jar -Dspring.config.location="$CONFIG_LOC" -Dlog.path="$LOG_PATH" -Dapp.name="$APP_NAME" "$JAR_FILE"
+else
+    # 일반 환경: nohup을 사용하여 백그라운드에서 실행 유지
+    nohup java -jar -Dspring.config.location="$CONFIG_LOC" -Dlog.path="$LOG_PATH" -Dapp.name="$APP_NAME" "$JAR_FILE" > /dev/null 2>&1 &
+    PID=$!
+    echo "애플리케이션이 시작되었습니다. PID: $PID"
+    echo $PID > "$SCRIPT_DIR/application.pid"
+fi
