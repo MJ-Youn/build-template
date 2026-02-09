@@ -10,6 +10,8 @@ group = 'io.github.mjyoun'
 version = '0.0.1-SNAPSHOT'
 description = 'Demo project for Spring Boot'
 
+def environments = ['dev', 'prod', 'local', 'test', 'stage']
+
 java {
 	toolchain {
 		languageVersion = JavaLanguageVersion.of(25)
@@ -78,7 +80,7 @@ task 'package'(type: Zip) {
 	from('config') {
 		into 'config'
 		// 환경별 폴더가 Zip 루트에 그대로 들어가는 것을 방지 (깔끔한 패키징)
-		exclude 'dev', 'prod', 'local', 'test', 'stage'
+		exclude environments
 		if (project.hasProperty('env')) {
 			exclude project.property('env')
 		}
@@ -87,7 +89,7 @@ task 'package'(type: Zip) {
 	from('bin') {
 		into 'bin'
 		filter(ReplaceTokens, tokens: [appName: project.name])
-		exclude 'dev', 'prod', 'local', 'test', 'stage'
+		exclude environments
 		if (project.hasProperty('env')) {
 			exclude project.property('env')
 		}
