@@ -1,63 +1,40 @@
 #!/bin/bash
+# ==============================================================================
+# File: start.sh
+# Description: 서비스 시작 스크립트
+# Author: 윤명준 (MJ Yune)
+# Since: 2026-02-11
+# ==============================================================================
 
-# --- [Color & Style Definition] ---
-BOLD='\033[1m'
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-CYAN='\033[0;36m'
-NC='\033[0m'
-
-# --- [Logging Functions] ---
-log_header() {
-    echo -e "\n${BOLD}${BLUE}================================================================${NC}"
-    echo -e "${BOLD}${BLUE}🚀  $1 ${NC}"
-    echo -e "${BOLD}${BLUE}================================================================${NC}"
-}
-log_step() { echo -e "${BOLD}${CYAN}➡️  $1${NC}"; }
-log_info() { echo -e "   ℹ️  $1"; }
-log_success() { echo -e "${BOLD}${GREEN}✅  $1${NC}"; }
-log_warning() { echo -e "${BOLD}${YELLOW}⚠️  $1${NC}"; }
-log_error() { echo -e "${BOLD}${RED}❌  $1${NC}"; }
-
-# 스크립트가 위치한 디렉토리 찾기
+# --- [Script Init] ---
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
-PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
-# @appName@은 Gradle 빌드 시 실제 프로젝트 이름으로 치환됨
-APP_NAME="@appName@"
-
-# 기본 설정 파일 위치 (config 폴더)
-CONFIG_LOC="file:$PROJECT_ROOT/config/"
-
-# 환경 설정 파일 로드 (존재 시)
-# bin/.app-env.properties 위치 (스크립트와 동일 위치, 숨김 파일)
-# 설정 파일 로드
-log_step "환경 설정을 로드합니다..."
-if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
-    # PROJECT_ROOT를 스크립트 실행 시점의 상위 디렉토리로 설정
-    # (systemd 등에서 절대 경로로 실행 시 정확한 위치 파악 위함)
-    export PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-    source "$SCRIPT_DIR/.app-env.properties"
-    log_info "설정 파일 로드 완료: .app-env.properties"
+# utils.sh 로드
+UTILS_PATH="$SCRIPT_DIR/utils.sh"
+if [ -f "$UTILS_PATH" ]; then
+    source "$UTILS_PATH"
 else
-    log_info "설정 파일을 찾을 수 없습니다. 기본 설정을 사용합니다."
+    # utils.sh가 없으면 최소한의 로깅 함수 정의 (Fallback)
+    echo "Warning: utils.sh not found at $UTILS_PATH"
+    log_step() { echo "➡️  $1"; }
+    log_info() { echo "   ℹ️  $1"; }
+    log_success() { echo "✅  $1"; }
+    log_error() { echo "❌  $1"; }
 fi
 
-# 변수 내보내기 (자바 프로세스에서 사용 가능)
-export LOG_PATH="${LOG_PATH:-$PROJECT_ROOT/log}"
-export APP_NAME="${APP_NAME:-application}"
+# --- [Constants & Variables] ---
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+CONFIG_LOC="$PROJECT_ROOT/config/"
 
-log_info "어플리케이션 이름: $APP_NAME"
-log_info "로그 경로: $LOG_PATH"
-
-# 로그 폴더가 없으면 생성 (권한 문제 없다고 가정)
-if [ ! -d "$LOG_PATH" ]; then
-    mkdir -p "$LOG_PATH"
+# .app-env.properties 로드 (LOG_PATH 등)
+if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
+    source "$SCRIPT_DIR/.app-env.properties"
 fi
+LOG_PATH="${LOG_PATH:-$PROJECT_ROOT/log}"
 
-# 실행 가능한 JAR 파일 찾기
+# @var APP_NAME 애플리케이션 이름 (Gradle 빌드 시 치환)
+APP_NAME="@appName@"
+# @var JAR_FILE 실행할 JAR 파일 경로
 JAR_FILE=$(find "$PROJECT_ROOT/libs" -name "*.jar" | head -n 1)
 
 if [ -z "$JAR_FILE" ]; then
@@ -85,6 +62,7 @@ if [ -f "$APP_YML" ]; then
 fi
 
 # 공통 실행 옵션
+# 주의: spring.config.location이 디렉토리일 경우 끝에 /가 있어야 함
 JAVA_OPTS="-Dspring.config.location=$CONFIG_LOC -Dapp.name=$APP_NAME -Dlog.path=$LOG_PATH -Dlogging.config=$PROJECT_ROOT/config/log4j2.yml"
 
 # Docker 환경 감지 및 실행 분기

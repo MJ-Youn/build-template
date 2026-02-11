@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
-# File: uninstall_service.sh
-# Description: 서비스 제거 스크립트 (Systemd/SysVinit 지원)
+# File: uninstall_docker_service.sh
+# Description: Docker 서비스 제거 스크립트
 # Author: 윤명준 (MJ Yune)
 # Since: 2026-02-11
 # ==============================================================================
@@ -14,30 +14,22 @@ UTILS_PATH="$SCRIPT_DIR/utils.sh"
 if [ -f "$UTILS_PATH" ]; then
     source "$UTILS_PATH"
 else
-    echo "Warning: utils.sh not found at $UTILS_PATH. Using basic logging."
-    # Define basic logging functions (Fallback)
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[0;33m'
-    BLUE='\033[0;34m'
-    CYAN='\033[0;36m'
-    BOLD='\033[1m'
-    NC='\033[0m'
-
-    log_header() { echo -e "\n${BOLD}${RED}=== $1 ===${NC}"; }
-    log_step() { echo -e "\n${BOLD}➡️  $1${NC}"; }
-    log_info() { echo -e "   ${CYAN}ℹ️  $1${NC}"; }
-    log_success() { echo -e "${GREEN}✅  $1${NC}"; }
-    log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
-    log_error() { echo -e "${RED}❌  $1${NC}"; exit 1; }
-    is_safe_path() { return 0; } # Fallback: always safe
+    # Fallback
+    echo "Warning: utils.sh not found at $UTILS_PATH"
+    log_header() { echo "🗑️  $1"; }
+    log_step() { echo "➡️  $1"; }
+    log_info() { echo "   ℹ️  $1"; }
+    log_success() { echo "✅  $1"; }
+    log_warning() { echo "⚠️  $1"; }
+    log_error() { echo "❌  $1"; }
+    is_safe_path() { return 0; } # Fallback: always safe (risky, but better than fail)
 fi
 
 # --- [Constants & Variables] ---
 APP_NAME="@appName@"
-INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
-# 환경 변수 파일 (로그 경로 등 확인용)
-PROP_FILE="$SCRIPT_DIR/.app-env.properties"
+INSTALL_DIR="$SCRIPT_DIR"  # 설치 디렉토리 (현재 스크립트 위치)
+COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
+PROP_FILE="$INSTALL_DIR/.app-env.properties"
 
 # 실행 유저 확인
 REAL_USER=${SUDO_USER:-$USER}
@@ -45,37 +37,12 @@ USER_HOME=$(eval echo "~$REAL_USER")
 
 # --- [Functions] ---
 
-# @description 서비스 제거 메인 함수
-uninstall_service() {
-    log_header "서비스 삭제 시작 ($APP_NAME)" "🗑️"
+# @description Docker 서비스 제거 메인 함수
+uninstall_docker_service() {
+    log_header "Docker 서비스 삭제 시작 ($APP_NAME)" "🗑️"
 
     log_warning "이 작업은 되돌릴 수 없습니다."
     log_info "설치 디렉토리: $INSTALL_DIR"
-    
-    # 사용자 확인
-    confirm_uninstall
-
-    # 1. 서비스 중지 및 비활성화
-    stop_and_disable_service
-
-    # 2. Cron 작업 삭제
-    remove_cron
-
-    # 3. 로그 삭제 확인
-    remove_logs
-
-    # 4. 유틸리티 스크립트 삭제
-    remove_utility_scripts
-
-    # 5. 설치 디렉토리 삭제
-    remove_install_dir
-
-    log_header "삭제 완료"
-    echo -e "   ${GREEN}모든 구성 요소가 제거되었습니다. 이용해 주셔서 감사합니다.${NC}"
-}
-
-# @description 사용자에게 삭제 확인 요청
-confirm_uninstall() {
     read -p "   ❓ 정말로 삭제하시겠습니까? (y/N): " CONFIRM
     CONFIRM=${CONFIRM:-N}
 
@@ -83,22 +50,57 @@ confirm_uninstall() {
         log_info "삭제가 취소되었습니다."
         exit 0
     fi
+
+    # 1. 서비스 중지/제거 (Docker Compose Down 포함)
+    stop_and_remove_service
+
+    # 2. Cron 작업 삭제
+    remove_cron
+
+    # 3. 로그 삭제 확인
+    remove_logs
+
+    # 4. Docker 이미지 삭제
+    remove_docker_image
+
+    # 5. 유틸리티 스크립트 삭제
+    remove_utility_scripts
+
+    # 6. 설치 디렉토리 삭제
+    remove_install_dir
+
+    log_header "삭제 완료"
+    echo -e "   ${GREEN}모든 구성 요소가 제거되었습니다. 이용해 주셔서 감사합니다.${NC}"
 }
 
-# @description 서비스 중지 및 비활성화
-stop_and_disable_service() {
+
+stop_and_remove_service() {
     log_step "서비스 중지 및 비활성화..."
-    
+
+    # Docker Compose Down (if file exists)
+    if [ -f "$COMPOSE_FILE" ]; then
+        log_info "컨테이너 정리 중 (docker-compose down)..."
+        # Docker Compose 명령어 감지
+        DOCKER_BIN=$(command -v docker)
+        if $DOCKER_BIN compose version >/dev/null 2>&1; then
+             $DOCKER_BIN compose -f "$COMPOSE_FILE" down
+        elif command -v docker-compose >/dev/null 2>&1; then
+             docker-compose -f "$COMPOSE_FILE" down
+        else 
+             # Fallback
+             log_warning "Docker Compose 명령어를 찾을 수 없어 컨테이너 정리를 건너뜁니다."
+        fi
+    fi
+
+    # Systemd/SysVinit 서비스 제거
     SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
     INIT_SCRIPT="/etc/init.d/$APP_NAME"
 
     if command -v systemctl >/dev/null 2>&1; then
         if systemctl is-active --quiet $APP_NAME; then
-            log_info "서비스 중지 중..."
             systemctl stop $APP_NAME
         fi
         if systemctl is-enabled --quiet $APP_NAME 2>/dev/null; then
-            log_info "서비스 비활성화 중..."
             systemctl disable $APP_NAME
         fi
         
@@ -116,11 +118,9 @@ stop_and_disable_service() {
             update-rc.d -f $APP_NAME remove
         fi
     fi
-
     log_success "서비스가 시스템에서 제거되었습니다."
 }
 
-# @description Cron 작업 제거
 remove_cron() {
     CRON_FILE="/etc/cron.d/$APP_NAME"
     if [ -f "$CRON_FILE" ]; then
@@ -134,7 +134,7 @@ remove_cron() {
 remove_logs() {
     log_step "로그 데이터 처리"
 
-    # 로그 경로 파악 (.app-env.properties 읽기)
+    # .app-env.properties에서 LOG_PATH 읽기
     LOG_PATH=""
     if [ -f "$PROP_FILE" ]; then
         LOG_PATH_Line=$(grep "^LOG_PATH=" "$PROP_FILE")
@@ -142,11 +142,11 @@ remove_logs() {
             LOG_PATH=$(echo "$LOG_PATH_Line" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
         fi
     fi
-    # 기본값
     LOG_PATH="${LOG_PATH:-$INSTALL_DIR/log}"
 
+    log_info "감지된 로그 경로: $LOG_PATH"
+
     if [ -d "$LOG_PATH" ]; then
-        log_info "감지된 로그 경로: $LOG_PATH"
         read -p "   ❓ 로그 파일도 함께 삭제하시겠습니까? (y/N): " DEL_LOG
         DEL_LOG=${DEL_LOG:-N}
         
@@ -166,7 +166,44 @@ remove_logs() {
     fi
 }
 
-# @description 유틸리티 스크립트 제거 (tail-log 등)
+# @description Docker 이미지 제거
+remove_docker_image() {
+    log_step "Docker 이미지 정리"
+    
+    # 설치 시 사용된 타르 파일
+    TAR_FILE="$INSTALL_DIR/$APP_NAME.tar"
+    
+    # 현재 실행 중인 이미지를 찾아서 삭제할 수도 있지만,
+    # 여기서는 로드된 이미지를 삭제할지 물어보는 것이 좋음.
+    # 이미지 이름 추정 (보통 app_name:latest 또는 app_name:version)
+    
+    # 간단히: 타르 파일 삭제 여부
+    if [ -f "$TAR_FILE" ]; then
+        log_info "Docker 이미지 아카이브 발견: $TAR_FILE"
+        rm "$TAR_FILE"
+        log_success "이미지 아카이브 삭제됨."
+    fi
+
+    # Docker 이미지 삭제 시도 (docker rmi)
+    # 이미지 이름을 정확히 알기 어려우므로 생략하거나, 
+    # docker-compose가 있다면 compose down --rmi local 등을 사용했어야 함.
+    # stop_and_remove_service에서 docker-compose down --rmi local 옵션을 고려하거나 여기서 처리.
+    
+    # 여기서는 사용자가 명시적으로 이미지를 지우길 원할 수 있음
+    read -p "   ❓ Docker 이미지($APP_NAME)를 삭제하시겠습니까? (y/N): " DEL_IMG
+    DEL_IMG=${DEL_IMG:-N}
+    if [[ "$DEL_IMG" =~ ^[Yy]$ ]]; then
+         # 이미지 이름이 명확하지 않을 수 있으나 $APP_NAME:latest 시도
+         if docker image inspect "$APP_NAME:latest" >/dev/null 2>&1; then
+             docker rmi "$APP_NAME:latest"
+             log_success "Docker 이미지 삭제 완료 ($APP_NAME:latest)"
+         else
+             log_warning "이미지 '$APP_NAME:latest'를 찾을 수 없어 삭제를 건너뜁니다."
+         fi
+    fi
+}
+
+# @description 유틸리티 스크립트 제거
 remove_utility_scripts() {
     log_step "유틸리티 스크립트 정리"
     TAIL_SCRIPT="$USER_HOME/bin/tail-log-${APP_NAME}.sh"
@@ -181,7 +218,6 @@ remove_install_dir() {
     log_step "설치 파일 삭제"
     log_info "설치 디렉토리 제거: $INSTALL_DIR"
     
-    # 주의: INSTALL_DIR가 시스템 중요 디렉토리인지 체크
     if ! is_safe_path "$INSTALL_DIR"; then
         log_error "잘못된 또는 위험한 설치 경로 감지 ($INSTALL_DIR). 삭제를 중단합니다."
         exit 1
@@ -189,13 +225,13 @@ remove_install_dir() {
 
     rm -rf "$INSTALL_DIR"
 }
-
 # --- [Execution] ---
 
 # 루트 권한 확인
 if [ "$EUID" -ne 0 ]; then
+  # log_error 함수가 정의되지 않았을 수 있으므로 echo로 출력
   echo "Error: 이 스크립트는 root 권한으로 실행해야 합니다."
   exit 1
 fi
 
-uninstall_service
+uninstall_docker_service

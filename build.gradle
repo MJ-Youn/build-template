@@ -209,6 +209,16 @@ task dockerBuild {
 				filter(ReplaceTokens, tokens: [appName: project.name])
 			}
 		}
+
+		// uninstall_docker_service.sh 복사 (토큰 치환 포함)
+		def uninstallScript = file('docker/uninstall_docker_service.sh')
+		if (uninstallScript.exists()) {
+			copy {
+				from uninstallScript
+				into dockerDistDir
+				filter(ReplaceTokens, tokens: [appName: project.name])
+			}
+		}
 		
 		// .app-env.properties 복사 (환경별 덮어쓰기 전략 적용)
 		def envPropsFile = file("bin/${env}/.app-env.properties")
@@ -221,6 +231,15 @@ task dockerBuild {
 				from propsFile
 				into dockerDistDir
 				rename { '.app-env.properties' }
+			}
+		}
+
+		// utils.sh 복사 (Docker 스크립트에서도 사용)
+		def utilsFile = file('bin/utils.sh')
+		if (utilsFile.exists()) {
+			copy {
+				from utilsFile
+				into dockerDistDir
 			}
 		}
 

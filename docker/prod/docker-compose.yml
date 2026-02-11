@@ -3,12 +3,12 @@ services:
     image: @appName@:latest
     container_name: @appName@-app
     ports:
-      - "8080:8080"
+      - "8080:19999" # host port:service port
     volumes:
-      - @LOG_PATH@:/app/logs
+      - @LOG_PATH@:/log # container path : host path
     environment:
       - SPRING_PROFILES_ACTIVE=prod
-      - LOG_PATH=/app/logs
+      - LOG_PATH=@LOG_PATH@ # container 안에서 service가 log 파일을 저장할 경로
       - APP_NAME=@appName@
     restart: unless-stopped
     # 운영 환경에서는 리소스 제한 설정 권장
