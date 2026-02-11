@@ -149,14 +149,19 @@ task dockerBuild {
 		}
 
 		// Dockerfile 복사 (docker/Dockerfile -> build/docker-build/Dockerfile)
+		def dockerfilePath = file('docker/Dockerfile')
+		if (!dockerfilePath.exists()) {
+			throw new GradleException("Dockerfile not found: $dockerfilePath")
+		}
 		copy {
-			from file('docker/Dockerfile')
+			from dockerfilePath
 			into dockerContext
 		}
 
 		// 3. Execute Docker Build
 		println "Executing docker build..."
-		def buildProc = ['docker', 'build', '-t', tagName, '.'].execute(null, dockerContext)
+		// 2026-02-11: 리눅스 배포를 위해 amd64 플랫폼 명시
+		def buildProc = ['docker', 'build', '--platform', 'linux/amd64', '-t', tagName, '.'].execute(null, dockerContext)
 		buildProc.waitForProcessOutput(System.out, System.err)
 		
 		if (buildProc.exitValue() != 0) {
@@ -171,15 +176,61 @@ task dockerBuild {
 		if (saveProc.exitValue() != 0) {
 			throw new GradleException("Docker save failed")
 		}
-
+		
 		// 5. Copy Scripts and Compose File (to dist dir)
-		println "Copying deployment scripts..."
+		println "Copying deployment scripts and compose file..."
+		
+		// 환경별 docker-compose.yml 선택
+		def env = project.hasProperty('env') ? project.property('env') : 'dev'
+		def envComposeFile = file("docker/${env}/docker-compose.yml")
+		def baseComposeFile = file("docker/docker-compose.yml")
+		
+		def composeFile = envComposeFile.exists() ? envComposeFile : baseComposeFile
+		
+		if (!composeFile.exists()) {
+			throw new GradleException("docker-compose.yml not found for environment: $env. Checked paths: $envComposeFile, $baseComposeFile")
+		}
+		
+		println "Using docker-compose: ${composeFile.absolutePath}"
+		
 		copy {
-			from 'docker'
-			include 'docker-compose.yml'
-			include 'install_docker_service.sh'
+			from composeFile
 			into dockerDistDir
+			rename { 'docker-compose.yml' }
 			filter(ReplaceTokens, tokens: [appName: project.name])
+		}
+		
+		// install_docker_service.sh 복사 (토큰 치환 포함)
+		def installScript = file('docker/install_docker_service.sh')
+		if (installScript.exists()) {
+			copy {
+				from installScript
+				into dockerDistDir
+				filter(ReplaceTokens, tokens: [appName: project.name])
+			}
+		}
+		
+		// .app-env.properties 복사 (환경별 덮어쓰기 전략 적용)
+		def envPropsFile = file("bin/${env}/.app-env.properties")
+		def basePropsFile = file("bin/.app-env.properties")
+		
+		def propsFile = envPropsFile.exists() ? envPropsFile : basePropsFile
+		
+		if (propsFile.exists()) {
+			copy {
+				from propsFile
+				into dockerDistDir
+				rename { '.app-env.properties' }
+			}
+		}
+
+		// cron 디렉토리 복사 (install_docker_service.sh에서 사용)
+		def cronDir = file('bin/cron')
+		if (cronDir.exists()) {
+			copy {
+				from cronDir
+				into "${dockerDistDir}/cron"
+			}
 		}
 		
 		// 6. Create Final Zip

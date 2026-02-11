@@ -217,52 +217,95 @@ curl -v http://localhost:8080/
 ```mermaid
 flowchart TD
     Start["🚀 1. 프로젝트 생성"] --> Dev["💻 2. 개발 및 커스터마이징"]
-    Dev --> BuildSelect{"🛠️ 3. 빌드 방식 선택"}
+    Dev --> BuildSelect{"🛠️ 3. 빌드/배포 방식 선택"}
 
-    %% 서브그래프 정의 (노드만 포함)
-    subgraph Legacy ["🐳 Legacy Path"]
+    %% 서브그래프: Legacy
+    subgraph Legacy ["🐳 Legacy Path (Jar)"]
         direction TB
-        LegacyBuild["☕ 4. Legacy 빌드<br/>(Jar + Scripts)"]
-        LegacyBuild --> LegacyDeploy["⚙️ 5. 서비스 등록<br/>(Systemd/SysVinit)"]
+        LegacyBuild["☕ Gradle 패키징<br/>(Jar + Scripts)"]
+        LegacyBuild --> LegacyTrans["📂 파일 전송/압축해제"]
+        LegacyTrans --> LegacyDeploy["⚙️ 서비스 등록/실행<br/>(Systemd/SysVinit)"]
     end
 
+    %% 서브그래프: Docker Strategies
     subgraph Docker ["🖥️ Docker Path"]
         direction TB
-        DockerBuild["🐳 4. Docker 빌드<br/>(Image + Compose)"]
-        DockerBuild --> DockerDeploy["🚢 5. Docker 배포<br/>(Compose Up)"]
+        DockerDecide{"전략 선택"}
+        
+        %% Strategy 1: Local Image
+        subgraph DockerOpt1 ["① 로컬 빌드 + 전송"]
+            D1_Build["🔨 로컬 빌드<br/>(dockerBuild task)"]
+            D1_Save["💾 Docker Image Save<br/>(.tar 파일)"]
+            D1_Trans["📂 파일 전송<br/>(Local -> Server)"]
+            D1_Load["📦 Image Load<br/>(docker load)"]
+            
+            D1_Build --> D1_Save --> D1_Trans --> D1_Load
+        end
+
+        %% Strategy 2: Source Transfer
+        subgraph DockerOpt2 ["② 소스 전송 + 서버 빌드"]
+            D2_Trans["📂 소스/Dockerfile 전송"]
+            D2_Build["🔨 서버 빌드<br/>(docker build)"]
+            
+            D2_Trans --> D2_Build
+        end
+
+        %% Strategy 3: Repository
+        subgraph DockerOpt3 ["③ Repository (Hub/Private)"]
+            D3_Build["🔨 로컬 빌드"]
+            D3_Push["☁️ Push to Registry<br/>(on Local PC)"]
+            D3_Pull["⬇️ Pull form Registry<br/>(on Server)"]
+            
+            D3_Build --> D3_Push --> D3_Pull
+        end
+
+        DockerDecide --> DockerOpt1
+        DockerDecide --> DockerOpt2
+        DockerDecide --> DockerOpt3
+        
+        D1_Load --> DockerService["⚙️ 서비스 등록/실행<br/>(Systemd/SysVinit)"]
+        D2_Build --> DockerService
+        D3_Pull --> DockerService
     end
 
+    %% 서브그래프: K8s
     subgraph K8s ["☸️ Kubernetes Path"]
         direction TB
-        K8sBuild["☸️ 4. K8s 빌드<br/>(Manifests)"]
-        K8sBuild --> K8sDeploy["☁️ 5. K8s 배포<br/>(Kubectl Apply)"]
+        K8sBuild["☸️ K8s 빌드<br/>(Manifests)"]
+        K8sBuild --> K8sDeploy["☁️ K8s 배포<br/>(Kubectl Apply)"]
     end
 
-    %% 서브그래프 진입/진출 연결 (외부에서 정의)
+    %% 메인 연결
     BuildSelect -->|Legacy| LegacyBuild
-    BuildSelect -->|Docker| DockerBuild
+    BuildSelect -->|Docker| DockerDecide
     BuildSelect -->|K8s| K8sBuild
 
-    LegacyDeploy --> Monitor["📈 6. 통합 모니터링"]
-    DockerDeploy --> Monitor
+    LegacyDeploy --> Monitor["📈 통합 모니터링"]
+    DockerService --> Monitor
     K8sDeploy --> Monitor
 
     %% 스타일 정의
     classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
     classDef start fill:#E1F5FE,stroke:#01579B,stroke-width:2px,color:#000;
-    classDef process fill:#FFF3E0,stroke:#E65100,stroke-width:2px,color:#000;
-    classDef decision fill:#F3E5F5,stroke:#4A148C,stroke-width:2px,color:#000;
+    classDef decision fill:#F3E5F5,stroke:#4A148C,stroke-width:2px,color:#000,stroke-dasharray: 5 5;
     classDef legacy fill:#FFEBEE,stroke:#B71C1C,stroke-width:2px,color:#000;
     classDef docker fill:#E3F2FD,stroke:#0D47A1,stroke-width:2px,color:#000;
+    classDef docker_node fill:#BBDEFB,stroke:#1976D2,stroke-width:1px,color:#000;
+    classDef docker_service fill:#90CAF9,stroke:#0D47A1,stroke-width:2px,color:#000;
     classDef k8s fill:#E8EAF6,stroke:#1A237E,stroke-width:2px,color:#000;
     classDef endNode fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#000;
 
     class Start,Dev start;
-    class BuildSelect decision;
-    class LegacyBuild,LegacyDeploy legacy;
-    class DockerBuild,DockerDeploy docker;
+    class BuildSelect,DockerDecide decision;
+    class LegacyBuild,LegacyTrans,LegacyDeploy legacy;
     class K8sBuild,K8sDeploy k8s;
     class Monitor endNode;
+    
+    %% Docker Nodes Styling
+    class D1_Build,D1_Save,D1_Trans,D1_Load docker_node;
+    class D2_Trans,D2_Build docker_node;
+    class D3_Build,D3_Push,D3_Pull docker_node;
+    class DockerService docker_service;
 ```
 
 ## 🧜‍♀️ 개발 시퀀스 (Sequence Diagram)

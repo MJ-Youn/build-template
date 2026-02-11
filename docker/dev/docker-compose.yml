@@ -1,0 +1,13 @@
+services:
+  @appName@-app:
+    image: @appName@:latest
+    container_name: @appName@-app
+    ports:
+      - "8080:8080"
+    volumes:
+      - @LOG_PATH@:/app/logs
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - LOG_PATH=/app/logs
+      - APP_NAME=@appName@
+    restart: unless-stopped

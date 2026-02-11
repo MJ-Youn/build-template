@@ -85,7 +85,7 @@ if [ -f "$APP_YML" ]; then
 fi
 
 # 공통 실행 옵션
-JAVA_OPTS="-Dspring.config.location=\"$CONFIG_LOC\" -Dapp.name=\"$APP_NAME\" -Dlog.path=\"$LOG_PATH\" -Dlogging.config=\"$PROJECT_ROOT/config/log4j2.yml\""
+JAVA_OPTS="-Dspring.config.location=$CONFIG_LOC -Dapp.name=$APP_NAME -Dlog.path=$LOG_PATH -Dlogging.config=$PROJECT_ROOT/config/log4j2.yml"
 
 # Docker 환경 감지 및 실행 분기
 if [ -f /.dockerenv ] || [ "$$" -eq 1 ]; then

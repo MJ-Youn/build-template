@@ -1,6 +1,9 @@
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:25-jdk-alpine
 
 WORKDIR /app
+
+# Alpine 이미지는 기본적으로 bash가 없으므로 설치
+RUN apk add --no-cache bash
 
 # 배포 패키지 내용 복사
 # libs, config, bin 폴더가 빌드 컨텍스트 루트에 있다고 가정
@@ -20,4 +23,4 @@ EXPOSE 8080
 ENV CONFIG_LOCATION=file:/app/config/
 
 # 애플리케이션 실행
-CMD ["/app/bin/start.sh"]
+CMD ["./bin/start.sh"]
