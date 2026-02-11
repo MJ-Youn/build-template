@@ -12,6 +12,10 @@ PKG_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # @appName@은 Gradle 빌드 시 실제 프로젝트 이름으로 치환됨
 APP_NAME="@appName@"
+
+# 기본 설치 위치 정의 (환경 변수 INSTALL_DIR 또는 첫 번째 인자로 재정의 가능)
+DEFAULT_INSTALL_DIR="${1:-${INSTALL_DIR:-/opt/$APP_NAME}}"
+
 SERVICE_NAME="${APP_NAME}-docker"
 
 # 실행 유저 확인 (sudo로 실행 시 실제 유저)
@@ -31,7 +35,7 @@ if [ ! -f "$COMPOSE_FILE" ]; then
     exit 1
 fi
 
-DEST_DIR="/opt/$APP_NAME"
+DEST_DIR="$DEFAULT_INSTALL_DIR"
 echo "설치 위치: $DEST_DIR"
 
 if [ ! -d "$DEST_DIR" ]; then
