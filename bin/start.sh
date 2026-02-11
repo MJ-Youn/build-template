@@ -1,5 +1,26 @@
 #!/bin/bash
 
+# --- [Color & Style Definition] ---
+BOLD='\033[1m'
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# --- [Logging Functions] ---
+log_header() {
+    echo -e "\n${BOLD}${BLUE}================================================================${NC}"
+    echo -e "${BOLD}${BLUE}🚀  $1 ${NC}"
+    echo -e "${BOLD}${BLUE}================================================================${NC}"
+}
+log_step() { echo -e "${BOLD}${CYAN}➡️  $1${NC}"; }
+log_info() { echo -e "   ℹ️  $1"; }
+log_success() { echo -e "${BOLD}${GREEN}✅  $1${NC}"; }
+log_warning() { echo -e "${BOLD}${YELLOW}⚠️  $1${NC}"; }
+log_error() { echo -e "${BOLD}${RED}❌  $1${NC}"; }
+
 # 스크립트가 위치한 디렉토리 찾기
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -12,14 +33,24 @@ CONFIG_LOC="file:$PROJECT_ROOT/config/"
 
 # 환경 설정 파일 로드 (존재 시)
 # bin/.app-env.properties 위치 (스크립트와 동일 위치, 숨김 파일)
-ENV_FILE="$SCRIPT_DIR/.app-env.properties"
-if [ -f "$ENV_FILE" ]; then
-    source "$ENV_FILE"
+# 설정 파일 로드
+log_step "환경 설정을 로드합니다..."
+if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
+    # PROJECT_ROOT를 스크립트 실행 시점의 상위 디렉토리로 설정
+    # (systemd 등에서 절대 경로로 실행 시 정확한 위치 파악 위함)
+    export PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+    source "$SCRIPT_DIR/.app-env.properties"
+    log_info "설정 파일 로드 완료: .app-env.properties"
+else
+    log_info "설정 파일을 찾을 수 없습니다. 기본 설정을 사용합니다."
 fi
 
-# 로그 경로 설정 (환경 변수 > 기본값)
-# install_service.sh에 의해 구축된 구조: ROOT/bin, ROOT/log, ROOT/config
-LOG_PATH="${LOG_PATH:-$PROJECT_ROOT/log}"
+# 변수 내보내기 (자바 프로세스에서 사용 가능)
+export LOG_PATH="${LOG_PATH:-$PROJECT_ROOT/log}"
+export APP_NAME="${APP_NAME:-application}"
+
+log_info "어플리케이션 이름: $APP_NAME"
+log_info "로그 경로: $LOG_PATH"
 
 # 로그 폴더가 없으면 생성 (권한 문제 없다고 가정)
 if [ ! -d "$LOG_PATH" ]; then
@@ -34,18 +65,46 @@ if [ -z "$JAR_FILE" ]; then
   exit 1
 fi
 
-echo "애플리케이션 시작 중 ($APP_NAME)..."
-echo "JAR 파일: $JAR_FILE"
-echo "설정 경로: $CONFIG_LOC"
-echo "로그 경로: $LOG_PATH"
+log_step "애플리케이션을 시작합니다..."
+log_info "JAR 파일: $JAR_FILE"
+log_info "설정 경로: $CONFIG_LOC"
+log_info "로그 경로: $LOG_PATH"
 
 # 애플리케이션 실행
-# nohup을 사용하여 쉘이 닫혀도 실행이 유지되도록 함
-# 수동으로 실행할 경우 백그라운드에서 실행됨
-# -Dlog.path 옵션으로 로그 경로 전달
-# -Dapp.name 옵션으로 앱 이름 전달 (Log4j2 등에서 사용)
-nohup java -jar -Dspring.config.location="$CONFIG_LOC" -Dlog.path="$LOG_PATH" -Dapp.name="$APP_NAME" "$JAR_FILE" > /dev/null 2>&1 &
+log_step "애플리케이션을 시작합니다..."
+
+# 포트 정보 파싱 (application.yml)
+SERVER_PORT="8080" # 기본값
+APP_YML="$PROJECT_ROOT/config/application.yml"
+if [ -f "$APP_YML" ]; then
+   # 간단한 파싱: "port: 1234" 형태 검색
+   DETECTED_PORT=$(grep -E "^\s*port:\s*[0-9]+" "$APP_YML" | awk '{print $2}')
+   if [ -n "$DETECTED_PORT" ]; then
+       SERVER_PORT="$DETECTED_PORT"
+   fi
+fi
+
+# 실행 명령어 변수화
+JAVA_CMD="nohup java -jar -Dspring.config.location=\"$CONFIG_LOC\" -Dapp.name=\"$APP_NAME\" -Dlog.path=\"$LOG_PATH\" -Dlogging.config=\"$PROJECT_ROOT/config/log4j2.yml\" \"$JAR_FILE\""
+
+# 실제 실행
+eval "$JAVA_CMD > /dev/null 2>&1 &"
 
 PID=$!
-echo "애플리케이션이 시작되었습니다. PID: $PID"
 echo $PID > "$SCRIPT_DIR/application.pid"
+
+log_success "애플리케이션이 시작되었습니다."
+
+# 실행 정보 출력
+echo -e "${BOLD}${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
+echo -e "${BOLD}${BLUE}║                  🚀 EXECUTION SUMMARY                          ║${NC}"
+echo -e "${BOLD}${BLUE}╠════════════════════════════════════════════════════════════════╣${NC}"
+echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}PID${NC}     : ${GREEN}$PID${NC}"
+echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}PORT${NC}    : ${GREEN}$SERVER_PORT${NC} (Configured)"
+echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}APP${NC}     : ${CYAN}$APP_NAME${NC}"
+echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}LOG${NC}     : ${YELLOW}$LOG_PATH/${APP_NAME}.log${NC}"
+echo -e "${BOLD}${BLUE}╠════════════════════════════════════════════════════════════════╣${NC}"
+echo -e "${BOLD}${BLUE}║${NC} 📋 ${BOLD}COMMAND${NC} :${NC}"
+echo -e "${BOLD}${BLUE}║${NC} $JAVA_CMD"
+echo -e "${BOLD}${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
+
