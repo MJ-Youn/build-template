@@ -83,6 +83,14 @@ fi
 
 log_success "서비스가 시스템에서 제거되었습니다."
 
+# 1.5 Cron 작업 삭제
+CRON_FILE="/etc/cron.d/$APP_NAME"
+if [ -f "$CRON_FILE" ]; then
+    log_info "Cron 작업 삭제: $CRON_FILE"
+    rm "$CRON_FILE"
+    log_success "Cron 작업이 제거되었습니다."
+fi
+
 # 2. 로그 삭제 확인
 # 로그 경로 파악 (.app-env.properties 읽기)
 LOG_PATH=""

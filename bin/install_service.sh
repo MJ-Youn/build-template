@@ -7,7 +7,7 @@ GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 # --- [Logging Functions] ---
 log_header() {
@@ -15,12 +15,11 @@ log_header() {
     echo -e "${BOLD}${BLUE}🚀  $1 ${NC}"
     echo -e "${BOLD}${BLUE}================================================================${NC}"
 }
-
-log_step() { echo -e "${BOLD}${CYAN}➡️  $1${NC}" }
-log_info() { echo -e "   ℹ️  $1" }
-log_success() { echo -e "${BOLD}${GREEN}✅  $1${NC}" }
-log_warning() { echo -e "${BOLD}${YELLOW}⚠️  $1${NC}" }
-log_error() { echo -e "${BOLD}${RED}❌  $1${NC}" }
+log_step() { echo -e "${BOLD}${CYAN}➡️  $1${NC}"; }
+log_info() { echo -e "   ℹ️  $1"; }
+log_success() { echo -e "${BOLD}${GREEN}✅  $1${NC}"; }
+log_warning() { echo -e "${BOLD}${YELLOW}⚠️  $1${NC}"; }
+log_error() { echo -e "${BOLD}${RED}❌  $1${NC}"; }
 
 # --- [Script Start] ---
 
@@ -260,6 +259,30 @@ EOF
         log_success "서비스가 시작되었습니다."
     fi
 
+    # Cron 작업 등록
+    log_step "Cron 작업 등록..."
+    SRC_CRON_FILE="$PKG_ROOT/bin/cron/crond"
+    TARGET_CRON_FILE="/etc/cron.d/$APP_NAME"
+    
+    if [ -d "/etc/cron.d" ] && [ -f "$SRC_CRON_FILE" ]; then
+        # 템플릿 파일 복사 및 변수 치환 (@REAL_USER@, @LOG_PATH@, @APP_NAME@)
+        sed -e "s|@REAL_USER@|$REAL_USER|g" \
+            -e "s|@LOG_PATH@|$LOG_PATH|g" \
+            -e "s|@APP_NAME@|$APP_NAME|g" \
+            "$SRC_CRON_FILE" > "$TARGET_CRON_FILE"
+            
+        chmod 644 "$TARGET_CRON_FILE"
+        log_success "Cron 작업이 등록되었습니다: $TARGET_CRON_FILE"
+    else
+        if [ ! -d "/etc/cron.d" ]; then
+            log_warning "/etc/cron.d 디렉토리가 존재하지 않습니다."
+        fi
+        if [ ! -f "$SRC_CRON_FILE" ]; then
+             log_warning "Cron 설정 템플릿을 찾을 수 없습니다: $SRC_CRON_FILE"
+        fi
+        log_warning "Cron 등록을 건너뜁니다."
+    fi
+
     # 서비스 상태 확인 및 정보 출력
     sleep 2 # 서비스 구동 대기
     CURRENT_PID=$(systemctl show --property MainPID --value $APP_NAME)
@@ -278,6 +301,7 @@ EOF
     if [ "$DETECTED_PORT" == "Unknown" ] || [ -z "$DETECTED_PORT" ]; then
         APP_YML="$DEST_DIR/config/application.yml"
         if [ -f "$APP_YML" ]; then
+             # 간단한 파싱: "port: 1234" 형태 검색
             PARSED_PORT=$(grep -E "^\s*port:\s*[0-9]+" "$APP_YML" | awk '{print $2}')
             if [ -n "$PARSED_PORT" ]; then
                 DETECTED_PORT="$PARSED_PORT (Configured)"
@@ -338,3 +362,4 @@ EOF
 fi
 
 log_header "설치 완료"
+
