@@ -84,27 +84,45 @@ if [ -f "$APP_YML" ]; then
    fi
 fi
 
-# 실행 명령어 변수화
-JAVA_CMD="nohup java -jar -Dspring.config.location=\"$CONFIG_LOC\" -Dapp.name=\"$APP_NAME\" -Dlog.path=\"$LOG_PATH\" -Dlogging.config=\"$PROJECT_ROOT/config/log4j2.yml\" \"$JAR_FILE\""
+# 공통 실행 옵션
+JAVA_OPTS="-Dspring.config.location=\"$CONFIG_LOC\" -Dapp.name=\"$APP_NAME\" -Dlog.path=\"$LOG_PATH\" -Dlogging.config=\"$PROJECT_ROOT/config/log4j2.yml\""
 
-# 실제 실행
-eval "$JAVA_CMD > /dev/null 2>&1 &"
+# Docker 환경 감지 및 실행 분기
+if [ -f /.dockerenv ] || [ "$$" -eq 1 ]; then
+    log_info "Docker 환경 감지: 포그라운드 모드로 실행합니다."
+    
+    # 실행 정보 출력 (Docker)
+    echo -e "${BOLD}${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${BLUE}║                  🚀 DOCKER EXECUTION SUMMARY                   ║${NC}"
+    echo -e "${BOLD}${BLUE}╠════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}MODE${NC}    : ${CYAN}FOREGROUND (exec)${NC}"
+    echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}APP${NC}     : ${CYAN}$APP_NAME${NC}"
+    echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}PORT${NC}    : ${GREEN}$SERVER_PORT${NC} (Configured)"
+    echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}LOG${NC}     : ${YELLOW}$LOG_PATH/${APP_NAME}.log${NC} (Console + File)"
+    echo -e "${BOLD}${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 
-PID=$!
-echo $PID > "$SCRIPT_DIR/application.pid"
+    # exec로 프로세스 대체 (PID 1 유지)
+    exec java -jar $JAVA_OPTS "$JAR_FILE"
+else
+    # 일반 환경: nohup을 사용하여 백그라운드에서 실행 유지
+    JAVA_CMD="nohup java -jar $JAVA_OPTS \"$JAR_FILE\""
+    
+    eval "$JAVA_CMD > /dev/null 2>&1 &"
+    PID=$!
+    echo $PID > "$SCRIPT_DIR/application.pid"
+    
+    log_success "애플리케이션이 시작되었습니다."
 
-log_success "애플리케이션이 시작되었습니다."
-
-# 실행 정보 출력
-echo -e "${BOLD}${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
-echo -e "${BOLD}${BLUE}║                  🚀 EXECUTION SUMMARY                          ║${NC}"
-echo -e "${BOLD}${BLUE}╠════════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}PID${NC}     : ${GREEN}$PID${NC}"
-echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}PORT${NC}    : ${GREEN}$SERVER_PORT${NC} (Configured)"
-echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}APP${NC}     : ${CYAN}$APP_NAME${NC}"
-echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}LOG${NC}     : ${YELLOW}$LOG_PATH/${APP_NAME}.log${NC}"
-echo -e "${BOLD}${BLUE}╠════════════════════════════════════════════════════════════════╣${NC}"
-echo -e "${BOLD}${BLUE}║${NC} 📋 ${BOLD}COMMAND${NC} :${NC}"
-echo -e "${BOLD}${BLUE}║${NC} $JAVA_CMD"
-echo -e "${BOLD}${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
-
+    # 실행 정보 출력 (General)
+    echo -e "${BOLD}${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${BLUE}║                  🚀 EXECUTION SUMMARY                          ║${NC}"
+    echo -e "${BOLD}${BLUE}╠════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}PID${NC}     : ${GREEN}$PID${NC}"
+    echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}PORT${NC}    : ${GREEN}$SERVER_PORT${NC} (Configured)"
+    echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}APP${NC}     : ${CYAN}$APP_NAME${NC}"
+    echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}LOG${NC}     : ${YELLOW}$LOG_PATH/${APP_NAME}.log${NC}"
+    echo -e "${BOLD}${BLUE}╠════════════════════════════════════════════════════════════════╣${NC}"
+    echo -e "${BOLD}${BLUE}║${NC} 📋 ${BOLD}COMMAND${NC} :${NC}"
+    echo -e "${BOLD}${BLUE}║${NC} $JAVA_CMD"
+    echo -e "${BOLD}${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
+fi
