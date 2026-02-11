@@ -208,11 +208,11 @@ elif [ "$INIT_SYSTEM" == "sysvinit" ]; then
 case "\$1" in
     start)
         cd $SCRIPT_DIR
-        /usr/bin/docker-compose -f $COMPOSE_FILE up -d
+        $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up -d
         ;;
     stop)
         cd $SCRIPT_DIR
-        /usr/bin/docker-compose -f $COMPOSE_FILE down
+        $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE down
         ;;
     restart)
         \$0 stop

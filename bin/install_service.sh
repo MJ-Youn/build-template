@@ -36,6 +36,9 @@ PKG_ROOT="$(dirname "$SCRIPT_DIR")"
 # @appName@은 Gradle 빌드 시 실제 프로젝트 이름으로 치환됨
 APP_NAME="@appName@"
 
+# 기본 설치 위치 정의 (환경 변수 INSTALL_DIR 또는 첫 번째 인자로 재정의 가능)
+DEFAULT_INSTALL_DIR="${1:-${INSTALL_DIR:-/opt/$APP_NAME}}"
+
 # 실행 유저 확인 (sudo로 실행 시 실제 유저)
 REAL_USER=${SUDO_USER:-$USER}
 USER_HOME=$(eval echo "~$REAL_USER")
@@ -75,13 +78,9 @@ fi
 
 if [ -z "$DEST_DIR" ]; then
     log_info "기존 설치 위치를 사용하지 않거나 찾지 못했습니다."
-    log_info "기본 설치 위치: /opt/$APP_NAME"
+    log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
     read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
-    if [ -z "$INPUT_LOC" ]; then
-        DEST_DIR="/opt/$APP_NAME"
-    else
-        DEST_DIR="$INPUT_LOC"
-    fi
+    DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
 fi
 
 log_info "설치 위치: $DEST_DIR"

@@ -21,6 +21,44 @@ log_success() { echo -e "${BOLD}${GREEN}✅  $1${NC}"; }
 log_warning() { echo -e "${BOLD}${YELLOW}⚠️  $1${NC}"; }
 log_error() { echo -e "${BOLD}${RED}❌  $1${NC}"; }
 
+# --- [Path Validation Function] ---
+is_safe_path() {
+    local path=$1
+    if [ -z "$path" ]; then
+        return 1
+    fi
+
+    # Normalize path (resolve .. and symlinks)
+    local normalized_path
+    normalized_path=$(readlink -f "$path" 2>/dev/null || echo "$path")
+
+    # List of sensitive system directories (absolute paths)
+    local sensitive_paths=(
+        "/" "/bin" "/boot" "/dev" "/etc" "/home" "/lib" "/lib64"
+        "/media" "/mnt" "/opt" "/proc" "/root" "/run" "/sbin"
+        "/srv" "/sys" "/tmp" "/usr" "/var" "/usr/bin" "/usr/sbin"
+        "/usr/lib" "/var/log" "/usr/local/bin" "/usr/local/sbin" "/usr/local/lib"
+    )
+
+    for p in "${sensitive_paths[@]}"; do
+        if [[ "$normalized_path" == "$p" ]]; then
+            return 1 # Not safe
+        fi
+    done
+
+    # Ensure it's not one of the root level directories (e.g., /etc, /bin)
+    if [[ "$normalized_path" =~ ^/[^/]+$ ]]; then
+        return 1 # Not safe
+    fi
+
+    # Ensure it's an absolute path and not just /
+    if [[ ! "$normalized_path" =~ ^/ ]] || [[ "$normalized_path" == "/" ]]; then
+        return 1 # Not safe
+    fi
+
+    return 0 # Safe
+}
+
 # --- [Script Start] ---
 
 # 루트 권한 확인
@@ -114,9 +152,26 @@ if [ -d "$LOG_PATH" ]; then
     DEL_LOG=${DEL_LOG:-N}
     
     if [[ "$DEL_LOG" =~ ^[Yy]$ ]]; then
-        log_info "로그 디렉토리 삭제 중..."
-        rm -rf "$LOG_PATH"
-        log_success "로그 파일이 삭제되었습니다."
+        if is_safe_path "$LOG_PATH"; then
+            # 설치 경로 외부에 있는 경우 소유자 확인으로 추가 보안 계층 제공
+            N_LOG_PATH=$(readlink -f "$LOG_PATH" 2>/dev/null || echo "$LOG_PATH")
+            N_PROJECT_ROOT=$(readlink -f "$PROJECT_ROOT" 2>/dev/null || echo "$PROJECT_ROOT")
+            IS_INSIDE_PROJECT=0
+            if [[ "$N_LOG_PATH" == "$N_PROJECT_ROOT" ]] || [[ "$N_LOG_PATH" == "$N_PROJECT_ROOT"/* ]]; then
+                IS_INSIDE_PROJECT=1
+            fi
+
+            if [ $IS_INSIDE_PROJECT -eq 1 ] || [ "$(stat -c '%U' "$N_LOG_PATH" 2>/dev/null)" == "$REAL_USER" ]; then
+                log_info "로그 디렉토리 삭제 중..."
+                rm -rf "$LOG_PATH"
+                log_success "로그 파일이 삭제되었습니다."
+            else
+                log_error "로그 경로가 설치 경로 외부에 있으며 소유자가 실행 유저와 일치하지 않습니다. 삭제를 건너뜁니다."
+                log_info "해당 로그 경로는 수동으로 확인 후 삭제해 주세요: $LOG_PATH"
+            fi
+        else
+            log_error "위험한 로그 경로가 감지되었습니다: $LOG_PATH. 로그 삭제를 건너뜁니다."
+        fi
     else
         log_info "로그 파일은 보존되었습니다."
     fi
@@ -136,9 +191,9 @@ fi
 log_step "설치 파일 삭제"
 log_info "설치 디렉토리 제거: $PROJECT_ROOT"
 
-# 주의: PROJECT_ROOT가 / 또는 시스템 중요 디렉토리인지 체크
-if [[ "$PROJECT_ROOT" == "/" ]] || [[ "$PROJECT_ROOT" == "/bin" ]] || [[ "$PROJECT_ROOT" == "/usr" ]]; then
-    log_error "잘못된 경로 감지 ($PROJECT_ROOT). 삭제를 중단합니다."
+# 주의: PROJECT_ROOT가 시스템 중요 디렉토리인지 체크
+if ! is_safe_path "$PROJECT_ROOT"; then
+    log_error "잘못된 또는 위험한 설치 경로 감지 ($PROJECT_ROOT). 삭제를 중단합니다."
     exit 1
 fi
 
