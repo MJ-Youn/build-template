@@ -23,104 +23,91 @@
 ---
 
 ## 🛠️ 사용 가이드 (How to Use)
+ 
+ 이 프로젝트는 초기 설정을 자동화하는 스크립트(`init.sh`)를 제공합니다.
+ 
+ ### 🚀 1단계: 프로젝트 초기화 (필수!)
+ 
+ 프로젝트 루트에 있는 `init.sh` 스크립트를 실행하여 **프로젝트 이름**, **그룹 이름**, **포트 번호**를 한 번에 설정하세요.
+ 
+ ```bash
+ ./init.sh
+ ```
+ 
+ - **자동 수행 작업**:
+   - `Project Name` 변경 (`settings.gradle`)
+   - `Group Name` 변경 (`build.gradle`) 및 **패키지 구조 재구성 (폴더 이동)**
+   - `Server Port` 설정 (`application.yml`)
+   - `Java Package` 및 `Import` 구문 일괄 수정
+   - 완료 후 스크립트 자동 삭제
+ 
+ ### 2단계: 비즈니스 로직 개발
+ 
+ `src/main/java/{Group}/{Project}` 경로에 여러분만의 코드를 작성하세요!
+ 
+ ---
+ 
+ ## 📦 빌드 및 배포 (Build & Deploy)
+ 
+ ### 🐳 Docker 배포 (Standard)
+ 
+ **"로컬 빌드 -> 이미지 추출 -> 서버 전송 -> 로드 & 실행"** 전략을 사용합니다.
+ 서버에 소스 코드를 올리거나 빌드 도구를 설치할 필요가 없어 보안과 관리가 용이합니다.
+ 
+ **1. 로컬 빌드 (Development PC)**
+ 
+ ```bash
+ # 운영(prod) 환경 배포용 패키지 생성
+ ./gradlew dockerBuild -Penv=prod
+ ```
+ 
+ - **결과물**: `build/dist/{APP_NAME}-docker-prod.zip`
+ - **포함 내용**:
+   - `image.tar`: Docker 이미지 (linux/amd64)
+   - `docker-compose.yml`: 실행 설정
+   - `install_docker_service.sh`: 서비스 등록/실행 스크립트
+   - `uninstall_docker_service.sh`: 서비스 제거 스크립트
+   - `.app-env.properties`: 환경 변수
+ 
+ **2. 서버 배포 (Production Server)**
+ 
+ ```bash
+ # 1. 파일 전송 (scp 등)
+ scp build/dist/{APP_NAME}-docker-prod.zip user@server:/home/user/
+ 
+ # 2. 서버 접속 후 압축 해제 및 설치
+ unzip {APP_NAME}-docker-prod.zip -d deploy
+ cd deploy
+ sudo ./install_docker_service.sh
+ ```
+ 
+ - **자동 수행**:
+   - Docker 이미지 로드 (`docker load`)
+   - Docker Compose 실행 (`docker-compose up -d`)
+   - Linux 서비스(Systemd) 등록 (재부팅 시 자동 실행)
+ 
+ ### 🖥️ 일반 서버 배포 (Legacy)
+ 
+ Docker 없이 Java(JDK)만 설치된 서버에 배포하는 방식입니다.
+ 
+ **1. 빌드 (Development PC)**
+ 
+ ```bash
+ ./gradlew package -Penv=prod
+ ```
+ 
+ - **결과물**: `build/dist/{APP_NAME}-{version}-prod.dist.zip`
+ 
+ **2. 배포 (Server)**
+ 
+ ```bash
+ # 압축 해제 후 설치 스크립트 실행
+ unzip {APP_NAME}-*.dist.zip -d {APP_NAME}
+ cd {APP_NAME}
+ sudo ./bin/install_service.sh
+ ```
 
-이 프로젝트를 Fork하거나 복사하여 새로운 서비스를 만들 때, 다음 4단계만 수정하면 됩니다.
-
-### 1단계: 프로젝트 이름 설정 (필수!)
-
-가장 중요합니다. 이 이름이 `서비스명`, `로그파일명`, `Docker이미지명`이 됩니다.
-
-- **파일**: `settings.gradle`
-
-```groovy
-rootProject.name = 'my-awesome-service' // 👈 여기에 원하는 이름 입력
-```
-
-### 2단계: 패키지 및 그룹명 변경
-
-- **파일**: `build.gradle`
-
-```groovy
-group = 'com.mycompany.service' // 👈 팀/회사 도메인으로 변경
-version = '1.0.0'
-```
-
-- **폴더 변경 (Package Structure)**:
-  `group` 설정에 맞춰 소스 폴더를 변경합니다. 보통 `group` + `rootProject.name` 조합을 사용하지만, **반드시 프로젝트 이름과 같을 필요는 없습니다.**
-    - **권장 (Standard)**: `src/main/java/{group}/{rootProject.name}`
-        - 예: `src/main/java/com/mycompany/service/myawesomeservice`
-    - **심플 (Simple)**: `src/main/java/{group}`
-        - 예: `src/main/java/com/mycompany/service`
-
-### 3단계: 포트 및 기본 설정
-
-- **파일**: `config/application.yml`
-
-```yaml
-server:
-    port: 8080 # 👈 충돌하지 않는 포트로 변경
-spring:
-    application:
-        name: my-awesome-service # 👈 (선택 사항) Spring 내부 식별용 이름
-```
-
-> 💡 **참고**: `spring.application.name`은 Spring Cloud나 로깅 등 내부 식별용이며, **빌드되는 파일명(`rootProject.name`)과는 달라도 상관없습니다.**
-
-### 4단계: 비즈니스 로직 개발
-
-이제 `src/main/java`에 여러분만의 코드를 작성하세요!
-
----
-
-## 📦 빌드 및 배포 (Build & Deploy)
-
-### 🐳 Docker 배포 (추천)
-
-서버에 Docker가 설치되어 있다면 가장 간편하고 깔끔한 방법입니다.
-
-**1. 빌드 (Development PC)**
-
-```bash
-# 운영(prod) 환경 배포용 빌드
-./gradlew dockerBuild -Penv=prod
-```
-
-- **결과물**: `build/dist/{APP_NAME}-docker-prod.zip`
-- **내용**: `image.tar`, `docker-compose.yml`, `install_docker_service.sh`
-
-**2. 배포 (Server)**
-
-```bash
-# 압축 해제 후 스크립트 실행
-unzip {APP_NAME}-docker-prod.zip -d deploy
-cd deploy
-sudo ./install_docker_service.sh
-```
-
-- **자동 수행**: Docker 이미지 로드 -> 서비스 등록 -> 실행
-
-### 🖥️ 일반 서버 배포 (Legacy)
-
-Docker 없이 Java만 설치된 서버에 직접 배포합니다.
-
-**1. 빌드 (Development PC)**
-
-```bash
-./gradlew package -Penv=prod
-```
-
-- **결과물**: `build/dist/{APP_NAME}-{version}-prod.dist.zip`
-
-**2. 배포 (Server)**
-
-```bash
-# 압축 해제 후 스크립트 실행
-unzip {APP_NAME}-*.dist.zip -d {APP_NAME}
-cd {APP_NAME}
-sudo ./bin/install_service.sh
-```
-
-### ☸️ Kubernetes 배포 (K8s)
+### ☸️ Kubernetes 배포 (K8s) (개발 예정)
 
 Docker 배포를 넘어, Kubernetes 환경을 위한 매니페스트(`yaml`)도 자동으로 생성해줍니다.
 
