@@ -102,47 +102,76 @@ if [ -f "$APP_CONFIG" ]; then
     echo "✅ config/application.yml 수정 완료"
 fi
 
-# 3-4. 패키지 구조 변경 및 파일 내용 수정 (Group Name 변경 시)
-if [ "$CURRENT_GROUP" != "$NEW_GROUP_NAME" ]; then
-    echo "📦 패키지 구조 변경 작업을 시작합니다..."
+# 3-4. 패키지 구조 변경 (Group Name + Project Name)
+echo "📦 패키지 구조 변경 작업을 시작합니다..."
+
+# Java 패키지명 규칙: 소문자, 하이픈(-)은 언더스코어(_)로 변환
+to_package_name() {
+    echo "$1" | tr '[:upper:]' '[:lower:]' | tr '-' '_'
+}
+
+OLD_PKG_GROUP=$(to_package_name "$CURRENT_GROUP")
+NEW_PKG_GROUP=$(to_package_name "$NEW_GROUP_NAME")
+
+OLD_PKG_PROJECT=$(to_package_name "$CURRENT_PROJECT_NAME")
+NEW_PKG_PROJECT=$(to_package_name "$NEW_PROJECT_NAME")
+
+# 전체 패키지 경로 계산 (Group + ProjectName)
+# 예: io.github.mjyoun.build_test -> io/github/mjyoun/build_test
+OLD_FULL_PKG="${OLD_PKG_GROUP}.${OLD_PKG_PROJECT}"
+NEW_FULL_PKG="${NEW_PKG_GROUP}.${NEW_PKG_PROJECT}"
+
+OLD_PATH="${OLD_PKG_GROUP//./\/}/${OLD_PKG_PROJECT}"
+NEW_PATH="${NEW_PKG_GROUP//./\/}/${NEW_PKG_PROJECT}"
+
+SRC_DIRS=("src/main/java" "src/test/java")
+
+for DIR in "${SRC_DIRS[@]}"; do
+    FULL_OLD_PATH="$DIR/$OLD_PATH"
+    FULL_NEW_PATH="$DIR/$NEW_PATH"
     
-    # 점(.)을 슬래시(/)로 변환
-    OLD_PATH=${CURRENT_GROUP//./\/}
-    NEW_PATH=${NEW_GROUP_NAME//./\/}
-    
-    SRC_DIRS=("src/main/java" "src/test/java")
-    
-    for DIR in "${SRC_DIRS[@]}"; do
-        FULL_OLD_PATH="$DIR/$OLD_PATH"
-        FULL_NEW_PATH="$DIR/$NEW_PATH"
+    # 1. 기존 전체 경로가 존재하는지 확인 (Standard 구조: group/project)
+    if [ -d "$FULL_OLD_PATH" ]; then
+        echo "   ➡️ $DIR: $OLD_FULL_PKG -> $NEW_FULL_PKG 이동 중..."
+        mkdir -p "$FULL_NEW_PATH"
+        mv "$FULL_OLD_PATH"/* "$FULL_NEW_PATH/" 2>/dev/null
         
-        if [ -d "$FULL_OLD_PATH" ]; then
-            echo "   ➡️ $DIR 패키지 이동 중..."
-            mkdir -p "$FULL_NEW_PATH"
-            
-            # 파일 이동
-            mv "$FULL_OLD_PATH"/* "$FULL_NEW_PATH/" 2>/dev/null
-            
-            # 빈 디렉토리 정리 (이전 패키지 경로 삭제)
-            # 예: io/github/mjyoun -> io/github (mjyoun 삭제) -> io (github 삭제)
-            # find -depth 사용하여 하위 디렉토리부터 삭제 시도
-            find "$DIR" -type d -empty -delete
-        else
-            echo "   ⚠️ 경고: $FULL_OLD_PATH 디렉토리를 찾을 수 없습니다."
-        fi
-    done
-    
-    # 3-5. Java 파일 내 package 및 import 문 수정
-    echo "📝 Java 파일 내 package/import 문 수정 중..."
-    
-    # package 구문 수정
-    find src -name "*.java" -exec "${SED_CMD[@]}" "s/package ${CURRENT_GROUP}/package ${NEW_GROUP_NAME}/g" {} +
-    
-    # import 구문 수정 (현재 그룹을 참조하는 import만 수정)
-    find src -name "*.java" -exec "${SED_CMD[@]}" "s/import ${CURRENT_GROUP}/import ${NEW_GROUP_NAME}/g" {} +
-    
-    echo "✅ 패키지 구조 변경 완료"
-fi
+        # 빈 디렉토리 정리 (역순 삭제)
+        # delete OLD_PATH directories if empty
+        find "$DIR" -type d -empty -delete 2>/dev/null
+        
+    # 2. 혹은 Simple 구조인지 확인 (Simple 구조: group only)
+    elif [ -d "$DIR/${OLD_PKG_GROUP//./\/}" ]; then
+        echo "   ℹ️ Simple 구조 감지 ($DIR/${OLD_PKG_GROUP//./\/})"
+        # Simple 구조에서는 Group만 변경
+        FULL_OLD_PATH="$DIR/${OLD_PKG_GROUP//./\/}"
+        FULL_NEW_PATH="$DIR/${NEW_PKG_GROUP//./\/}"
+        
+        echo "   ➡️ $DIR: $OLD_PKG_GROUP -> $NEW_PKG_GROUP 이동 중..."
+        mkdir -p "$FULL_NEW_PATH"
+        mv "$FULL_OLD_PATH"/* "$FULL_NEW_PATH/" 2>/dev/null
+        find "$DIR" -type d -empty -delete 2>/dev/null
+        
+        # 패키지명 변수 재설정 (Simple 구조용)
+        OLD_FULL_PKG="$OLD_PKG_GROUP"
+        NEW_FULL_PKG="$NEW_PKG_GROUP"
+    else
+        echo "   ⚠️ 경고: $FULL_OLD_PATH 디렉토리를 찾을 수 없습니다."
+    fi
+done
+
+# 3-5. Java 파일 내 package 및 import 문 수정
+echo "📝 Java 파일 내 package/import 문 수정 중..."
+echo "   - Old: $OLD_FULL_PKG"
+echo "   - New: $NEW_FULL_PKG"
+
+# package 구문 수정
+find src -name "*.java" -exec "${SED_CMD[@]}" "s/package ${OLD_FULL_PKG}/package ${NEW_FULL_PKG}/g" {} +
+
+# import 구문 수정
+find src -name "*.java" -exec "${SED_CMD[@]}" "s/import ${OLD_FULL_PKG}/import ${NEW_FULL_PKG}/g" {} +
+
+echo "✅ 패키지 구조 및 내용 변경 완료"
 
 echo "========================================="
 echo "🎉 초기화가 성공적으로 완료되었습니다!"
