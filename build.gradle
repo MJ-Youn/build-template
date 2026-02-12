@@ -56,11 +56,10 @@ task 'package'(type: Zip) {
 	def distName = "${project.name}-${project.version}"
 	def envSuffix = ""
 
-	// 1. Environment Specific Files (Priority: High)
+	// 1. 환경별 파일 (Environment Specific Files)
 	// 먼저 추가된 파일이 우선순위를 가짐 (EXCLUDE 전략)
 	if (project.hasProperty('env')) {
 		def env = project.property('env')
-		println "Building distribution for environment: $env"
 		envSuffix = "-${env}"
 		
 		from("config/$env") {
@@ -71,11 +70,17 @@ task 'package'(type: Zip) {
 			into 'bin'
 			filter(ReplaceTokens, tokens: [appName: project.name])
 		}
-	} else {
-		println "Building distribution without specific environment overlay"
+	}
+	
+	doFirst {
+		if (project.hasProperty('env')) {
+			println "📦 배포 패키지 생성 중 (환경: ${project.property('env')})"
+		} else {
+			println "📦 기본 환경(dev) 또는 지정되지 않은 환경으로 배포 패키지를 생성합니다."
+		}
 	}
 
-	// 2. Base Files (Priority: Low)
+	// 2. 기본 파일 (Base Files)
 	// 이미 추가된 파일(환경별 파일)이 있다면 이 파일들은 무시됨
 	from('config') {
 		into 'config'
@@ -109,38 +114,33 @@ tasks.named('build') {
 	dependsOn 'package'
 }
 
-task dockerBuild {
+// Docker 빌드를 위한 컨텍스트와 배포 스크립트를 준비합니다.
+task prepareDockerContext {
 	dependsOn 'package'
 	group = 'build'
-	description = 'Docker 이미지를 빌드하고 배포용 스크립트와 함께 Zip으로 패키징합니다.'
+	description = 'Docker 빌드를 위한 컨텍스트와 배포 스크립트를 준비합니다.'
 
 	doLast {
 		def distName = "${project.name}-${project.version}"
 		def envSuffix = project.hasProperty('env') ? "-${project.property('env')}" : ""
 		def distZipName = "${distName}${envSuffix}.dist.zip"
-		// 최종 생성될 Docker 배포용 Zip 이름 e.g., build_test-docker-prod.zip
-		def dockerDistZipName = "${project.name}-docker${envSuffix}.zip" 
 		
 		def dockerContext = file("${buildDir}/docker-build")
-		def dockerDistDir = file("${buildDir}/docker-dist") // Zip으로 압축할 파일들이 모이는 곳
-		def tagName = "${project.name}:latest"
-		def tarName = "${project.name}.tar"
-
-		println "=== Docker Deployment Build Start ==="
-		println "Target Distribution: $distZipName"
+		def dockerDistDir = file("${buildDir}/docker-dist") 
 		
-		// 1. Clean & Prepare
+		println "🐳 === Docker 빌드 컨텍스트 준비 시작 ==="
+		
+		// 1. 초기화 (Clean & Prepare)
 		delete dockerContext
 		mkdir dockerContext
 		
 		delete dockerDistDir
 		mkdir dockerDistDir
 
-		// 2. Prepare Docker Build Context
-		// 기존 패키지 압축 해제 (libs, config 등 필요)
+		// 2. 배포 패키지(Zip)에서 Docker 컨텍스트 준비
 		def distZipFile = file("${buildDir}/dist/${distZipName}")
 		if (!distZipFile.exists()) {
-			throw new GradleException("Distribution file not found: $distZipFile")
+			throw new GradleException("배포 파일을 찾을 수 없습니다: $distZipFile")
 		}
 
 		copy {
@@ -148,37 +148,33 @@ task dockerBuild {
 			into dockerContext
 		}
 
-		// Dockerfile 복사 (docker/Dockerfile -> build/docker-build/Dockerfile)
+		// Dockerfile 복사
 		def dockerfilePath = file('docker/Dockerfile')
 		if (!dockerfilePath.exists()) {
-			throw new GradleException("Dockerfile not found: $dockerfilePath")
+			throw new GradleException("Dockerfile을 찾을 수 없습니다: $dockerfilePath")
 		}
 		copy {
 			from dockerfilePath
 			into dockerContext
 		}
-
-		// 3. Execute Docker Build
-		println "Executing docker build..."
-		// 2026-02-11: 리눅스 배포를 위해 amd64 플랫폼 명시
-		def buildProc = ['docker', 'build', '--platform', 'linux/amd64', '-t', tagName, '.'].execute(null, dockerContext)
-		buildProc.waitForProcessOutput(System.out, System.err)
 		
-		if (buildProc.exitValue() != 0) {
-			throw new GradleException("Docker build failed")
+		// 3. 배포 스크립트 및 설정 파일 복사 (docker-dist)
+		println "📂 배포 스크립트 및 설정 파일 복사 중... (${dockerDistDir})"
+		
+		// 이미지 이름 결정 (Strategy 1, 2, 3 지원을 위한 동적 태그)
+		def registry = project.hasProperty('dockerRegistry') ? project.property('dockerRegistry') : ""
+		def tag = project.hasProperty('dockerImageTag') ? project.property('dockerImageTag') : "latest"
+		def imageName = "${project.name}:${tag}"
+		
+		if (registry) {
+			// 예: my-reg.com/my-project:v1.0.0
+			imageName = "${registry}/${project.name}:${tag}"
+			// 레지스트리 URL이 슬래시로 끝나지 않으면 추가 (단, 비어있지 않을 때)
+			if (!registry.endsWith('/')) {
+				imageName = "${registry}/${project.name}:${tag}"
+			}
 		}
-		
-		// 4. Export Docker Image (docker save)
-		println "Exporting docker image to ${dockerDistDir}/${tarName}..."
-		def saveProc = ['docker', 'save', '-o', "${dockerDistDir}/${tarName}", tagName].execute()
-		saveProc.waitForProcessOutput(System.out, System.err)
-
-		if (saveProc.exitValue() != 0) {
-			throw new GradleException("Docker save failed")
-		}
-		
-		// 5. Copy Scripts and Compose File (to dist dir)
-		println "Copying deployment scripts and compose file..."
+		println "🎯 대상 Docker 이미지: ${imageName}"
 		
 		// 환경별 docker-compose.yml 선택
 		def env = project.hasProperty('env') ? project.property('env') : 'dev'
@@ -188,42 +184,45 @@ task dockerBuild {
 		def composeFile = envComposeFile.exists() ? envComposeFile : baseComposeFile
 		
 		if (!composeFile.exists()) {
-			throw new GradleException("docker-compose.yml not found for environment: $env. Checked paths: $envComposeFile, $baseComposeFile")
+			throw new GradleException("docker-compose.yml 파일을 찾을 수 없습니다. 확인한 경로: $envComposeFile, $baseComposeFile")
 		}
 		
-		println "Using docker-compose: ${composeFile.absolutePath}"
+		println "📄 사용된 docker-compose 파일: ${composeFile.absolutePath}"
 		
 		copy {
 			from composeFile
 			into dockerDistDir
 			rename { 'docker-compose.yml' }
-			filter(ReplaceTokens, tokens: [appName: project.name])
+			filter(ReplaceTokens, tokens: [
+				appName: project.name.toString(), 
+				LOG_PATH: ('/var/log/' + project.name).toString(),
+				dockerImage: imageName.toString()
+			])
 		}
 		
-		// install_docker_service.sh 복사 (토큰 치환 포함)
-		def installScript = file('docker/install_docker_service.sh')
-		if (installScript.exists()) {
-			copy {
-				from installScript
-				into dockerDistDir
-				filter(ReplaceTokens, tokens: [appName: project.name])
-			}
-		}
-
-		// uninstall_docker_service.sh 복사 (토큰 치환 포함)
-		def uninstallScript = file('docker/uninstall_docker_service.sh')
-		if (uninstallScript.exists()) {
-			copy {
-				from uninstallScript
-				into dockerDistDir
-				filter(ReplaceTokens, tokens: [appName: project.name])
+		// 스크립트 복사 (install, uninstall, utils, cron)
+		['docker/install_docker_service.sh', 'docker/uninstall_docker_service.sh', 'bin/utils.sh'].each { src ->
+			def f = file(src)
+			if (f.exists()) {
+				copy {
+					from f
+					into dockerDistDir
+					filter(ReplaceTokens, tokens: [appName: project.name])
+				}
 			}
 		}
 		
-		// .app-env.properties 복사 (환경별 덮어쓰기 전략 적용)
+		def cronDir = file('bin/cron')
+		if (cronDir.exists()) {
+			copy {
+				from cronDir
+				into "${dockerDistDir}/cron"
+			}
+		}
+		
+		// .app-env.properties 복사
 		def envPropsFile = file("bin/${env}/.app-env.properties")
 		def basePropsFile = file("bin/.app-env.properties")
-		
 		def propsFile = envPropsFile.exists() ? envPropsFile : basePropsFile
 		
 		if (propsFile.exists()) {
@@ -233,35 +232,125 @@ task dockerBuild {
 				rename { '.app-env.properties' }
 			}
 		}
-
-		// utils.sh 복사 (Docker 스크립트에서도 사용)
-		def utilsFile = file('bin/utils.sh')
-		if (utilsFile.exists()) {
-			copy {
-				from utilsFile
-				into dockerDistDir
-			}
-		}
-
-		// cron 디렉토리 복사 (install_docker_service.sh에서 사용)
-		def cronDir = file('bin/cron')
-		if (cronDir.exists()) {
-			copy {
-				from cronDir
-				into "${dockerDistDir}/cron"
-			}
-		}
 		
-		// 6. Create Final Zip
-		println "Creating final zip: ${buildDir}/dist/${dockerDistZipName}"
-		ant.zip(destfile: "${buildDir}/dist/${dockerDistZipName}", basedir: dockerDistDir)
-		
-		println "=== Docker Deployment Pkg Created: ${buildDir}/dist/${dockerDistZipName} ==="
+		println "✅ Docker 컨텍스트 준비 완료"
 	}
 }
 
+// Docker 이미지를 로컬 데몬에 빌드합니다. (Server-side Build용)
+task dockerBuildImage {
+	dependsOn prepareDockerContext
+	group = 'build'
+	description = 'Docker 이미지를 로컬 데몬에 빌드합니다. (Server-side Build용)'
+
+	doLast {
+		def registry = project.hasProperty('dockerRegistry') ? project.property('dockerRegistry') : ""
+		def tag = project.hasProperty('dockerImageTag') ? project.property('dockerImageTag') : "latest"
+		
+		def fullImageName = "${project.name}:${tag}"
+		if (registry) {
+			if (!registry.endsWith('/')) registry += '/'
+			fullImageName = "${registry}${project.name}:${tag}"
+		}
+
+		def dockerContext = file("${buildDir}/docker-build")
+		
+		println "🔨 === Docker 이미지 빌드 시작 ==="
+		println "🔖 대상 이미지 태그: $fullImageName"
+		
+		// docker build 실행
+		// 리눅스 배포를 위해 amd64 플랫폼 명시 (필요시 수정 가능)
+		def buildProc = ['docker', 'build', '--platform', 'linux/amd64', '-t', fullImageName, '.'].execute(null, dockerContext)
+		buildProc.waitForProcessOutput(System.out, System.err)
+		
+		if (buildProc.exitValue() != 0) {
+			throw new GradleException("Docker 빌드 실패")
+		}
+		
+		println "✨ === Docker 이미지 빌드 성공: $fullImageName ==="
+		println "📂 배포 파일 경로: ${buildDir}/docker-dist"
+		
+		if (!registry) {
+			println "🚀 실행 방법 (Strategy 2): cd ${buildDir}/docker-dist && docker-compose up -d"
+		}
+	}
+}
+
+// Docker 이미지를 빌드하고 레지스트리에 Push합니다. (Strategy 3)
+task dockerPushImage {
+	dependsOn dockerBuildImage
+	group = 'build'
+	description = 'Docker 이미지를 빌드하고 레지스트리에 Push합니다. (Strategy 3)'
+
+	doLast {
+		def registry = project.hasProperty('dockerRegistry') ? project.property('dockerRegistry') : ""
+		if (!registry) {
+			throw new GradleException("Push를 하려면 dockerRegistry 속성이 필요합니다. 예: -PdockerRegistry=my.reg.com")
+		}
+		
+		def tag = project.hasProperty('dockerImageTag') ? project.property('dockerImageTag') : "latest"
+		if (!registry.endsWith('/')) registry += '/'
+		
+		def fullImageName = "${registry}${project.name}:${tag}"
+		
+		println "☁️ === Docker 이미지 Push 시작 ==="
+		println "📤 이미지 Push 중: $fullImageName"
+		
+		def pushProc = ['docker', 'push', fullImageName].execute()
+		pushProc.waitForProcessOutput(System.out, System.err)
+		
+		if (pushProc.exitValue() != 0) {
+			throw new GradleException("Docker Push 실패. 레지스트리 로그인 상태를 확인해주세요.")
+		}
+		
+		println "✅ === Docker 이미지 Push 완료 ==="
+		println "📂 배포 파일 경로 (docker-compose.yml, scripts): ${buildDir}/docker-dist"
+		println "🚀 서버에서 'build/docker-dist' 파일들을 사용하여 배포할 수 있습니다."
+	}
+}
+
+// Docker 이미지를 빌드하고 배포용 스크립트와 함께 Zip으로 패키징합니다. (Strategy 1)
+task dockerBuild {
+	dependsOn dockerBuildImage
+	group = 'build'
+	description = 'Docker 이미지를 빌드하고 배포용 스크립트와 함께 Zip으로 패키징합니다. (Strategy 1)'
+
+	doLast {
+		def envSuffix = project.hasProperty('env') ? "-${project.property('env')}" : ""
+		def dockerDistZipName = "${project.name}-docker${envSuffix}.zip" 
+		def dockerDistDir = file("${buildDir}/docker-dist")
+		
+		// Strategy 1: 항상 로컬 Project Name 태그로 저장
+		if (project.hasProperty('dockerRegistry')) {
+			println "⚠️ 경고: 'dockerBuild' 태스크는 Strategy 1 (로컬 빌드/패키징) 전용입니다. 'dockerRegistry' 속성은 무시됩니다."
+		}
+
+		def tagName = "${project.name}:latest"
+		def tarName = "${project.name}.tar"
+
+		println "📦 === Docker 배포 패키지 생성 시작 (Strategy 1) ==="
+		
+		// Export Docker Image (docker save)
+		println "💾 Docker 이미지 추출 중 (docker save) -> ${dockerDistDir}/${tarName}..."
+		
+		def saveProc = ['docker', 'save', '-o', "${dockerDistDir}/${tarName}", tagName].execute()
+		saveProc.waitForProcessOutput(System.out, System.err)
+
+		if (saveProc.exitValue() != 0) {
+			throw new GradleException("Docker Save 실패. Strategy 1을 사용하려면 registry 옵션 없이 실행하세요.")
+		}
+		
+		// Create Final Zip
+		println "🗜️ 최종 배포용 Zip 생성 중: ${buildDir}/dist/${dockerDistZipName}"
+		ant.zip(destfile: "${buildDir}/dist/${dockerDistZipName}", basedir: dockerDistDir)
+		
+		println "✅ === Docker 배포 패키지 생성 완료: ${buildDir}/dist/${dockerDistZipName} ==="
+	}
+}
+
+// Kubernetes 배포용 매니페스트(YAML) 패키지를 생성합니다. (Strategy 3)
 task k8sBuild(type: Zip) {
-	dependsOn dockerBuild
+	dependsOn dockerBuildImage
 	group = 'distribution'
 	description = 'Kubernetes 배포용 매니페스트(YAML) 패키지를 생성합니다.'
 
@@ -271,18 +360,40 @@ task k8sBuild(type: Zip) {
 	if (project.hasProperty('env')) {
 		def env = project.property('env')
 		envSuffix = "-${env}"
-		println "Building K8s distribution for environment: $env"
 	}
 	
 	archiveFileName = "${distName}${envSuffix}.zip"
 	destinationDirectory = file("${buildDir}/dist")
 	
+	// Strategy 3 지원을 위한 이미지 태그 결정 로직 (prepareDockerContext와 동일)
+	def registry = project.hasProperty('dockerRegistry') ? project.property('dockerRegistry') : ""
+	def tag = project.hasProperty('dockerImageTag') ? project.property('dockerImageTag') : "latest"
+	def imageName = "${project.name}:${tag}"
+	
+	if (registry) {
+		imageName = "${registry}/${project.name}:${tag}"
+		if (!registry.endsWith('/')) {
+			imageName = "${registry}/${project.name}:${tag}"
+		}
+	}
+
 	from('k8s') {
 		into 'k8s'
-		filter(ReplaceTokens, tokens: [appName: project.name])
+		filter(ReplaceTokens, tokens: [
+			appName: project.name.toString(),
+			dockerImage: imageName.toString()
+		])
 	}
 	
+	doFirst {
+		if (project.hasProperty('env')) {
+			def env = project.property('env')
+			println "☸️ K8s 배포 패키지 생성 중 (환경: $env)"
+		}
+		println "🎯 K8s 대상 Docker 이미지: ${imageName}"
+	}
+
 	doLast {
-		println "=== K8s Deployment Pkg Created: ${destinationDirectory.get()}/${archiveFileName.get()} ==="
+		println "✅ === K8s 배포 패키지 생성 완료: ${destinationDirectory.get()}/${archiveFileName.get()} ==="
 	}
 }

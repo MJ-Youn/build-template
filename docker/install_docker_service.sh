@@ -166,17 +166,31 @@ configure_env() {
 # @description Docker 이미지 로드
 load_docker_image() {
     log_step "Docker 이미지 로드 중..."
-    if [ ! -f "$IMAGE_TAR" ]; then
-        log_error "Docker 이미지 파일을 찾을 수 없습니다: $IMAGE_TAR"
-        exit 1
-    fi
 
-    docker load -i "$IMAGE_TAR"
-    if [ $? -ne 0 ]; then
-        log_error "Docker 이미지 로드 실패"
-        exit 1
+    # 1. Tar 파일이 있으면 로드 (Strategy 1)
+    if [ -f "$IMAGE_TAR" ]; then
+        log_info "이미지 파일 발견: $IMAGE_TAR"
+        docker load -i "$IMAGE_TAR"
+        if [ $? -ne 0 ]; then
+            log_error "Docker 이미지 로드 실패"
+            exit 1
+        fi
+        log_success "Docker 이미지 로드 완료"
+    
+    # 2. Tar 파일이 없으면 로컬 데몬 확인 (Strategy 2)
+    else
+        log_info "이미지 파일이 없습니다. 로컬 Docker 데몬에서 확인합니다."
+        
+        # 태그가 없으면 latest 가정 (docker-compose.yml과 일치해야 함)
+        FULL_IMAGE_NAME="${APP_NAME}:latest"
+        
+        if docker image inspect "$FULL_IMAGE_NAME" > /dev/null 2>&1; then
+            log_success "로컬 Docker 이미지 확인됨: $FULL_IMAGE_NAME"
+        else
+            log_error "Docker 이미지 로드 실패: 파일($IMAGE_TAR)도 없고, 로컬 이미지($FULL_IMAGE_NAME)도 없습니다."
+            exit 1
+        fi
     fi
-    log_success "Docker 이미지 로드 완료"
 }
 
 # @description docker-compose.yml 설정 (포트, 볼륨 매핑)

@@ -1,6 +1,6 @@
 services:
   @appName@-app:
-    image: @appName@:latest
+    image: @dockerImage@
     container_name: @appName@-app
     ports:
       - "8080:8080"

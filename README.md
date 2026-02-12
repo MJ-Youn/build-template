@@ -49,12 +49,12 @@
  
  ## 📦 빌드 및 배포 (Build & Deploy)
  
- ### 🐳 Docker 배포 (Standard)
+ ### 🐳 Docker 배포 1: 로컬 빌드 (Standard)
  
  **"로컬 빌드 -> 이미지 추출 -> 서버 전송 -> 로드 & 실행"** 전략을 사용합니다.
  서버에 소스 코드를 올리거나 빌드 도구를 설치할 필요가 없어 보안과 관리가 용이합니다.
  
- **1. 로컬 빌드 (Development PC)**
+ **1. 빌드 (Development PC)**
  
  ```bash
  # 운영(prod) 환경 배포용 패키지 생성
@@ -69,7 +69,7 @@
    - `uninstall_docker_service.sh`: 서비스 제거 스크립트
    - `.app-env.properties`: 환경 변수
  
- **2. 서버 배포 (Production Server)**
+ **2. 배포 (Production Server)**
  
  ```bash
  # 1. 파일 전송 (scp 등)
@@ -85,6 +85,76 @@
    - Docker 이미지 로드 (`docker load`)
    - Docker Compose 실행 (`docker-compose up -d`)
    - Linux 서비스(Systemd) 등록 (재부팅 시 자동 실행)
+ 
+ ### 🐳 Docker 배포 2: 서버 빌드 (Source Transfer)
+ 
+ **"소스 전송 -> 서버 빌드 -> 실행"** 전략을 사용합니다.
+ 빌드 결과물(Image)을 전송하는 과정이 생략되어 네트워크 대역폭을 절약할 수 있으며, 수정 사항을 빠르게 반영할 수 있습니다.
+ 
+ **1. 소스 전송 (Development PC -> Server)**
+ 
+ Github 등을 통해 소스 코드를 서버로 내려받습니다.
+ 
+ ```bash
+ git clone https://github.com/my-repo/my-project.git
+ cd my-project
+ ```
+ 
+ **2. 빌드 및 실행 (Server)**
+ 
+ ```bash
+ # 1. Docker 이미지 빌드 (이미지를 로컬 데몬에 생성)
+ ./gradlew dockerBuildImage -Penv=prod
+ 
+ # 2. 생성된 배포 디렉토리로 이동
+ cd build/docker-dist
+ 
+ # 3. 컨테이너 실행 (단순 실행)
+ docker-compose up -d
+ 
+ # 4. (선택) 서비스 등록 및 실행 (운영 환경 권장)
+ # Systemd 서비스 등록, 로그 설정, 재부팅 시 자동 실행 등을 지원합니다.
+ sudo ./install_docker_service.sh
+ ```
+ 
+ > 💡 **Tip**: 반복 배포 시 `git pull && ./gradlew dockerBuildImage -Penv=prod` 명령으로 빠르게 최신화할 수 있습니다.
+ 
+ ### 🐳 Docker 배포 3: 레지스트리 (Push & Pull)
+ 
+ **"Local/CI 빌드 -> Registry Push -> Server Pull -> 실행"** 전략을 사용합니다.
+ Docker Hub, ECR, GCR 등 원격 레지스트리를 활용하는 표준적인 방식입니다.
+ 
+ **1. 빌드 및 Push (Development PC / CI)**
+ 
+ ```bash
+ # 레지스트리 주소를 지정하여 빌드 및 Push
+ ./gradlew dockerPushImage -Penv=prod -PdockerRegistry=my-registry.com/repo
+ 
+ # (선택) 태그 지정 가능 (기본값: latest)
+ # ./gradlew dockerPushImage -Penv=prod -PdockerRegistry=... -PdockerImageTag=v1.0.0
+ ```
+ 
+ - **결과물**:
+   - Docker Registry에 이미지 업로드 (`my-registry.com/repo/{APP_NAME}:latest`)
+   - `build/docker-dist`: 실행에 필요한 파일들 (`docker-compose.yml`, 스크립트 등)
+ 
+ **2. 배포 (Server)**
+ 
+ 서버에는 **`build/docker-dist` 폴더의 내용물만** 있으면 됩니다. (소스 코드 불필요)
+ CI/CD 파이프라인을 통해 설정 파일만 배포하거나, scp로 전송하세요.
+ 
+ ```bash
+ # 1. 배포 디렉토리로 이동
+ cd docker-dist
+ 
+ # 2. 컨테이너 실행 (이미지는 레지스트리에서 자동 Pull)
+ docker-compose up -d
+ 
+ # 3. (선택) 서비스 등록
+ sudo ./install_docker_service.sh
+ ```
+ 
+ > ⚠️ **주의**: Private Registry를 사용하는 경우, 서버에서 `docker login`이 선행되어야 합니다.
  
  ### 🖥️ 일반 서버 배포 (Legacy)
  
@@ -207,7 +277,7 @@ flowchart TD
     Dev --> BuildSelect{"🛠️ 3. 빌드/배포 방식 선택"}
 
     %% 서브그래프: Legacy
-    subgraph Legacy ["🐳 Legacy Path (Jar)"]
+    subgraph Legacy ["🖥️ Legacy Path (Jar)"]
         direction TB
         LegacyBuild["☕ Gradle 패키징<br/>(Jar + Scripts)"]
         LegacyBuild --> LegacyTrans["📂 파일 전송/압축해제"]
@@ -215,7 +285,7 @@ flowchart TD
     end
 
     %% 서브그래프: Docker Strategies
-    subgraph Docker ["🖥️ Docker Path"]
+    subgraph Docker ["🐳 Docker Path"]
         direction TB
         DockerDecide{"전략 선택"}
         

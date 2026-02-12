@@ -18,7 +18,7 @@ spec:
       containers:
       - name: @appName@
         # 이미지 태그는 기본 latest이며, 필요 시 dockerBuild 단계에서 조정 가능
-        image: @appName@:latest
+        image: @dockerImage@
         # 로컬 이미지를 우선 사용하도록 설정 (개발 편의성)
         imagePullPolicy: IfNotPresent
         ports:

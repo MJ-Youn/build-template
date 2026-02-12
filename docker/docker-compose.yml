@@ -1,7 +1,7 @@
 services:
-  app:
-    image: build_test:latest
-    container_name: build_test_app
+  @appName@-app:
+    image: @dockerImage@
+    container_name: @appName@-app
     ports:
       - "8080:8080"
     volumes:
