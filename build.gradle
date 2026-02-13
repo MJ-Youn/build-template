@@ -64,11 +64,17 @@ task 'package'(type: Zip) {
 		
 		from("config/$env") {
 			into 'config'
+			rename { String filename ->
+				filename.replace("-${env}", "")
+			}
 		}
 		
 		from("bin/$env") {
 			into 'bin'
 			filter(ReplaceTokens, tokens: [appName: project.name])
+			rename { String filename ->
+				filename.replace("-${env}", "")
+			}
 		}
 	}
 	
@@ -178,7 +184,7 @@ task prepareDockerContext {
 		
 		// 환경별 docker-compose.yml 선택
 		def env = project.hasProperty('env') ? project.property('env') : 'dev'
-		def envComposeFile = file("docker/${env}/docker-compose.yml")
+		def envComposeFile = file("docker/${env}/docker-compose-${env}.yml")
 		def baseComposeFile = file("docker/docker-compose.yml")
 		
 		def composeFile = envComposeFile.exists() ? envComposeFile : baseComposeFile
@@ -221,7 +227,7 @@ task prepareDockerContext {
 		}
 		
 		// .app-env.properties 복사
-		def envPropsFile = file("bin/${env}/.app-env.properties")
+		def envPropsFile = file("bin/${env}/.app-env-${env}.properties")
 		def basePropsFile = file("bin/.app-env.properties")
 		def propsFile = envPropsFile.exists() ? envPropsFile : basePropsFile
 		
