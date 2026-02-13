@@ -156,15 +156,15 @@ copy_files() {
     
     # 2. Bin Scripts
     # install_service.sh 제외하고 나머지 스크립트 복사
-    find "$PKG_ROOT/bin" -maxdepth 1 -name "*.sh" ! -name "install_service.sh" -exec cp -f {} "$DEST_DIR/bin/" \;
+    find "$SCRIPT_DIR" -maxdepth 1 -name "*.sh" ! -name "install_service.sh" -exec cp -f {} "$DEST_DIR/bin/" \;
     
     # 3. Utils & Hidden Files
-    if [ -f "$PKG_ROOT/bin/.app-env.properties" ]; then
-        cp -f "$PKG_ROOT/bin/.app-env.properties" "$DEST_DIR/bin/"
+    if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
+        cp -f "$SCRIPT_DIR/.app-env.properties" "$DEST_DIR/bin/"
     fi
-    # utils.sh가 PKG_ROOT/bin에 있다면 복사 (개발 환경 등 고려)
-    if [ -f "$PKG_ROOT/bin/utils.sh" ]; then
-         cp -f "$PKG_ROOT/bin/utils.sh" "$DEST_DIR/bin/"
+    # utils.sh가 SCRIPT_DIR에 있다면 복사 (개발 환경 등 고려)
+    if [ -f "$SCRIPT_DIR/utils.sh" ]; then
+         cp -f "$SCRIPT_DIR/utils.sh" "$DEST_DIR/bin/"
     elif [ -f "$UTILS_PATH" ]; then
          cp -f "$UTILS_PATH" "$DEST_DIR/bin/"
     fi

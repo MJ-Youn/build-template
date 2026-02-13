@@ -69,7 +69,7 @@ task 'package'(type: Zip) {
 			}
 		}
 		
-		from("bin/$env") {
+		from("scripts/$env") {
 			into 'bin'
 			filter(ReplaceTokens, tokens: [appName: project.name])
 			rename { String filename ->
@@ -97,7 +97,7 @@ task 'package'(type: Zip) {
 		}
 	}
 
-	from('bin') {
+	from('scripts') {
 		into 'bin'
 		filter(ReplaceTokens, tokens: [appName: project.name])
 		exclude environments
@@ -207,7 +207,7 @@ task prepareDockerContext {
 		}
 		
 		// 스크립트 복사 (install, uninstall, utils, cron)
-		['docker/install_docker_service.sh', 'docker/uninstall_docker_service.sh', 'bin/utils.sh'].each { src ->
+		['docker/install_docker_service.sh', 'docker/uninstall_docker_service.sh', 'scripts/utils.sh'].each { src ->
 			def f = file(src)
 			if (f.exists()) {
 				copy {
@@ -218,7 +218,7 @@ task prepareDockerContext {
 			}
 		}
 		
-		def cronDir = file('bin/cron')
+		def cronDir = file('scripts/cron')
 		if (cronDir.exists()) {
 			copy {
 				from cronDir
@@ -227,8 +227,8 @@ task prepareDockerContext {
 		}
 		
 		// .app-env.properties 복사
-		def envPropsFile = file("bin/${env}/.app-env-${env}.properties")
-		def basePropsFile = file("bin/.app-env.properties")
+		def envPropsFile = file("scripts/${env}/.app-env-${env}.properties")
+		def basePropsFile = file("scripts/.app-env.properties")
 		def propsFile = envPropsFile.exists() ? envPropsFile : basePropsFile
 		
 		if (propsFile.exists()) {
