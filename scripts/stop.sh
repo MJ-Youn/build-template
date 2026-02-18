@@ -23,7 +23,14 @@ else
 fi
 
 # --- [Constants & Variables] ---
+# .app-env.properties 로드
+if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
+    source "$SCRIPT_DIR/.app-env.properties"
+fi
+
 PID_FILE="$SCRIPT_DIR/application.pid"
+# @var STOP_TIMEOUT 종료 대기 시간 (초)
+STOP_TIMEOUT=${STOP_TIMEOUT:-10}
 
 # --- [Functions] ---
 
@@ -49,15 +56,15 @@ stop_application() {
         kill "$PID"
         log_info "종료 신호(SIGTERM)를 보냈습니다 (PID: $PID)."
         
-        # 종료 대기 (최대 10초)
+        # 종료 대기 (최대 $STOP_TIMEOUT초)
         count=0
         while ps -p "$PID" > /dev/null 2>&1; do
             echo -n "."
             sleep 1
             count=$((count+1))
-            if [ $count -ge 10 ]; then
+            if [ $count -ge $STOP_TIMEOUT ]; then
                 echo ""
-                log_warning "애플리케이션이 응답하지 않아 강제 종료(SIGKILL)합니다."
+                log_warning "애플리케이션이 ${STOP_TIMEOUT}초 내에 응답하지 않아 강제 종료(SIGKILL)합니다."
                 kill -9 "$PID"
                 break
             fi
