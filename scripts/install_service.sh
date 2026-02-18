@@ -155,8 +155,8 @@ copy_files() {
     cp -f "$PKG_ROOT/libs/"*.jar "$DEST_DIR/libs/"
     
     # 2. Bin Scripts
-    # install_service.sh 제외하고 나머지 스크립트 복사
-    find "$SCRIPT_DIR" -maxdepth 1 -name "*.sh" ! -name "install_service.sh" -exec cp -f {} "$DEST_DIR/bin/" \;
+    # install_service.sh 제외하고 나머지 스크립트 복사 (프로세스 생성 오버헤드 최적화)
+    find "$SCRIPT_DIR" -maxdepth 1 -name "*.sh" ! -name "install_service.sh" -exec cp -f -t "$DEST_DIR/bin/" {} +
     
     # 3. Utils & Hidden Files
     if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
