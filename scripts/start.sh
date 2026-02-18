@@ -63,7 +63,12 @@ fi
 
 # 공통 실행 옵션
 # 주의: spring.config.location이 디렉토리일 경우 끝에 /가 있어야 함
-JAVA_OPTS="-Dspring.config.location=$CONFIG_LOC -Dapp.name=$APP_NAME -Dlog.path=$LOG_PATH -Dlogging.config=$PROJECT_ROOT/config/log4j2.yml"
+JAVA_OPTS=(
+    "-Dspring.config.location=$CONFIG_LOC"
+    "-Dapp.name=$APP_NAME"
+    "-Dlog.path=$LOG_PATH"
+    "-Dlogging.config=$PROJECT_ROOT/config/log4j2.yml"
+)
 
 # Docker 환경 감지 및 실행 분기
 if [ -f /.dockerenv ] || [ "$$" -eq 1 ]; then
@@ -80,12 +85,10 @@ if [ -f /.dockerenv ] || [ "$$" -eq 1 ]; then
     echo -e "${BOLD}${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 
     # exec로 프로세스 대체 (PID 1 유지)
-    exec java -jar $JAVA_OPTS "$JAR_FILE"
+    exec java -jar "${JAVA_OPTS[@]}" "$JAR_FILE"
 else
     # 일반 환경: nohup을 사용하여 백그라운드에서 실행 유지
-    JAVA_CMD="nohup java -jar $JAVA_OPTS \"$JAR_FILE\""
-    
-    eval "$JAVA_CMD > /dev/null 2>&1 &"
+    nohup java -jar "${JAVA_OPTS[@]}" "$JAR_FILE" > /dev/null 2>&1 &
     PID=$!
     echo $PID > "$SCRIPT_DIR/application.pid"
     
@@ -101,6 +104,6 @@ else
     echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}LOG${NC}     : ${YELLOW}$LOG_PATH/${APP_NAME}.log${NC}"
     echo -e "${BOLD}${BLUE}╠════════════════════════════════════════════════════════════════╣${NC}"
     echo -e "${BOLD}${BLUE}║${NC} 📋 ${BOLD}COMMAND${NC} :${NC}"
-    echo -e "${BOLD}${BLUE}║${NC} $JAVA_CMD"
+    echo -e "${BOLD}${BLUE}║${NC} nohup java -jar ${JAVA_OPTS[*]} \"$JAR_FILE\""
     echo -e "${BOLD}${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 fi
