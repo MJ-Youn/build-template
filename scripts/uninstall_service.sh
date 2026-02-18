@@ -41,7 +41,7 @@ PROP_FILE="$SCRIPT_DIR/.app-env.properties"
 
 # 실행 유저 확인
 REAL_USER=${SUDO_USER:-$USER}
-USER_HOME=$(eval echo "~$REAL_USER")
+USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
 
 # --- [Functions] ---
 

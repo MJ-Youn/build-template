@@ -35,8 +35,8 @@ DEFAULT_INSTALL_DIR="${1:-${INSTALL_DIR:-/opt/$APP_NAME}}"
 
 # 실행 유저 확인 (sudo로 실행 시 실제 유저)
 REAL_USER=${SUDO_USER:-$USER}
-USER_HOME=$(eval echo "~$REAL_USER")
-SERVICE_GROUP=$(id -gn $REAL_USER)
+USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+SERVICE_GROUP=$(id -gn "$REAL_USER")
 
 # --- [Functions] ---
 
