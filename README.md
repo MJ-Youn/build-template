@@ -13,10 +13,10 @@
     - **일반 배포**: Jar + Config + Scripts가 포함된 Zip 패키지.
     - **Docker 배포**: Image(tar) + Docker Compose + Script가 통합된 Zip 패키지.
 2.  **🎨 환경별 덮어쓰기 (Overlay Build)**:
-    - 기본 설정(`bin/`, `config/`) 위에 환경별 파일(`bin/prod/`, `config/prod/`)을 덮어쓰는 구조.
+    - 기본 설정(`scripts/`, `config/`) 위에 환경별 파일(`scripts/prod/`, `config/prod/`)을 덮어쓰는 구조.
     - 소스 코드 변경 없이 파일 추가만으로 환경별 커스터마이징 가능.
 3.  **🪵 동적 로그 경로 설정**:
-    - 빌드 시점(`bin/.app-env.properties`) 또는 배포 시점(사용자 입력)에 로그 경로 설정 가능.
+    - 빌드 시점(`scripts/.app-env.properties`) 또는 배포 시점(사용자 입력)에 로그 경로 설정 가능.
 4.  **🐧 Linux 서비스 자동 등록**:
     - `Systemd`, `SysVinit` 자동 감지 및 서비스 등록/시작.
 
@@ -174,7 +174,7 @@
  # 압축 해제 후 설치 스크립트 실행
  unzip {APP_NAME}-*.dist.zip -d {APP_NAME}
  cd {APP_NAME}
- sudo ./bin/install_service.sh
+ sudo ./scripts/install_service.sh
  ```
 
 ### ☸️ Kubernetes 배포 (K8s) (개발 예정)
@@ -253,17 +253,17 @@ curl -v http://localhost:8080/
 
 ## 🎨 고급 설정: 환경별 빌드 (Overlay)
 
-`bin`과 `config` 폴더는 **"덮어쓰기 전략"** 을 따릅니다.
+`scripts`와 `config` 폴더는 **"덮어쓰기 전략"** 을 따릅니다.
 환경별로 다른 설정이 필요하면, `prod` 폴더를 만들고 파일을 넣으세요.
 
 | 경로                           | 역할                              | 우선순위                            |
 | ------------------------------ | --------------------------------- | ----------------------------------- |
-| `bin/prod/.app-env.properties` | **운영 환경 전용** (로그 경로 등) | 🥇 1순위 (Zip에 이 파일이 덮어써짐) |
-| `bin/.app-env.properties`      | **공통 기본값**                   | 🥈 2순위                            |
+| `scripts/prod/.app-env.properties` | **운영 환경 전용** (로그 경로 등) | 🥇 1순위 (Zip에 이 파일이 덮어써짐) |
+| `scripts/.app-env.properties`      | **공통 기본값**                   | 🥈 2순위                            |
 
 **예시: 운영 서버 로그 경로 변경**
 
-1. `bin/prod/.app-env.properties` 생성
+1. `scripts/prod/.app-env.properties` 생성
 2. 내용 작성: `LOG_PATH="/var/log/my-service"`
 3. `./gradlew package -Penv=prod` 실행 시 자동으로 적용됨.
 
