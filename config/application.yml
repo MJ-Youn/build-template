@@ -3,3 +3,10 @@ spring:
     name: build_test
 logging:
   config: config/log4j2.yml
+
+management:
+  endpoints:
+    web:
+      base-path: /
+      exposure:
+        include: health
