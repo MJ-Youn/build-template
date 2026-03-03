@@ -23,159 +23,159 @@
 ---
 
 ## 🛠️ 사용 가이드 (How to Use)
- 
- 이 프로젝트는 초기 설정을 자동화하는 스크립트(`init.sh`)를 제공합니다.
- 
- ### 🚀 1단계: 프로젝트 초기화 (필수!)
- 
- 프로젝트 루트에 있는 `init.sh` 스크립트를 실행하여 **프로젝트 이름**, **그룹 이름**, **포트 번호**를 한 번에 설정하세요.
- 
- ```bash
- ./init.sh
- ```
- 
- - **자동 수행 작업**:
-   - `Project Name` 변경 (`settings.gradle`)
-   - `Group Name` 변경 (`build.gradle`) 및 **패키지 구조 재구성 (폴더 이동)**
-   - `Server Port` 설정 (`application.yml`)
-   - `Java Package` 및 `Import` 구문 일괄 수정
-   - 완료 후 스크립트 자동 삭제
- 
- ### 2단계: 비즈니스 로직 개발
- 
- `src/main/java/{Group}/{Project}` 경로에 여러분만의 코드를 작성하세요!
- 
- ---
- 
- ## 📦 빌드 및 배포 (Build & Deploy)
- 
- ### 🐳 Docker 배포 1: 로컬 빌드 (Standard)
- 
- **"로컬 빌드 -> 이미지 추출 -> 서버 전송 -> 로드 & 실행"** 전략을 사용합니다.
- 서버에 소스 코드를 올리거나 빌드 도구를 설치할 필요가 없어 보안과 관리가 용이합니다.
- 
- **1. 빌드 (Development PC)**
- 
- ```bash
- # 운영(prod) 환경 배포용 패키지 생성
- ./gradlew dockerBuild -Penv=prod
- ```
- 
- - **결과물**: `build/dist/{APP_NAME}-docker-prod.zip`
- - **포함 내용**:
-   - `image.tar`: Docker 이미지 (linux/amd64)
-   - `docker-compose.yml`: 실행 설정
-   - `install_docker_service.sh`: 서비스 등록/실행 스크립트
-   - `uninstall_docker_service.sh`: 서비스 제거 스크립트
-   - `.app-env.properties`: 환경 변수
- 
- **2. 배포 (Production Server)**
- 
- ```bash
- # 1. 파일 전송 (scp 등)
- scp build/dist/{APP_NAME}-docker-prod.zip user@server:/home/user/
- 
- # 2. 서버 접속 후 압축 해제 및 설치
- unzip {APP_NAME}-docker-prod.zip -d deploy
- cd deploy
- sudo ./install_docker_service.sh
- ```
- 
- - **자동 수행**:
-   - Docker 이미지 로드 (`docker load`)
-   - Docker Compose 실행 (`docker-compose up -d`)
-   - Linux 서비스(Systemd) 등록 (재부팅 시 자동 실행)
- 
- ### 🐳 Docker 배포 2: 서버 빌드 (Source Transfer)
- 
- **"소스 전송 -> 서버 빌드 -> 실행"** 전략을 사용합니다.
- 빌드 결과물(Image)을 전송하는 과정이 생략되어 네트워크 대역폭을 절약할 수 있으며, 수정 사항을 빠르게 반영할 수 있습니다.
- 
- **1. 소스 전송 (Development PC -> Server)**
- 
- Github 등을 통해 소스 코드를 서버로 내려받습니다.
- 
- ```bash
- git clone https://github.com/my-repo/my-project.git
- cd my-project
- ```
- 
- **2. 빌드 및 실행 (Server)**
- 
- ```bash
- # 1. Docker 이미지 빌드 (이미지를 로컬 데몬에 생성)
- ./gradlew dockerBuildImage -Penv=prod
- 
- # 2. 생성된 배포 디렉토리로 이동
- cd build/docker-dist
- 
- # 3. 컨테이너 실행 (단순 실행)
- docker-compose up -d
- 
- # 4. (선택) 서비스 등록 및 실행 (운영 환경 권장)
- # Systemd 서비스 등록, 로그 설정, 재부팅 시 자동 실행 등을 지원합니다.
- sudo ./install_docker_service.sh
- ```
- 
- > 💡 **Tip**: 반복 배포 시 `git pull && ./gradlew dockerBuildImage -Penv=prod` 명령으로 빠르게 최신화할 수 있습니다.
- 
- ### 🐳 Docker 배포 3: 레지스트리 (Push & Pull)
- 
- **"Local/CI 빌드 -> Registry Push -> Server Pull -> 실행"** 전략을 사용합니다.
- Docker Hub, ECR, GCR 등 원격 레지스트리를 활용하는 표준적인 방식입니다.
- 
- **1. 빌드 및 Push (Development PC / CI)**
- 
- ```bash
- # 레지스트리 주소를 지정하여 빌드 및 Push
- ./gradlew dockerPushImage -Penv=prod -PdockerRegistry=my-registry.com/repo
- 
- # (선택) 태그 지정 가능 (기본값: latest)
- # ./gradlew dockerPushImage -Penv=prod -PdockerRegistry=... -PdockerImageTag=v1.0.0
- ```
- 
- - **결과물**:
-   - Docker Registry에 이미지 업로드 (`my-registry.com/repo/{APP_NAME}:latest`)
-   - `build/docker-dist`: 실행에 필요한 파일들 (`docker-compose.yml`, 스크립트 등)
- 
- **2. 배포 (Server)**
- 
- 서버에는 **`build/docker-dist` 폴더의 내용물만** 있으면 됩니다. (소스 코드 불필요)
- CI/CD 파이프라인을 통해 설정 파일만 배포하거나, scp로 전송하세요.
- 
- ```bash
- # 1. 배포 디렉토리로 이동
- cd docker-dist
- 
- # 2. 컨테이너 실행 (이미지는 레지스트리에서 자동 Pull)
- docker-compose up -d
- 
- # 3. (선택) 서비스 등록
- sudo ./install_docker_service.sh
- ```
- 
- > ⚠️ **주의**: Private Registry를 사용하는 경우, 서버에서 `docker login`이 선행되어야 합니다.
- 
- ### 🖥️ 일반 서버 배포 (Legacy)
- 
- Docker 없이 Java(JDK)만 설치된 서버에 배포하는 방식입니다.
- 
- **1. 빌드 (Development PC)**
- 
- ```bash
- ./gradlew package -Penv=prod
- ```
- 
- - **결과물**: `build/dist/{APP_NAME}-{version}-prod.dist.zip`
- 
- **2. 배포 (Server)**
- 
- ```bash
- # 압축 해제 후 설치 스크립트 실행
- unzip {APP_NAME}-*.dist.zip -d {APP_NAME}
- cd {APP_NAME}
- sudo ./scripts/install_service.sh
- ```
+
+이 프로젝트는 초기 설정을 자동화하는 스크립트(`init.sh`)를 제공합니다.
+
+### 🚀 1단계: 프로젝트 초기화 (필수!)
+
+프로젝트 루트에 있는 `init.sh` 스크립트를 실행하여 **프로젝트 이름**, **그룹 이름**, **포트 번호**를 한 번에 설정하세요.
+
+```bash
+./init.sh
+```
+
+- **자동 수행 작업**:
+    - `Project Name` 변경 (`settings.gradle`)
+    - `Group Name` 변경 (`build.gradle`) 및 **패키지 구조 재구성 (폴더 이동)**
+    - `Server Port` 설정 (`application.yml`)
+    - `Java Package` 및 `Import` 구문 일괄 수정
+    - 완료 후 스크립트 자동 삭제
+
+### 2단계: 비즈니스 로직 개발
+
+`src/main/java/{Group}/{Project}` 경로에 여러분만의 코드를 작성하세요!
+
+---
+
+## 📦 빌드 및 배포 (Build & Deploy)
+
+### 🐳 Docker 배포 1: 로컬 빌드 (Standard)
+
+**"로컬 빌드 -> 이미지 추출 -> 서버 전송 -> 로드 & 실행"** 전략을 사용합니다.
+서버에 소스 코드를 올리거나 빌드 도구를 설치할 필요가 없어 보안과 관리가 용이합니다.
+
+**1. 빌드 (Development PC)**
+
+```bash
+# 운영(prod) 환경 배포용 패키지 생성
+./gradlew dockerBuild -Penv=prod
+```
+
+- **결과물**: `build/dist/{APP_NAME}-docker-prod.zip`
+- **포함 내용**:
+    - `image.tar`: Docker 이미지 (linux/amd64)
+    - `docker-compose.yml`: 실행 설정
+    - `install_docker_service.sh`: 서비스 등록/실행 스크립트
+    - `uninstall_docker_service.sh`: 서비스 제거 스크립트
+    - `.app-env.properties`: 환경 변수
+
+**2. 배포 (Production Server)**
+
+```bash
+# 1. 파일 전송 (scp 등)
+scp build/dist/{APP_NAME}-docker-prod.zip user@server:/home/user/
+
+# 2. 서버 접속 후 압축 해제 및 설치
+unzip {APP_NAME}-docker-prod.zip -d deploy
+cd deploy
+sudo ./install_docker_service.sh
+```
+
+- **자동 수행**:
+    - Docker 이미지 로드 (`docker load`)
+    - Docker Compose 실행 (`docker-compose up -d`)
+    - Linux 서비스(Systemd) 등록 (재부팅 시 자동 실행)
+
+### 🐳 Docker 배포 2: 서버 빌드 (Source Transfer)
+
+**"소스 전송 -> 서버 빌드 -> 실행"** 전략을 사용합니다.
+빌드 결과물(Image)을 전송하는 과정이 생략되어 네트워크 대역폭을 절약할 수 있으며, 수정 사항을 빠르게 반영할 수 있습니다.
+
+**1. 소스 전송 (Development PC -> Server)**
+
+Github 등을 통해 소스 코드를 서버로 내려받습니다.
+
+```bash
+git clone https://github.com/my-repo/my-project.git
+cd my-project
+```
+
+**2. 빌드 및 실행 (Server)**
+
+```bash
+# 1. Docker 이미지 빌드 (이미지를 로컬 데몬에 생성)
+./gradlew dockerBuildImage -Penv=prod
+
+# 2. 생성된 배포 디렉토리로 이동
+cd build/docker-dist
+
+# 3. 컨테이너 실행 (단순 실행)
+docker-compose up -d
+
+# 4. (선택) 서비스 등록 및 실행 (운영 환경 권장)
+# Systemd 서비스 등록, 로그 설정, 재부팅 시 자동 실행 등을 지원합니다.
+sudo ./install_docker_service.sh
+```
+
+> 💡 **Tip**: 반복 배포 시 `git pull && ./gradlew dockerBuildImage -Penv=prod` 명령으로 빠르게 최신화할 수 있습니다.
+
+### 🐳 Docker 배포 3: 레지스트리 (Push & Pull)
+
+**"Local/CI 빌드 -> Registry Push -> Server Pull -> 실행"** 전략을 사용합니다.
+Docker Hub, ECR, GCR 등 원격 레지스트리를 활용하는 표준적인 방식입니다.
+
+**1. 빌드 및 Push (Development PC / CI)**
+
+```bash
+# 레지스트리 주소를 지정하여 빌드 및 Push
+./gradlew dockerPushImage -Penv=prod -PdockerRegistry=my-registry.com/repo
+
+# (선택) 태그 지정 가능 (기본값: latest)
+# ./gradlew dockerPushImage -Penv=prod -PdockerRegistry=... -PdockerImageTag=v1.0.0
+```
+
+- **결과물**:
+    - Docker Registry에 이미지 업로드 (`my-registry.com/repo/{APP_NAME}:latest`)
+    - `build/docker-dist`: 실행에 필요한 파일들 (`docker-compose.yml`, 스크립트 등)
+
+**2. 배포 (Server)**
+
+서버에는 **`build/docker-dist` 폴더의 내용물만** 있으면 됩니다. (소스 코드 불필요)
+CI/CD 파이프라인을 통해 설정 파일만 배포하거나, scp로 전송하세요.
+
+```bash
+# 1. 배포 디렉토리로 이동
+cd docker-dist
+
+# 2. 컨테이너 실행 (이미지는 레지스트리에서 자동 Pull)
+docker-compose up -d
+
+# 3. (선택) 서비스 등록
+sudo ./install_docker_service.sh
+```
+
+> ⚠️ **주의**: Private Registry를 사용하는 경우, 서버에서 `docker login`이 선행되어야 합니다.
+
+### 🖥️ 일반 서버 배포 (Legacy)
+
+Docker 없이 Java(JDK)만 설치된 서버에 배포하는 방식입니다.
+
+**1. 빌드 (Development PC)**
+
+```bash
+./gradlew package -Penv=prod
+```
+
+- **결과물**: `build/dist/{APP_NAME}-{version}-prod.dist.zip`
+
+**2. 배포 (Server)**
+
+```bash
+# 압축 해제 후 설치 스크립트 실행
+unzip {APP_NAME}-*.dist.zip -d {APP_NAME}
+cd {APP_NAME}
+sudo ./scripts/install_service.sh
+```
 
 ### ☸️ Kubernetes 배포 (K8s) (개발 예정)
 
@@ -256,8 +256,8 @@ curl -v http://localhost:8080/
 `scripts`와 `config` 폴더는 **"덮어쓰기 전략"** 을 따릅니다.
 환경별로 다른 설정이 필요하면, `prod` 폴더를 만들고 파일을 넣으세요.
 
-| 경로                           | 역할                              | 우선순위                            |
-| ------------------------------ | --------------------------------- | ----------------------------------- |
+| 경로                               | 역할                              | 우선순위                            |
+| ---------------------------------- | --------------------------------- | ----------------------------------- |
 | `scripts/prod/.app-env.properties` | **운영 환경 전용** (로그 경로 등) | 🥇 1순위 (Zip에 이 파일이 덮어써짐) |
 | `scripts/.app-env.properties`      | **공통 기본값**                   | 🥈 2순위                            |
 
@@ -288,14 +288,14 @@ flowchart TD
     subgraph Docker ["🐳 Docker Path"]
         direction TB
         DockerDecide{"전략 선택"}
-        
+
         %% Strategy 1: Local Image
         subgraph DockerOpt1 ["① 로컬 빌드 + 전송"]
             D1_Build["🔨 로컬 빌드<br/>(dockerBuild task)"]
             D1_Save["💾 Docker Image Save<br/>(.tar 파일)"]
             D1_Trans["📂 파일 전송<br/>(Local -> Server)"]
             D1_Load["📦 Image Load<br/>(docker load)"]
-            
+
             D1_Build --> D1_Save --> D1_Trans --> D1_Load
         end
 
@@ -303,7 +303,7 @@ flowchart TD
         subgraph DockerOpt2 ["② 소스 전송 + 서버 빌드"]
             D2_Trans["📂 소스/Dockerfile 전송"]
             D2_Build["🔨 서버 빌드<br/>(docker build)"]
-            
+
             D2_Trans --> D2_Build
         end
 
@@ -312,14 +312,14 @@ flowchart TD
             D3_Build["🔨 로컬 빌드"]
             D3_Push["☁️ Push to Registry<br/>(on Local PC)"]
             D3_Pull["⬇️ Pull form Registry<br/>(on Server)"]
-            
+
             D3_Build --> D3_Push --> D3_Pull
         end
 
         DockerDecide --> DockerOpt1
         DockerDecide --> DockerOpt2
         DockerDecide --> DockerOpt3
-        
+
         D1_Load --> DockerService["⚙️ 서비스 등록/실행<br/>(Systemd/SysVinit)"]
         D2_Build --> DockerService
         D3_Pull --> DockerService
@@ -341,28 +341,33 @@ flowchart TD
     DockerService --> Monitor
     K8sDeploy --> Monitor
 
+    %% 범례
+    subgraph Legend ["🔖 범례 (Legend)"]
+        direction TB
+        L1["💻 Local PC 환경"]
+        L2["🖥️ Remote Server 환경"]
+    end
+
     %% 스타일 정의
     classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
     classDef start fill:#E1F5FE,stroke:#01579B,stroke-width:2px,color:#000;
     classDef decision fill:#F3E5F5,stroke:#4A148C,stroke-width:2px,color:#000,stroke-dasharray: 5 5;
     classDef legacy fill:#FFEBEE,stroke:#B71C1C,stroke-width:2px,color:#000;
     classDef docker fill:#E3F2FD,stroke:#0D47A1,stroke-width:2px,color:#000;
-    classDef docker_node fill:#BBDEFB,stroke:#1976D2,stroke-width:1px,color:#000;
-    classDef docker_service fill:#90CAF9,stroke:#0D47A1,stroke-width:2px,color:#000;
     classDef k8s fill:#E8EAF6,stroke:#1A237E,stroke-width:2px,color:#000;
     classDef endNode fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#000;
 
+    %% 환경별 (Local, Remote) Style
+    classDef local_env fill:#BBDEFB,stroke:#1976D2,stroke-width:2px,color:#000;
+    classDef remote_env fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000;
+
     class Start,Dev start;
     class BuildSelect,DockerDecide decision;
-    class LegacyBuild,LegacyTrans,LegacyDeploy legacy;
-    class K8sBuild,K8sDeploy k8s;
     class Monitor endNode;
-    
-    %% Docker Nodes Styling
-    class D1_Build,D1_Save,D1_Trans,D1_Load docker_node;
-    class D2_Trans,D2_Build docker_node;
-    class D3_Build,D3_Push,D3_Pull docker_node;
-    class DockerService docker_service;
+
+    %% Nodes & Legend Styling (Local vs Remote)
+    class LegacyBuild,LegacyTrans,K8sBuild,D1_Build,D1_Save,D1_Trans,D2_Trans,D3_Build,D3_Push,L1 local_env;
+    class LegacyDeploy,K8sDeploy,D1_Load,D2_Build,D3_Pull,DockerService,L2 remote_env;
 ```
 
 ## 🧜‍♀️ 개발 시퀀스 (Sequence Diagram)
