@@ -28,7 +28,7 @@ if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
     source "$SCRIPT_DIR/.app-env.properties"
 fi
 
-PID_FILE="$SCRIPT_DIR/application.pid"
+PID_FILE="${PID_FILE:-$SCRIPT_DIR/application.pid}"
 # @var STOP_TIMEOUT 종료 대기 시간 (초)
 STOP_TIMEOUT=${STOP_TIMEOUT:-10}
 

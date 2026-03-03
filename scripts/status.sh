@@ -23,7 +23,13 @@ fi
 
 # --- [Constants & Variables] ---
 APP_NAME="@appName@"
-PID_FILE="$SCRIPT_DIR/application.pid"
+
+# 환경 변수 파일 로드 (로그 경로 등 확인용)
+if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
+    source "$SCRIPT_DIR/.app-env.properties"
+fi
+
+PID_FILE="${PID_FILE:-$SCRIPT_DIR/application.pid}"
 INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
 LOG_PATH="${LOG_PATH:-$INSTALL_DIR/log}" # 환경 변수 또는 기본값
 
@@ -63,9 +69,4 @@ check_status() {
 }
 
 # --- [Execution] ---
-# 환경 변수 파일 로드 (로그 경로 등 확인용)
-if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
-    source "$SCRIPT_DIR/.app-env.properties"
-fi
-
 check_status

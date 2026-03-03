@@ -26,11 +26,12 @@ fi
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 CONFIG_LOC="$PROJECT_ROOT/config/"
 
-# .app-env.properties 로드 (LOG_PATH 등)
+# .app-env.properties 로드 (LOG_PATH, PID_FILE 등)
 if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
     source "$SCRIPT_DIR/.app-env.properties"
 fi
 LOG_PATH="${LOG_PATH:-$PROJECT_ROOT/log}"
+PID_FILE="${PID_FILE:-$SCRIPT_DIR/application.pid}"
 
 # @var APP_NAME 애플리케이션 이름 (Gradle 빌드 시 치환)
 APP_NAME="@appName@"
@@ -90,7 +91,14 @@ else
     # 일반 환경: nohup을 사용하여 백그라운드에서 실행 유지
     nohup java -jar "${JAVA_OPTS[@]}" "$JAR_FILE" > /dev/null 2>&1 &
     PID=$!
-    echo $PID > "$SCRIPT_DIR/application.pid"
+
+    # PID 파일 디렉토리 확인 및 생성 (source 트리 등 대응)
+    PID_DIR=$(dirname "$PID_FILE")
+    if [ ! -d "$PID_DIR" ] && [ -w "$(dirname "$PID_DIR")" ]; then
+        mkdir -p "$PID_DIR"
+    fi
+
+    echo $PID > "$PID_FILE"
     
     log_success "애플리케이션이 시작되었습니다."
 

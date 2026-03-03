@@ -141,8 +141,16 @@ determine_install_dir() {
     mkdir -p "$DEST_DIR/bin"
     mkdir -p "$DEST_DIR/config"
     mkdir -p "$DEST_DIR/libs"
+    mkdir -p "$DEST_DIR/run"
     
-    chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR"
+    # 보안 강화: 실행 파일 디렉토리는 root 소유로 설정하여 서비스 유저의 변조 방지
+    chown root:root "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config" "$DEST_DIR/libs"
+    chmod 755 "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config" "$DEST_DIR/libs"
+
+    # 실행 시 생성되는 파일(PID 등)을 위한 디렉토리는 서비스 유저 권한 부여
+    chown $REAL_USER:$SERVICE_GROUP "$DEST_DIR/run"
+    chmod 755 "$DEST_DIR/run"
+
     log_success "설치 디렉토리 준비 완료."
 }
 
@@ -174,8 +182,15 @@ copy_files() {
     cp -rf "$PKG_ROOT/config/"* "$DEST_DIR/config/"
     
     # 권한 설정 (실행 스크립트)
-    chmod +x "$DEST_DIR/bin/"*.sh
-    chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR"
+    chmod 755 "$DEST_DIR/bin/"*.sh
+    # JAR 파일 및 설정 파일 권한 설정 (읽기 권한 부여)
+    chmod 644 "$DEST_DIR/libs/"*.jar
+    chmod -R 644 "$DEST_DIR/config/"*
+    find "$DEST_DIR/config" -type d -exec chmod 755 {} +
+
+    # 보안 강화: 배포된 파일들은 root 소유로 설정 (서비스 유저에 의한 변조 방지)
+    chown -R root:root "$DEST_DIR/bin" "$DEST_DIR/libs" "$DEST_DIR/config"
+
     log_success "파일 복사 및 권한 설정 완료."
 }
 
@@ -191,7 +206,7 @@ configure_env() {
         mkdir -p "$(dirname "$DEST_PROP_FILE")"
         echo "# Application Deployment Configuration" > "$DEST_PROP_FILE"
         chmod 644 "$DEST_PROP_FILE"
-        chown $REAL_USER:$SERVICE_GROUP "$DEST_PROP_FILE"
+        chown root:root "$DEST_PROP_FILE"
         log_info "새로운 환경 설정 파일 생성: $DEST_PROP_FILE"
     fi
 
@@ -219,9 +234,19 @@ configure_env() {
         else
             echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP_FILE"
         fi
-        chown $REAL_USER:$SERVICE_GROUP "$DEST_PROP_FILE"
+        chown root:root "$DEST_PROP_FILE"
         log_info "환경 설정 파일에 LOG_PATH 저장 완료."
     fi
+
+    # PID_FILE 설정 추가
+    NEW_PID_FILE="$DEST_DIR/run/application.pid"
+    if grep -q "^PID_FILE=" "$DEST_PROP_FILE"; then
+        sed -i "/^PID_FILE=/c\PID_FILE=\"$NEW_PID_FILE\"" "$DEST_PROP_FILE"
+    else
+        echo "PID_FILE=\"$NEW_PID_FILE\"" >> "$DEST_PROP_FILE"
+    fi
+    chown root:root "$DEST_PROP_FILE"
+    log_info "환경 설정 파일에 PID_FILE 저장 완료."
 
     log_info "로그 경로: $LOG_PATH"
 
@@ -332,7 +357,7 @@ Group=$SERVICE_GROUP
 Type=forking
 ExecStart=$START_SCRIPT
 ExecStop=$STOP_SCRIPT
-PIDFile=$DEST_DIR/bin/application.pid
+PIDFile=$DEST_DIR/run/application.pid
 Restart=always
 
 [Install]
