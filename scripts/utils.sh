@@ -72,20 +72,16 @@ is_safe_path() {
     local normalized_path
     normalized_path=$(readlink -f "$path" 2>/dev/null || echo "$path")
 
-    # 삭제 금지된 중요 시스템 경로 목록
-    local sensitive_paths=(
-        "/" "/bin" "/boot" "/dev" "/etc" "/home" "/lib" "/lib64"
-        "/media" "/mnt" "/opt" "/proc" "/root" "/run" "/sbin"
-        "/srv" "/sys" "/tmp" "/usr" "/var" "/usr/bin" "/usr/sbin"
-        "/usr/lib" "/var/log" "/usr/local/bin" "/usr/local/sbin" "/usr/local/lib"
-        "/log"
-    )
-
-    for p in "${sensitive_paths[@]}"; do
-        if [[ "$normalized_path" == "$p" ]]; then
+    # 삭제 금지된 중요 시스템 경로 목록 (빠른 검사를 위해 case 문 사용)
+    case "$normalized_path" in
+        "/" | "/bin" | "/boot" | "/dev" | "/etc" | "/home" | "/lib" | "/lib64" | \
+        "/media" | "/mnt" | "/opt" | "/proc" | "/root" | "/run" | "/sbin" | \
+        "/srv" | "/sys" | "/tmp" | "/usr" | "/var" | "/usr/bin" | "/usr/sbin" | \
+        "/usr/lib" | "/var/log" | "/usr/local/bin" | "/usr/local/sbin" | "/usr/local/lib" | \
+        "/log")
             return 1 # Not safe
-        fi
-    done
+            ;;
+    esac
 
     # 최상위 디렉토리(예: /foo) 형식은 허용하되, / 자체는 불가
     if [[ ! "$normalized_path" =~ ^/ ]] || [[ "$normalized_path" == "/" ]]; then
