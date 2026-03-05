@@ -202,9 +202,19 @@ task prepareDockerContext {
 			rename { 'docker-compose.yml' }
 			filter(ReplaceTokens, tokens: [
 				appName: project.name.toString(), 
-				LOG_PATH: ('/var/log/' + project.name).toString(),
-				dockerImage: imageName.toString()
+				// LOG_PATH와 dockerImage는 install_docker_service.sh 시점에 .env로 주입되도록 제외
 			])
+		}
+		
+		// 호스트 마운트용 config 폴더 복사 추가 (Host 환경에서 설정 파일 직접 수정 위함)
+		def configDir = file("${dockerContext}/config")
+		if (configDir.exists()) {
+			copy {
+				from configDir
+				into "${dockerDistDir}/config"
+			}
+
+			println "📂 배포용 config 폴더 복사 완료 (Host Mount용)"
 		}
 		
 		// 스크립트 복사 (install, uninstall, utils, cron)
@@ -402,5 +412,57 @@ task k8sBuild(type: Zip) {
 
 	doLast {
 		println "✅ === K8s 배포 패키지 생성 완료: ${destinationDirectory.get()}/${archiveFileName.get()} ==="
+	}
+}
+
+// 기존 help 태스크 확장 (프로젝트 전용 가이드 추가)
+tasks.named('help') {
+	doLast {
+		println """
+================================================================================
+🚀 [Build Template] 빌드 및 배포 가이드 (Spring Boot Boilerplate)
+================================================================================
+💡 초기화 스크립트 (init.sh): 
+   명령어 `./init.sh` 를 통해 패키지명, 포트포워딩 등을 입력하여 자동 설정할 수 있습니다!
+
+이 프로젝트는 여러 빌드/배포 환경(Legacy, Docker, K8s)을 지원합니다.
+
+[기본 빌드 명령어]
+  ./gradlew build           : 표준 빌드 수행 (기본 패키징 포함)
+  ./gradlew clean           : 빌드 결과물 정리
+
+[환경 지정 옵션 (-Penv=...)]
+  모든 배포 태스크에 환경(`dev`, `prod`, `local` 등)을 지정할 수 있습니다.
+  지정 시 `config/{env}/` 및 `scripts/{env}/` 내의 파일들이 오버레이(덮어쓰기) 됩니다.
+  예시: ./gradlew package -Penv=prod
+
+[배포 태스크 (Distribution Tasks)]
+  📦 1. package
+     - Legacy Java 서버 배포용 (JAR + Script) Zip 생성
+     - 산출물: build/dist/{APP_NAME}-{version}-{env}.dist.zip
+     - 예시: ./gradlew package -Penv=prod
+
+  🐳 2. dockerBuild (Strategy 1)
+     - 로컬 Docker 데몬에 이미지를 빌드하고 스크립트와 함께 Zip 배포 패키지 생성
+     - **주의**: 네트워크를 통해 Image Tar를 직접 전송하는 방식이므로, 저장소가 없을 때 유용
+     - 산출물: build/dist/{APP_NAME}-docker-{env}.zip
+     - 예시: ./gradlew dockerBuild -Penv=prod
+
+  🔨 3. dockerBuildImage (Strategy 2)
+     - 파일 전송(소스 코드 전송)을 서버에서 직접 받아 서버 Local 데몬에 이미지 빌드 시 활용
+     - 바로 `docker-compose up` 으로 실행할 수 있도록 `build/docker-dist/` 환경 구성
+     - 예시: ./gradlew dockerBuildImage -Penv=prod
+
+  ☁️ 4. dockerPushImage (Strategy 3)
+     - 빌드 후 원격 레지스트리로 Image Push 수행 (CI/CD 표준 동작)
+     - 옵션 필요: -PdockerRegistry={REGISTRY_URL} [-PdockerImageTag={TAG_NAME}]
+     - 예시: ./gradlew dockerPushImage -Penv=prod -PdockerRegistry=my.reg.com/repo
+
+  ☸️ 5. k8sBuild
+     - Kubernetes 배포 매니페스트 (deployment.yaml 등) 스캐폴딩 생성
+     - 산출물: build/dist/{APP_NAME}-k8s-{env}.zip
+     - 예시: ./gradlew k8sBuild -Penv=prod
+================================================================================
+"""
 	}
 }

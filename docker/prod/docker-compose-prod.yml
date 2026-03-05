@@ -1,15 +1,16 @@
 services:
-  @appName@-app:
-    image: @dockerImage@
-    container_name: @appName@-app
+  app:
+    image: ${DOCKER_IMAGE:-app:latest}
+    container_name: ${APP_NAME:-app}-app
     ports:
       - "8080:19999" # host port:service port
     volumes:
-      - @LOG_PATH@:/log # container path : host path
+      - ${LOG_PATH:-./log}:/log # container path : host path
+      - ${DEST_DIR:-.}/config:/app/config
     environment:
       - SPRING_PROFILES_ACTIVE=prod
-      - LOG_PATH=@LOG_PATH@ # container 안에서 service가 log 파일을 저장할 경로
-      - APP_NAME=@appName@
+      - LOG_PATH=${LOG_PATH:-./log} # container 안에서 service가 log 파일을 저장할 경로
+      - APP_NAME=${APP_NAME:-app}
     restart: unless-stopped
     # 운영 환경에서는 리소스 제한 설정 권장
     # deploy:

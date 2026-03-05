@@ -11,7 +11,8 @@ RUN apk add --no-cache bash
 
 COPY libs/ /app/libs/
 COPY config/ /app/config/
-COPY bin/ /app/bin/
+COPY bin/start.sh /app/bin/start.sh
+COPY bin/utils.sh /app/bin/utils.sh
 
 # 스크립트 실행 권한 부여
 RUN chmod +x /app/bin/*.sh

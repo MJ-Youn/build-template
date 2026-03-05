@@ -1,12 +1,12 @@
 services:
-  @appName@-app:
-    image: @dockerImage@
-    container_name: @appName@-app
+  app:
+    image: ${DOCKER_IMAGE:-app:latest}
+    container_name: ${APP_NAME:-app}-app
     ports:
       - "8080:8080"
     volumes:
-      # 로컬의 log 폴더를 컨테이너 로그 경로에 마운트하여 호스트에서 확인 가능
-      - ./log:/app/log
+      - ${LOG_PATH:-./log}:/log # container path : host path
+      - ${DEST_DIR:-.}/config:/app/config
     environment:
       - TZ=Asia/Seoul
     restart: unless-stopped
