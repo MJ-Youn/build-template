@@ -107,6 +107,27 @@ task 'package'(type: Zip) {
 		}
 	}
 
+	// 4. Docker 관련 파일 (서버에서 Docker 배포 시 사용)
+	// Dockerfile: dist 패키지 기반 Docker 이미지 빌드용 (docker/Dockerfile 동일한 구조 사용)
+	def dockerfileForDist = file('docker/Dockerfile')
+	if (dockerfileForDist.exists()) {
+		from(dockerfileForDist) {
+			into 'docker'
+		}
+	}
+
+	// 환경별 docker-compose.yml 선택
+	def packageEnv = project.hasProperty('env') ? project.property('env') : 'dev'
+	def pkgEnvComposeFile = file("docker/${packageEnv}/docker-compose-${packageEnv}.yml")
+	def pkgBaseComposeFile = file('docker/docker-compose.yml')
+	def pkgComposeFile = pkgEnvComposeFile.exists() ? pkgEnvComposeFile : pkgBaseComposeFile
+	if (pkgComposeFile.exists()) {
+		from(pkgComposeFile) {
+			into 'docker'
+			rename { 'docker-compose.yml' }
+		}
+	}
+
 	archiveFileName = "${distName}${envSuffix}.dist.zip"
 	destinationDirectory = file("${buildDir}/dist")
 
@@ -217,8 +238,9 @@ task prepareDockerContext {
 			println "📂 배포용 config 폴더 복사 완료 (Host Mount용)"
 		}
 		
-		// 스크립트 복사 (install, uninstall, utils, cron)
-		['docker/install_docker_service.sh', 'docker/uninstall_docker_service.sh', 'scripts/utils.sh'].each { src ->
+		// 스크립트 복사 (install, utils, cron)
+		// uninstall_docker_service.sh는 scripts/uninstall_service.sh로 통합되어 제거됨
+		['docker/install_docker_service.sh', 'scripts/utils.sh'].each { src ->
 			def f = file(src)
 			if (f.exists()) {
 				copy {
@@ -438,8 +460,10 @@ tasks.named('help') {
 
 [배포 태스크 (Distribution Tasks)]
   📦 1. package
-     - Legacy Java 서버 배포용 (JAR + Script) Zip 생성
+     - 일반 서버(Legacy / Docker 선택 가능) 배포용 Zip 생성
      - 산출물: build/dist/{APP_NAME}-{version}-{env}.dist.zip
+     - 포함 내용: JAR + Scripts + Config + docker/ (Dockerfile, docker-compose.yml)
+     - 서버 배포 시 install_service.sh를 실행하면 Legacy 또는 Docker 방식을 선택할 수 있습니다.
      - 예시: ./gradlew package -Penv=prod
 
   🐳 2. dockerBuild (Strategy 1)

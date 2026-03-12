@@ -1,7 +1,8 @@
 #!/bin/bash
 # ==============================================================================
 # File: uninstall_service.sh
-# Description: 서비스 제거 스크립트 (Systemd/SysVinit 지원)
+# Description: 서비스 제거 스크립트 (Legacy / Docker 배포 방식 모두 지원)
+#              배포 방식을 자동 감지하여 적절한 제거 절차를 수행합니다.
 # Author: 윤명준 (MJ Yune)
 # Since: 2026-02-11
 # ==============================================================================
@@ -15,7 +16,6 @@ if [ -f "$UTILS_PATH" ]; then
     source "$UTILS_PATH"
 else
     echo "Warning: utils.sh not found at $UTILS_PATH. Using basic logging."
-    # Define basic logging functions (Fallback)
     RED='\033[0;31m'
     GREEN='\033[0;32m'
     YELLOW='\033[0;33m'
@@ -34,16 +34,99 @@ else
 fi
 
 # --- [Constants & Variables] ---
+# @appName@은 Gradle 빌드 시 실제 프로젝트 이름으로 치환됨
 APP_NAME="@appName@"
 INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
+
 # 환경 변수 파일 (로그 경로 등 확인용)
 PROP_FILE="$SCRIPT_DIR/.app-env.properties"
+# Docker 설치 환경의 경우 SCRIPT_DIR가 바로 INSTALL_DIR일 수 있음
+if [ -f "$SCRIPT_DIR/../.app-env.properties" ]; then
+    PROP_FILE="$SCRIPT_DIR/../.app-env.properties"
+fi
+if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
+    PROP_FILE="$SCRIPT_DIR/.app-env.properties"
+fi
 
 # 실행 유저 확인
 REAL_USER=${SUDO_USER:-$USER}
 USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
 
+# 배포 방식 (자동 감지 또는 사용자 선택)
+DEPLOY_MODE=""
+
+# Docker-compose 명령어 (Docker 모드에서만 사용)
+DOCKER_COMPOSE_CMD=""
+
 # --- [Functions] ---
+
+# @description 현재 배포 방식을 자동으로 감지
+# docker-compose.yml 파일 또는 Systemd 서비스 파일의 내용을 기반으로 판단
+detect_deploy_mode() {
+    log_step "배포 방식 감지 중..."
+
+    local SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
+
+    # 1. Systemd 서비스 파일에서 감지
+    if [ -f "$SERVICE_FILE" ]; then
+        if grep -q "docker" "$SERVICE_FILE" 2>/dev/null; then
+            DEPLOY_MODE="docker"
+            log_info "Docker 배포 방식 감지됨 (Systemd 서비스 파일 기반)"
+            return
+        else
+            DEPLOY_MODE="legacy"
+            log_info "Legacy 배포 방식 감지됨 (Systemd 서비스 파일 기반)"
+            return
+        fi
+    fi
+
+    # 2. SysVinit init.d 스크립트에서 감지
+    local INIT_SCRIPT="/etc/init.d/$APP_NAME"
+    if [ -f "$INIT_SCRIPT" ]; then
+        if grep -q "docker" "$INIT_SCRIPT" 2>/dev/null; then
+            DEPLOY_MODE="docker"
+            log_info "Docker 배포 방식 감지됨 (init.d 스크립트 기반)"
+            return
+        else
+            DEPLOY_MODE="legacy"
+            log_info "Legacy 배포 방식 감지됨 (init.d 스크립트 기반)"
+            return
+        fi
+    fi
+
+    # 3. 설치 디렉토리 내 docker-compose.yml 존재 여부로 감지
+    if [ -f "$INSTALL_DIR/docker-compose.yml" ]; then
+        DEPLOY_MODE="docker"
+        log_info "Docker 배포 방식 감지됨 (docker-compose.yml 파일 기반)"
+        return
+    fi
+
+    # 4. 자동 감지 실패 → 사용자 선택
+    log_warning "배포 방식을 자동으로 감지할 수 없습니다."
+    echo ""
+    echo -e "   ${BOLD}제거할 배포 방식을 선택하세요:${NC}"
+    echo -e "   ${CYAN}1) Legacy${NC}  - Java(Jar) 직접 실행 방식"
+    echo -e "   ${CYAN}2) Docker${NC}  - Docker 컨테이너 실행 방식"
+    echo ""
+
+    while true; do
+        read -p "   선택 [1/2] (기본값: 1): " MODE_INPUT
+        MODE_INPUT="${MODE_INPUT:-1}"
+        case "$MODE_INPUT" in
+            1)
+                DEPLOY_MODE="legacy"
+                break
+                ;;
+            2)
+                DEPLOY_MODE="docker"
+                break
+                ;;
+            *)
+                log_warning "잘못된 입력입니다. 1 또는 2를 입력해주세요."
+                ;;
+        esac
+    done
+}
 
 # @description 서비스 제거 메인 함수
 uninstall_service() {
@@ -51,7 +134,11 @@ uninstall_service() {
 
     log_warning "이 작업은 되돌릴 수 없습니다."
     log_info "설치 디렉토리: $INSTALL_DIR"
-    
+
+    # 배포 방식 감지
+    detect_deploy_mode
+    log_info "제거 대상 배포 방식: $DEPLOY_MODE"
+
     # 사용자 확인
     confirm_uninstall
 
@@ -63,6 +150,11 @@ uninstall_service() {
 
     # 3. 로그 삭제 확인
     remove_logs
+
+    # [Docker 전용] Docker 이미지 삭제
+    if [ "$DEPLOY_MODE" = "docker" ]; then
+        remove_docker_image
+    fi
 
     # 4. 유틸리티 스크립트 삭제
     remove_utility_scripts
@@ -85,15 +177,27 @@ confirm_uninstall() {
     fi
 }
 
-# @description 서비스 중지 및 비활성화
+# @description 서비스 중지 및 비활성화 (Legacy + Docker 통합)
+# Docker 모드에서는 서비스 중지 전 docker-compose down을 먼저 실행
 stop_and_disable_service() {
     log_step "서비스 중지 및 비활성화..."
-    
-    SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
-    INIT_SCRIPT="/etc/init.d/$APP_NAME"
 
+    local SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
+    local INIT_SCRIPT="/etc/init.d/$APP_NAME"
+
+    # Docker 모드: docker-compose down으로 컨테이너 먼저 정리
+    if [ "$DEPLOY_MODE" = "docker" ]; then
+        local COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
+        if [ -f "$COMPOSE_FILE" ]; then
+            log_info "컨테이너 정리 중 (docker-compose down)..."
+            detect_docker_compose_cmd
+            $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" down 2>/dev/null || true
+        fi
+    fi
+
+    # Systemd 서비스 제거
     if command -v systemctl >/dev/null 2>&1; then
-        if systemctl is-active --quiet $APP_NAME; then
+        if systemctl is-active --quiet $APP_NAME 2>/dev/null; then
             log_info "서비스 중지 중..."
             systemctl stop $APP_NAME
         fi
@@ -101,14 +205,14 @@ stop_and_disable_service() {
             log_info "서비스 비활성화 중..."
             systemctl disable $APP_NAME
         fi
-        
+
         if [ -f "$SERVICE_FILE" ]; then
             log_info "서비스 파일 삭제: $SERVICE_FILE"
             rm "$SERVICE_FILE"
             systemctl daemon-reload
         fi
     elif [ -f "$INIT_SCRIPT" ]; then
-        service $APP_NAME stop
+        service $APP_NAME stop 2>/dev/null || true
         rm "$INIT_SCRIPT"
         if command -v chkconfig >/dev/null 2>&1; then
             chkconfig --del $APP_NAME
@@ -122,7 +226,7 @@ stop_and_disable_service() {
 
 # @description Cron 작업 제거
 remove_cron() {
-    CRON_FILE="/etc/cron.d/$APP_NAME"
+    local CRON_FILE="/etc/cron.d/$APP_NAME"
     if [ -f "$CRON_FILE" ]; then
         log_info "Cron 작업 삭제: $CRON_FILE"
         rm "$CRON_FILE"
@@ -135,8 +239,9 @@ remove_logs() {
     log_step "로그 데이터 처리"
 
     # 로그 경로 파악 (.app-env.properties 읽기)
-    LOG_PATH=""
+    local LOG_PATH=""
     if [ -f "$PROP_FILE" ]; then
+        local LOG_PATH_Line
         LOG_PATH_Line=$(grep "^LOG_PATH=" "$PROP_FILE")
         if [ -n "$LOG_PATH_Line" ]; then
             LOG_PATH=$(echo "$LOG_PATH_Line" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
@@ -149,12 +254,12 @@ remove_logs() {
         log_info "감지된 로그 경로: $LOG_PATH"
         read -p "   ❓ 로그 파일도 함께 삭제하시겠습니까? (y/N): " DEL_LOG
         DEL_LOG=${DEL_LOG:-N}
-        
+
         if [[ "$DEL_LOG" =~ ^[Yy]$ ]]; then
             if is_safe_path "$LOG_PATH"; then
-                 log_info "로그 디렉토리 삭제 중..."
-                 rm -rf "$LOG_PATH"
-                 log_success "로그 파일이 삭제되었습니다."
+                log_info "로그 디렉토리 삭제 중..."
+                rm -rf "$LOG_PATH"
+                log_success "로그 파일이 삭제되었습니다."
             else
                 log_error "위험한 로그 경로가 감지되었습니다: $LOG_PATH. 로그 삭제를 건너뜁니다."
             fi
@@ -166,10 +271,35 @@ remove_logs() {
     fi
 }
 
+# @description Docker 이미지 제거 (Docker 모드 전용)
+remove_docker_image() {
+    log_step "Docker 이미지 정리"
+
+    # tar 아카이브 파일 삭제 (있는 경우)
+    local TAR_FILE="$INSTALL_DIR/$APP_NAME.tar"
+    if [ -f "$TAR_FILE" ]; then
+        log_info "Docker 이미지 아카이브 발견: $TAR_FILE"
+        rm "$TAR_FILE"
+        log_success "이미지 아카이브 삭제됨."
+    fi
+
+    # Docker 이미지 삭제 여부 확인
+    read -p "   ❓ Docker 이미지($APP_NAME:latest)를 삭제하시겠습니까? (y/N): " DEL_IMG
+    DEL_IMG=${DEL_IMG:-N}
+    if [[ "$DEL_IMG" =~ ^[Yy]$ ]]; then
+        if docker image inspect "$APP_NAME:latest" >/dev/null 2>&1; then
+            docker rmi "$APP_NAME:latest"
+            log_success "Docker 이미지 삭제 완료 ($APP_NAME:latest)"
+        else
+            log_warning "이미지 '$APP_NAME:latest'를 찾을 수 없어 삭제를 건너뜁니다."
+        fi
+    fi
+}
+
 # @description 유틸리티 스크립트 제거 (tail-log 등)
 remove_utility_scripts() {
     log_step "유틸리티 스크립트 정리"
-    TAIL_SCRIPT="$USER_HOME/bin/tail-log-${APP_NAME}.sh"
+    local TAIL_SCRIPT="$USER_HOME/bin/tail-log-${APP_NAME}.sh"
     if [ -f "$TAIL_SCRIPT" ]; then
         log_info "로그 확인 스크립트 삭제: $TAIL_SCRIPT"
         rm "$TAIL_SCRIPT"
@@ -180,14 +310,35 @@ remove_utility_scripts() {
 remove_install_dir() {
     log_step "설치 파일 삭제"
     log_info "설치 디렉토리 제거: $INSTALL_DIR"
-    
-    # 주의: INSTALL_DIR가 시스템 중요 디렉토리인지 체크
+
     if ! is_safe_path "$INSTALL_DIR"; then
         log_error "잘못된 또는 위험한 설치 경로 감지 ($INSTALL_DIR). 삭제를 중단합니다."
         exit 1
     fi
 
     rm -rf "$INSTALL_DIR"
+}
+
+# @description Docker Compose 명령어 감지 (docker compose vs docker-compose)
+detect_docker_compose_cmd() {
+    if [ -n "$DOCKER_COMPOSE_CMD" ]; then
+        return
+    fi
+
+    local DOCKER_BIN
+    DOCKER_BIN=$(command -v docker)
+    if [ -z "$DOCKER_BIN" ]; then
+        log_warning "Docker 실행 파일을 찾을 수 없습니다. 컨테이너 정리를 건너뜁니다."
+        return
+    fi
+
+    if $DOCKER_BIN compose version >/dev/null 2>&1; then
+        DOCKER_COMPOSE_CMD="$DOCKER_BIN compose"
+    elif command -v docker-compose >/dev/null 2>&1; then
+        DOCKER_COMPOSE_CMD=$(command -v docker-compose)
+    else
+        log_warning "Docker Compose를 찾을 수 없어 컨테이너 정리를 건너뜁니다."
+    fi
 }
 
 # --- [Execution] ---
