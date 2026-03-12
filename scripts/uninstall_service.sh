@@ -9,29 +9,8 @@
 # --- [Script Init] ---
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-# utils.sh 로드
-UTILS_PATH="$SCRIPT_DIR/utils.sh"
-if [ -f "$UTILS_PATH" ]; then
-    source "$UTILS_PATH"
-else
-    echo "Warning: utils.sh not found at $UTILS_PATH. Using basic logging."
-    # Define basic logging functions (Fallback)
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[0;33m'
-    BLUE='\033[0;34m'
-    CYAN='\033[0;36m'
-    BOLD='\033[1m'
-    NC='\033[0m'
-
-    log_header() { echo -e "\n${BOLD}${RED}=== $1 ===${NC}"; }
-    log_step() { echo -e "\n${BOLD}➡️  $1${NC}"; }
-    log_info() { echo -e "   ${CYAN}ℹ️  $1${NC}"; }
-    log_success() { echo -e "${GREEN}✅  $1${NC}"; }
-    log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
-    log_error() { echo -e "${RED}❌  $1${NC}"; exit 1; }
-    is_safe_path() { return 0; } # Fallback: always safe
-fi
+# 부트스트랩 (유틸리티 로드 및 폴백)
+source "$SCRIPT_DIR/bootstrap.sh"
 
 # --- [Constants & Variables] ---
 APP_NAME="@appName@"

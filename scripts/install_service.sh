@@ -9,32 +9,8 @@
 # --- [Script Init] ---
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-# utils.sh 로드
-UTILS_PATH="$SCRIPT_DIR/utils.sh"
-if [ -f "$UTILS_PATH" ]; then
-    source "$UTILS_PATH"
-else
-    # Fallback functions if utils.sh is not found
-    echo "Warning: utils.sh not found at $UTILS_PATH. Using basic logging."
-    # Define basic logging functions
-    # ANSI color codes
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[0;33m'
-    BLUE='\033[0;34m'
-    CYAN='\033[0;36m'
-    BOLD='\033[1m'
-    NC='\033[0m' # No Color
-
-    log_header() { echo -e "\n${BOLD}${BLUE}=== $1 ===${NC}"; }
-    log_step() { echo -e "\n${BOLD}➡️  $1${NC}"; }
-    log_info() { echo -e "   ${CYAN}ℹ️  $1${NC}"; }
-    log_success() { echo -e "${GREEN}✅  $1${NC}"; }
-    log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
-    log_error() { echo -e "${RED}❌  $1${NC}"; exit 1; }
-    # Dummy add_path_to_profile for fallback
-    add_path_to_profile() { return 1; }
-fi
+# 부트스트랩 (유틸리티 로드 및 폴백)
+source "$SCRIPT_DIR/bootstrap.sh"
 
 # --- [Constants & Variables] ---
 # @appName@은 Gradle 빌드 시 실제 프로젝트 이름으로 치환됨
