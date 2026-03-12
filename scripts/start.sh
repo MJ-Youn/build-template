@@ -9,18 +9,8 @@
 # --- [Script Init] ---
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-# utils.sh 로드
-UTILS_PATH="$SCRIPT_DIR/utils.sh"
-if [ -f "$UTILS_PATH" ]; then
-    source "$UTILS_PATH"
-else
-    # utils.sh가 없으면 최소한의 로깅 함수 정의 (Fallback)
-    echo "Warning: utils.sh not found at $UTILS_PATH"
-    log_step() { echo "➡️  $1"; }
-    log_info() { echo "   ℹ️  $1"; }
-    log_success() { echo "✅  $1"; }
-    log_error() { echo "❌  $1"; }
-fi
+# 부트스트랩 (유틸리티 로드 및 폴백)
+source "$SCRIPT_DIR/bootstrap.sh"
 
 # --- [Constants & Variables] ---
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
