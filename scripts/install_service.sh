@@ -229,7 +229,7 @@ configure_env() {
     # 로그 디렉토리 생성 및 권한
     mkdir -p "$LOG_PATH"
     chown -R $REAL_USER:$SERVICE_GROUP "$LOG_PATH"
-    chmod 755 "$LOG_PATH" # 로그 디렉토리 권한 설정 (보안 강화)
+    chmod 750 "$LOG_PATH" # 로그 디렉토리 권한 설정 (보안 강화)
     log_success "로그 디렉토리 준비 완료."
 
     # tail-log 스크립트 생성
