@@ -92,6 +92,9 @@ install_legacy_mode() {
     # 설치 위치 결정 (기존 설치 감지 포함)
     determine_install_dir
 
+    # 이전 Docker 배포 잔재 파일 정리
+    cleanup_docker_artifacts
+
     # 파일 복사
     copy_legacy_files
 
@@ -103,6 +106,38 @@ install_legacy_mode() {
 
     log_header "설치 완료"
 }
+
+# @description 이전 Docker 배포 잔재 파일 정리
+# Docker 모드에서 Legacy 모드로 전환 시 루트에 남은 불필요한 파일 제거
+cleanup_docker_artifacts() {
+    # Docker 배포 시 루트에 복사되는 파일 목록 (Legacy에서 불필요)
+    local DOCKER_ROOT_FILES=(
+        "$DEST_DIR/docker-compose.yml"
+        "$DEST_DIR/bootstrap.sh"
+        "$DEST_DIR/utils.sh"
+        "$DEST_DIR/uninstall_service.sh"
+        "$DEST_DIR/.app-env.properties"
+    )
+
+    local CLEANED=0
+    for f in "${DOCKER_ROOT_FILES[@]}"; do
+        if [ -f "$f" ]; then
+            rm -f "$f"
+            CLEANED=1
+        fi
+    done
+
+    # 루트의 cron 디렉토리 (Docker 잔재)
+    if [ -d "$DEST_DIR/cron" ]; then
+        rm -rf "$DEST_DIR/cron"
+        CLEANED=1
+    fi
+
+    if [ "$CLEANED" -eq 1 ]; then
+        log_info "이전 Docker 배포 잔재 파일을 정리했습니다."
+    fi
+}
+
 
 # @description Legacy 설치 사전 요구사항 점검 (Java 등)
 check_legacy_prerequisites() {
@@ -186,17 +221,24 @@ copy_legacy_files() {
     # 1. Libs (Jar)
     cp -f "$PKG_ROOT/libs/"*.jar "$DEST_DIR/libs/"
 
-    # 2. Bin Scripts (install_service.sh 제외)
-    find "$SCRIPT_DIR" -maxdepth 1 -name "*.sh" ! -name "install_service.sh" -exec cp -f -t "$DEST_DIR/bin/" {} +
+    # 2. Bin Scripts
+    # Legacy 실행에 필요한 스크립트만 명시적으로 복사
+    # (run_bash_tests.sh, bootstrap.sh 등 불필요한 파일 제외)
+    local LEGACY_SCRIPTS=("start.sh" "stop.sh" "status.sh" "uninstall_service.sh" "utils.sh" "bootstrap.sh")
+    for script in "${LEGACY_SCRIPTS[@]}"; do
+        if [ -f "$SCRIPT_DIR/$script" ]; then
+            cp -f "$SCRIPT_DIR/$script" "$DEST_DIR/bin/"
+        fi
+    done
 
-    # 3. Utils & Hidden Files
+    # cron 디렉토리 복사
+    if [ -d "$SCRIPT_DIR/cron" ]; then
+        cp -rf "$SCRIPT_DIR/cron" "$DEST_DIR/bin/"
+    fi
+
+    # 3. .app-env.properties
     if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
         cp -f "$SCRIPT_DIR/.app-env.properties" "$DEST_DIR/bin/"
-    fi
-    if [ -f "$SCRIPT_DIR/utils.sh" ]; then
-         cp -f "$SCRIPT_DIR/utils.sh" "$DEST_DIR/bin/"
-    elif [ -f "$UTILS_PATH" ]; then
-         cp -f "$UTILS_PATH" "$DEST_DIR/bin/"
     fi
 
     # 4. Config
@@ -213,6 +255,7 @@ copy_legacy_files() {
 
     log_success "파일 복사 및 권한 설정 완료."
 }
+
 
 # @description 환경 변수 설정 및 로그 경로 확인 (Legacy 모드)
 configure_legacy_env() {
@@ -490,9 +533,16 @@ copy_docker_files() {
         chmod +x "$DEST_DIR/uninstall_service.sh"
     fi
 
+    # bootstrap.sh 복사 (uninstall_service.sh가 source하여 사용)
+    local BOOTSTRAP_SRC="$SCRIPT_DIR/bootstrap.sh"
+    if [ -f "$BOOTSTRAP_SRC" ]; then
+        cp "$BOOTSTRAP_SRC" "$DEST_DIR/"
+    fi
+
     # utils.sh 복사
-    if [ -f "$UTILS_PATH" ]; then
-        cp "$UTILS_PATH" "$DEST_DIR/"
+    local UTILS_SRC="$SCRIPT_DIR/utils.sh"
+    if [ -f "$UTILS_SRC" ]; then
+        cp "$UTILS_SRC" "$DEST_DIR/"
     fi
 
     # cron 디렉토리 복사
@@ -809,35 +859,61 @@ EOF
 register_path() {
     log_step "PATH 환경 변수 등록"
     local USER_BIN="$USER_HOME/bin"
-    if [[ ":$PATH:" != *":$USER_BIN:"* ]]; then
-        log_info "현재 PATH에 $USER_BIN 이 포함되어 있지 않습니다."
 
-        local UPDATED=0
-        for rcfile in ".zshrc" ".bashrc" ".bash_profile" ".profile"; do
-            if add_path_to_profile "$USER_HOME/$rcfile" "$USER_BIN"; then
-                UPDATED=1
-            fi
-        done
+    # 쉘 프로파일 파일 목록
+    local RC_FILES=(".zshrc" ".bashrc" ".bash_profile" ".profile")
 
-        if [ $UPDATED -eq 1 ]; then
-            export PATH="$PATH:$USER_BIN"
-            log_success "현재 설치 세션에 PATH가 적용되었습니다."
-            log_warning "새로운 터미널부터는 자동으로 적용되지만,"
-            log_warning "현재 열려있는 터미널에 즉시 적용하려면 다음 명령을 실행해주세요:"
-
-            if [[ "$SHELL" == *"zsh"* ]]; then
-                 echo -e "    ${BOLD}source ~/.zshrc${NC}"
-            else
-                 echo -e "    ${BOLD}source ~/.bashrc${NC}"
-            fi
-        elif [ ! -f "$USER_HOME/.zshrc" ] && [ ! -f "$USER_HOME/.bashrc" ]; then
-            log_warning "쉘 설정 파일을 찾을 수 없어 PATH를 자동 등록하지 못했습니다."
-            log_info "수동으로 추가해주세요: export PATH=\"\$PATH:$USER_BIN\""
-        fi
-    else
+    # 1. 현재 sudo 세션의 PATH에 이미 포함된 경우
+    if [[ ":$PATH:" == *":$USER_BIN:"* ]]; then
         log_info "PATH에 이미 $USER_BIN 이 포함되어 있습니다."
+        return
+    fi
+
+    # 2. sudo로 실행 시 $PATH에 없더라도 프로파일에 이미 등록된 경우 체크
+    local ALREADY_REGISTERED=0
+    local REGISTERED_FILE=""
+    for rcfile in "${RC_FILES[@]}"; do
+        local profile="$USER_HOME/$rcfile"
+        if [ -f "$profile" ] && grep -q "$USER_BIN" "$profile" 2>/dev/null; then
+            ALREADY_REGISTERED=1
+            REGISTERED_FILE="~/$rcfile"
+            break
+        fi
+    done
+
+    if [ "$ALREADY_REGISTERED" -eq 1 ]; then
+        log_info "$USER_BIN 이 $REGISTERED_FILE 에 이미 등록되어 있습니다."
+        log_info "(sudo 실행 환경이라 현재 세션 PATH에는 반영되지 않습니다. 정상입니다.)"
+        return
+    fi
+
+    # 3. 미등록 → 프로파일 파일에 추가
+    log_info "현재 PATH에 $USER_BIN 이 포함되어 있지 않습니다. 등록합니다."
+
+    local UPDATED=0
+    for rcfile in "${RC_FILES[@]}"; do
+        if add_path_to_profile "$USER_HOME/$rcfile" "$USER_BIN"; then
+            UPDATED=1
+        fi
+    done
+
+    if [ $UPDATED -eq 1 ]; then
+        export PATH="$PATH:$USER_BIN"
+        log_success "현재 설치 세션에 PATH가 적용되었습니다."
+        log_warning "새로운 터미널부터는 자동으로 적용되지만,"
+        log_warning "현재 열려있는 터미널에 즉시 적용하려면 다음 명령을 실행해주세요:"
+
+        if [[ "$SHELL" == *"zsh"* ]]; then
+             echo -e "    ${BOLD}source ~/.zshrc${NC}"
+        else
+             echo -e "    ${BOLD}source ~/.bashrc${NC}"
+        fi
+    elif [ ! -f "$USER_HOME/.zshrc" ] && [ ! -f "$USER_HOME/.bashrc" ]; then
+        log_warning "쉘 설정 파일을 찾을 수 없어 PATH를 자동 등록하지 못했습니다."
+        log_info "수동으로 추가해주세요: export PATH=\"\$PATH:$USER_BIN\""
     fi
 }
+
 
 # @description Legacy 배포 완료 후 서비스 상태 확인
 check_legacy_service_status() {

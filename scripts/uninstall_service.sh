@@ -16,15 +16,22 @@ source "$SCRIPT_DIR/bootstrap.sh"
 # --- [Constants & Variables] ---
 # @appName@은 Gradle 빌드 시 실제 프로젝트 이름으로 치환됨
 APP_NAME="@appName@"
-INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
+# 배포 방식에 따라 INSTALL_DIR 결정:
+# - Legacy 모드: 스크립트가 bin/ 하위에 있으므로 부모 디렉토리가 설치 루트
+# - Docker 모드: 스크립트가 설치 루트에 직접 있으므로 SCRIPT_DIR 자체가 설치 루트
+if [ "$(basename "$SCRIPT_DIR")" = "bin" ]; then
+    INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
+else
+    INSTALL_DIR="$SCRIPT_DIR"
+fi
 
 # 환경 변수 파일 (로그 경로 등 확인용)
-PROP_FILE="$SCRIPT_DIR/.app-env.properties"
-# Docker 설치 환경의 경우 SCRIPT_DIR가 바로 INSTALL_DIR일 수 있음
-if [ -f "$SCRIPT_DIR/../.app-env.properties" ]; then
-    PROP_FILE="$SCRIPT_DIR/../.app-env.properties"
-fi
-if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
+# Legacy: bin/.app-env.properties / Docker: .app-env.properties (INSTALL_DIR 바로 아래)
+if [ -f "$INSTALL_DIR/.app-env.properties" ]; then
+    PROP_FILE="$INSTALL_DIR/.app-env.properties"
+elif [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
+    PROP_FILE="$SCRIPT_DIR/.app-env.properties"
+else
     PROP_FILE="$SCRIPT_DIR/.app-env.properties"
 fi
 
@@ -237,11 +244,26 @@ remove_logs() {
 
         if [[ "$DEL_LOG" =~ ^[Yy]$ ]]; then
             if is_safe_path "$LOG_PATH"; then
+                # 로그 경로가 앱 전용 디렉토리이면 전체 삭제
                 log_info "로그 디렉토리 삭제 중..."
                 rm -rf "$LOG_PATH"
                 log_success "로그 파일이 삭제되었습니다."
             else
-                log_error "위험한 로그 경로가 감지되었습니다: $LOG_PATH. 로그 삭제를 건너뜁니다."
+                # 시스템 공유 디렉토리인 경우 APP_NAME으로 시작하는 파일만 선택 삭제
+                log_warning "'$LOG_PATH' 는 시스템 공유 디렉토리입니다."
+                log_info "디렉토리 전체 삭제 대신 '$APP_NAME' 관련 파일만 삭제합니다."
+                local DELETED_COUNT=0
+                while IFS= read -r -d '' f; do
+                    log_info "삭제: $f"
+                    rm -f "$f"
+                    DELETED_COUNT=$((DELETED_COUNT + 1))
+                done < <(find "$LOG_PATH" -maxdepth 1 -name "${APP_NAME}*" -print0 2>/dev/null)
+
+                if [ "$DELETED_COUNT" -gt 0 ]; then
+                    log_success "$DELETED_COUNT 개의 로그 파일이 삭제되었습니다."
+                else
+                    log_info "삭제할 '$APP_NAME' 관련 로그 파일이 없습니다."
+                fi
             fi
         else
             log_info "로그 파일은 보존되었습니다."
