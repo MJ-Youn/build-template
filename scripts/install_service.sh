@@ -253,6 +253,12 @@ copy_legacy_files() {
     # 보안 강화: 배포된 파일들은 root 소유로 설정
     chown -R root:root "$DEST_DIR/bin" "$DEST_DIR/libs" "$DEST_DIR/config"
 
+    # .app-env.properties 보안 권한 (640, root:$SERVICE_GROUP)
+    if [ -f "$DEST_DIR/bin/.app-env.properties" ]; then
+        chmod 640 "$DEST_DIR/bin/.app-env.properties"
+        chown "root:$SERVICE_GROUP" "$DEST_DIR/bin/.app-env.properties"
+    fi
+
     log_success "파일 복사 및 권한 설정 완료."
 }
 
@@ -266,8 +272,8 @@ configure_legacy_env() {
     if [ ! -f "$DEST_PROP_FILE" ]; then
         mkdir -p "$(dirname "$DEST_PROP_FILE")"
         echo "# Application Deployment Configuration" > "$DEST_PROP_FILE"
-        chmod 644 "$DEST_PROP_FILE"
-        chown root:root "$DEST_PROP_FILE"
+        chmod 640 "$DEST_PROP_FILE"
+        chown "root:$SERVICE_GROUP" "$DEST_PROP_FILE"
         log_info "새로운 환경 설정 파일 생성: $DEST_PROP_FILE"
     fi
 
@@ -292,7 +298,8 @@ configure_legacy_env() {
         else
             echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP_FILE"
         fi
-        chown root:root "$DEST_PROP_FILE"
+        chmod 640 "$DEST_PROP_FILE"
+        chown "root:$SERVICE_GROUP" "$DEST_PROP_FILE"
         log_info "환경 설정 파일에 LOG_PATH 저장 완료."
     fi
 
@@ -303,7 +310,8 @@ configure_legacy_env() {
     else
         echo "PID_FILE=\"$NEW_PID_FILE\"" >> "$DEST_PROP_FILE"
     fi
-    chown root:root "$DEST_PROP_FILE"
+    chmod 640 "$DEST_PROP_FILE"
+    chown "root:$SERVICE_GROUP" "$DEST_PROP_FILE"
     log_info "환경 설정 파일에 PID_FILE 저장 완료."
 
     log_info "로그 경로: $LOG_PATH"
@@ -575,6 +583,10 @@ configure_docker_env() {
     else
         echo "# Application Deployment Configuration" > "$DEST_PROP"
     fi
+
+    # .app-env.properties 보안 권한 (640, root:$SERVICE_GROUP)
+    chmod 640 "$DEST_PROP"
+    chown "root:$SERVICE_GROUP" "$DEST_PROP"
 
     # LOG_PATH 설정
     if [ -z "$LOG_PATH" ]; then
