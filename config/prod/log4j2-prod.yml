@@ -1,22 +1,120 @@
 Configuration:
-  status: warn
+  monitorInterval: 10
+
+  Properties:
+    Property:
+      - name: logpath
+        value: ${sys:log.path}
+      - name: logfile
+        value: ${sys:app.name}.log
+
   Appenders:
-    RollingFile:
-      name: File
-      fileName: "${sys:log.path}/${sys:app.name}.log"
-      filePattern: "${sys:log.path}/${sys:app.name}-%d{yyyy-MM-dd}-%i.log.gz"
+    Console:
+      name: ConsoleAppender
+      target: SYSTEM_OUT
       PatternLayout:
-        Pattern: "%d{yyyy-MM-dd HH:mm:ss.SSS} [%t] %-5level %logger{36} - %msg%n"
+        pattern: "%d{${LOG_DATEFORMAT_PATTERN:-yyyy-MM-dd HH:mm:ss}} | %14t | %highlight{${LOG_LEVEL_PATTERN:-%5p}}{FATAL=red blink, ERROR=red, WARN=yellow bold, INFO=green, DEBUG=green bold, TRACE=blue} | %m %style{(%file:%line)}{cyan} %n${LOG_EXCEPTION_CONVERSION_WORD:-%ex{full}}"
+    RollingFile:
+      name: LogToRollingFile
+      fileName: ${logpath}/${logfile}
+      filePattern: ${logpath}/${logfile}-%d{yyyy-MM-dd}-%i.gz
+      immediateFlush: false # async 설정..? 
+      append: true
+      PatternLayout:
+        pattern: "%d{${LOG_DATEFORMAT_PATTERN:-yyyy-MM-dd HH:mm:ss}} | %14t | %highlight{${LOG_LEVEL_PATTERN:-%5p}}{FATAL=red blink, ERROR=red, WARN=yellow bold, INFO=green, DEBUG=green bold, TRACE=blue} | %m %style{(%file:%line)}{cyan} %n${LOG_EXCEPTION_CONVERSION_WORD:-%ex{full}}"
       Policies:
         TimeBasedTriggeringPolicy:
           interval: 1
           modulate: true
         SizeBasedTriggeringPolicy:
-          size: "10 MB"
-      DefaultRolloverStrategy:
-        max: 10
+          size: 10MB
+    Async:
+      -
+        name: ASYNC_CONSOLE
+        includeLocation: true # 위치 정보 포함 여부
+        AppenderRef:
+          - ref: ConsoleAppender
+      -
+        name: ASYNC_ROLLING_FILE
+        includeLocation: true
+        AppenderRef:
+          - ref: LogToRollingFile
+
   Loggers:
     Root:
-      level: info
+      level: WARN
+      includeLocation: true
       AppenderRef:
-        - ref: File
+        - ref: ASYNC_CONSOLE
+        - ref: ASYNC_ROLLING_FILE
+    Logger:
+      - name: kr.re.etri.mdtat
+        level: DEBUG
+        additivity: false
+        includeLocation: true
+        AppenderRef:
+          - ref: ASYNC_CONSOLE
+          - ref: ASYNC_ROLLING_FILE
+      - name: kr.re.etri.mdtat.controller
+        level: DEBUG
+        additivity: false
+        includeLocation: true
+        AppenderRef:
+          - ref: ASYNC_CONSOLE
+          - ref: ASYNC_ROLLING_FILE
+      - name: kr.re.etri.mdtat.service
+        level: DEBUG
+        additivity: false
+        includeLocation: true
+        AppenderRef:
+          - ref: ASYNC_CONSOLE
+          - ref: ASYNC_ROLLING_FILE
+      - name: kr.re.etri.mdtat.repository
+        level: DEBUG
+        additivity: false
+        includeLocation: true
+        AppenderRef:
+          - ref: ASYNC_CONSOLE
+          - ref: ASYNC_ROLLING_FILE
+      - name: open.commons
+        level: DEBUG
+        includeLocation: true
+        additivity: false
+        AppenderRef:
+          - ref: ASYNC_CONSOLE
+          - ref: ASYNC_ROLLING_FILE
+      - name: io.github.mjyoun
+        level: DEBUG
+        includeLocation: true
+        additivity: false
+        AppenderRef:
+          - ref: ASYNC_CONSOLE
+          - ref: ASYNC_ROLLING_FILE
+      - name: com.zaxxer.hikari
+        level: INFO
+        includeLocation: true
+        additivity: false
+        AppenderRef:
+          - ref: ASYNC_CONSOLE
+          - ref: ASYNC_ROLLING_FILE
+      - name: org.springframework
+        level: INFO
+        additivity: false
+        includeLocation: true
+        AppenderRef:
+          - ref: ASYNC_CONSOLE
+          - ref: ASYNC_ROLLING_FILE
+      - name: org.apache.tomcat.util
+        level: DEBUG
+        additivity: false
+        includeLocation: true
+        AppenderRef:
+          - ref: ASYNC_CONSOLE
+          - ref: ASYNC_ROLLING_FILE
+      - name: junit.test
+        level: INFO
+        additivity: false
+        includeLocation: true
+        AppenderRef:
+          - ref: ASYNC_CONSOLE
+          - ref: ASYNC_ROLLING_FILE

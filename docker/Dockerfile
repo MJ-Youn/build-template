@@ -13,15 +13,10 @@ COPY libs/ /app/libs/
 COPY config/ /app/config/
 COPY bin/start.sh /app/bin/start.sh
 COPY bin/utils.sh /app/bin/utils.sh
+COPY bin/bootstrap.sh /app/bin/bootstrap.sh
 
 # 스크립트 실행 권한 부여
 RUN chmod +x /app/bin/*.sh
-
-# 포트 노출 (기본 8080)
-EXPOSE 8080
-
-# 설정 파일 위치 환경 변수 (스크립트에서 처리하지만 명시)
-ENV CONFIG_LOCATION=file:/app/config/
 
 # 애플리케이션 실행
 CMD ["./bin/start.sh"]
