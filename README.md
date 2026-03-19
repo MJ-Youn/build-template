@@ -46,6 +46,59 @@
 
 `src/main/java/{Group}/{Project}` 경로에 여러분만의 코드를 작성하세요!
 
+### 🤖 4단계 (선택): 자동화 스크립트로 원스탑 배포
+
+서버에서 반복적인 Legacy 배포를 자동화할 때는 `build_deploy.sh`를 활용하세요. Git pull → Gradle 빌드 → 설치까지 한 번에 처리합니다.
+
+```bash
+./build_deploy.sh -Penv=dev
+```
+
+---
+
+## 🤖 자동화 배포 스크립트 (build_deploy.sh)
+
+> **소스 코드가 서버에 직접 올라가 있는 환경(Legacy/서버 빌드)**에서, 반복적인 배포 작업을 한 줄의 명령으로 완전 자동화합니다.
+
+### 🔄 실행 흐름
+
+```
+[1/3] 📥 Git Pull        → 최신 소스 코드 수신
+[2/3] 🔨 Gradle Package  → 환경별 배포 패키지(ZIP) 빌드
+[3/3] 📦 AUTO 압축 해제   → bin/install_service.sh 자동 실행
+```
+
+### 🚀 사용법
+
+```bash
+# 기본 형식
+./build_deploy.sh -Penv=<환경명>
+
+# 예시
+./build_deploy.sh -Penv=dev    # 개발 환경
+./build_deploy.sh -Penv=prod   # 운영 환경
+```
+
+### ✅ 사전 조건
+
+| 항목 | 설명 |
+|------|------|
+| Git 저장소 | `.git` 폴더가 존재하면 자동으로 `git pull` 실행, 없으면 건너뜀 |
+| JDK | `./gradlew` 실행 가능 환경 필요 |
+| `unzip` | 패키지 압축 해제에 필요 |
+| `bin/install_service.sh` | 빌드 패키지 내 포함된 설치 스크립트 |
+
+### 📋 상세 동작
+
+1. **Git Pull**: 현재 디렉토리에 `.git` 폴더가 있으면 `git pull`을 실행하여 최신 코드를 반영합니다.
+2. **Gradle 빌드**: `./gradlew package -Penv=<환경명>` 을 실행하여 배포 패키지를 생성합니다.
+   - 결과물: `build/dist/{APP_NAME}-{version}-{env}.dist.zip`
+3. **압축 해제 및 설치**: 생성된 ZIP 파일을 자동으로 찾아 압축을 해제하고, 내부의 `bin/install_service.sh`를 실행합니다.
+   - 압축 해제 경로: `build/dist/{ZIP파일명}/`
+   - 기존 폴더가 있으면 자동으로 삭제 후 재생성
+
+> ⚠️ **주의**: `install_service.sh` 가 `sudo` 권한이 필요한 경우, `sudo ./build_deploy.sh -Penv=prod` 대신 스크립트 내부의 권한 상승 방식을 사용하거나, `sudo` 없이 실행 가능한 환경을 구성하세요.
+
 ---
 
 ## 📦 빌드 및 배포 (Build & Deploy)
@@ -123,7 +176,7 @@ sudo ./install_docker_service.sh
 # (주의: 스크립트 없이 docker-compose up -d 단독 실행 시 .env 파일 직접 구성 필요)
 ```
 
-> 💡 **Tip**: 반복 배포 시 `git pull && ./gradlew dockerBuildImage -Penv=prod` 명령으로 빠르게 최신화할 수 있습니다.
+> 💡 **Tip**: 반복 배포 시 `git pull && ./gradlew dockerBuildImage -Penv=prod` 명령으로 빠르게 최신화할 수 있습니다. Legacy(일반 서버) 배포 환경이라면 `build_deploy.sh -Penv=prod`를 사용하면 Git pull → 빌드 → 설치까지 한 번에 자동화됩니다.
 
 ### 🐳 Docker 배포 3: 레지스트리 (Push & Pull)
 
@@ -171,13 +224,21 @@ Docker 없이 Java(JDK)만 설치된 서버에 배포하는 방식입니다.
 
 - **결과물**: `build/dist/{APP_NAME}-{version}-prod.dist.zip`
 
-**2. 배포 (Server)**
+**2. 배포 (Server) — 수동**
 
 ```bash
 # 압축 해제 후 설치 스크립트 실행
 unzip {APP_NAME}-*.dist.zip -d {APP_NAME}
 cd {APP_NAME}
-sudo ./scripts/install_service.sh
+sudo ./bin/install_service.sh
+```
+
+**2-b. 배포 (Server) — 자동화 스크립트 사용 (권장)**
+
+서버에 소스 코드가 이미 있는 경우, `build_deploy.sh`로 Git pull부터 설치까지 한 번에 처리할 수 있습니다.
+
+```bash
+./build_deploy.sh -Penv=prod
 ```
 
 ### ☸️ Kubernetes 배포 (K8s) (개발 예정)
@@ -279,6 +340,16 @@ flowchart TD
     Start["🚀 1. 프로젝트 생성"] --> Dev["💻 2. 개발 및 커스터마이징"]
     Dev --> BuildSelect{"🛠️ 3. 빌드/배포 방식 선택"}
 
+    %% 자동화 스크립트 (build_deploy.sh)
+    subgraph AutoScript ["🤖 build_deploy.sh (자동화)"]
+        direction LR
+        AS1["📥 git pull"] --> AS2["🔨 gradlew package"]
+        AS2 --> AS3["📦 unzip + install_service.sh"]
+    end
+
+    BuildSelect -->|자동화| AutoScript
+    AutoScript --> LegacyDeploy2["⚙️ 서비스 등록/실행"]
+
     %% 서브그래프: Legacy
     subgraph Legacy ["🖥️ Legacy Path (Jar)"]
         direction TB
@@ -341,6 +412,7 @@ flowchart TD
     BuildSelect -->|K8s| K8sBuild
 
     LegacyDeploy --> Monitor["📈 통합 모니터링"]
+    LegacyDeploy2 --> Monitor
     DockerService --> Monitor
     K8sDeploy --> Monitor
 
@@ -370,7 +442,8 @@ flowchart TD
 
     %% Nodes & Legend Styling (Local vs Remote)
     class LegacyBuild,LegacyTrans,K8sBuild,D1_Build,D1_Save,D1_Trans,D2_Trans,D3_Build,D3_Push,L1 local_env;
-    class LegacyDeploy,K8sDeploy,D1_Load,D2_Build,D3_Pull,DockerService,L2 remote_env;
+    class LegacyDeploy,LegacyDeploy2,K8sDeploy,D1_Load,D2_Build,D3_Pull,DockerService,L2 remote_env;
+    class AS1,AS2,AS3 remote_env;
 ```
 
 ## 🧜‍♀️ 개발 시퀀스 (Sequence Diagram)

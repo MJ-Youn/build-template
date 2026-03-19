@@ -76,6 +76,7 @@ task 'package'(type: Zip) {
 			rename { String filename ->
 				filename.replace("-${env}", "")
 			}
+			exclude '**/*test*'
 		}
 	}
 	
@@ -105,6 +106,7 @@ task 'package'(type: Zip) {
 		if (project.hasProperty('env')) {
 			exclude project.property('env')
 		}
+		exclude '**/*test*'
 	}
 
 	// 4. Docker 관련 파일 (서버에서 Docker 배포 시 사용)
