@@ -39,4 +39,5 @@ else
     # 기본 유틸리티 함수 폴백
     add_path_to_profile() { return 1; }
     is_safe_path() { return 0; }
+    detect_docker_compose_cmd() { return 1; }
 fi

@@ -93,6 +93,43 @@ is_safe_path() {
 
 # --- [System API] ---
 
+# @description Docker Compose 명령어 감지 (docker compose vs docker-compose)
+# @param $1 에러 발생 시 종료 여부 (true/false, default: false)
+detect_docker_compose_cmd() {
+    local fail_on_error="${1:-false}"
+
+    if [ -n "$DOCKER_COMPOSE_CMD" ]; then
+        return 0
+    fi
+
+    local DOCKER_BIN
+    DOCKER_BIN=$(command -v docker)
+    if [ -z "$DOCKER_BIN" ]; then
+        if [ "$fail_on_error" = "true" ]; then
+            log_error "Docker 실행 파일을 찾을 수 없습니다."
+            exit 1
+        else
+            log_warning "Docker 실행 파일을 찾을 수 없습니다. 컨테이너 작업을 건너뜁니다."
+            return 1
+        fi
+    fi
+
+    if $DOCKER_BIN compose version >/dev/null 2>&1; then
+        DOCKER_COMPOSE_CMD="$DOCKER_BIN compose"
+    elif command -v docker-compose >/dev/null 2>&1; then
+        DOCKER_COMPOSE_CMD=$(command -v docker-compose)
+    else
+        if [ "$fail_on_error" = "true" ]; then
+            log_error "Docker Compose를 찾을 수 없습니다."
+            exit 1
+        else
+            log_warning "Docker Compose를 찾을 수 없어 컨테이너 작업을 건너뜁니다."
+            return 1
+        fi
+    fi
+    return 0
+}
+
 # @description 사용자 쉘 프로필에 PATH 추가
 # @param $1 프로필 파일 경로 (예: ~/.bashrc)
 # @param $2 추가할 bin 경로
