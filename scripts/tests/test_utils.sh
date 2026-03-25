@@ -138,6 +138,89 @@ unset SERVICE_GROUP
 # Cleanup
 rm "$TEMP_PROFILE"
 
+echo -e "\n--- Running tests for detect_docker_compose_cmd ---"
+
+# Mocking command -v
+command() {
+    if [[ "$1" == "-v" ]]; then
+        case "$2" in
+            "docker")
+                if [[ "$MOCK_DOCKER_EXISTS" == "true" ]]; then
+                    echo "docker"
+                    return 0
+                fi
+                ;;
+            "docker-compose")
+                if [[ "$MOCK_DOCKER_COMPOSE_EXISTS" == "true" ]]; then
+                    echo "docker-compose"
+                    return 0
+                fi
+                ;;
+        esac
+    fi
+    # Original command behavior
+    builtin command "$@"
+}
+
+# Mocking docker command
+docker() {
+    if [[ "$1" == "compose" && "$2" == "version" ]]; then
+        if [[ "$MOCK_DOCKER_COMPOSE_PLUGIN" == "true" ]]; then
+            return 0
+        else
+            return 1
+        fi
+    fi
+    return 1
+}
+
+# Test 1: Both missing
+MOCK_DOCKER_EXISTS="false"
+MOCK_DOCKER_COMPOSE_EXISTS="false"
+unset DOCKER_COMPOSE_CMD
+if ! detect_docker_compose_cmd "false"; then
+    echo -e "   [PASS] Handled missing docker/docker-compose (no exit)"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "   [FAIL] Should have failed when both missing"
+    FAILED=$((FAILED + 1))
+fi
+
+# Test 2: Docker exists, plugin exists
+MOCK_DOCKER_EXISTS="true"
+MOCK_DOCKER_COMPOSE_PLUGIN="true"
+unset DOCKER_COMPOSE_CMD
+if detect_docker_compose_cmd; then
+    if [[ "$DOCKER_COMPOSE_CMD" == "docker compose" ]]; then
+        echo -e "   [PASS] Detected docker compose plugin"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e "   [FAIL] Wrong DOCKER_COMPOSE_CMD: $DOCKER_COMPOSE_CMD"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo -e "   [FAIL] Failed to detect docker compose plugin"
+    FAILED=$((FAILED + 1))
+fi
+
+# Test 3: Docker exists, plugin missing, docker-compose exists
+MOCK_DOCKER_EXISTS="true"
+MOCK_DOCKER_COMPOSE_PLUGIN="false"
+MOCK_DOCKER_COMPOSE_EXISTS="true"
+unset DOCKER_COMPOSE_CMD
+if detect_docker_compose_cmd; then
+    if [[ "$DOCKER_COMPOSE_CMD" == "docker-compose" ]]; then
+        echo -e "   [PASS] Detected docker-compose standalone"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e "   [FAIL] Wrong DOCKER_COMPOSE_CMD: $DOCKER_COMPOSE_CMD"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo -e "   [FAIL] Failed to detect docker-compose standalone"
+    FAILED=$((FAILED + 1))
+fi
+
 echo -e "\n--- Tests completed: $PASSED passed, $FAILED failed ---"
 
 if [ $FAILED -ne 0 ]; then

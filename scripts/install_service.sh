@@ -663,7 +663,7 @@ register_docker_service() {
     fi
 
     # Docker Compose 명령어 감지
-    detect_docker_compose_cmd
+    detect_docker_compose_cmd "true"
     log_info "Docker Compose 명령어: $DOCKER_COMPOSE_CMD"
 
     local COMPOSE_FILE="$DEST_DIR/docker-compose.yml"
@@ -761,25 +761,6 @@ EOF
 
         log_success "서비스가 등록되었습니다 (sysvinit)."
         service $APP_NAME restart
-    fi
-}
-
-# @description Docker Compose 명령어 감지 (docker compose vs docker-compose)
-detect_docker_compose_cmd() {
-    local DOCKER_BIN
-    DOCKER_BIN=$(command -v docker)
-    if [ -z "$DOCKER_BIN" ]; then
-        log_error "Docker 실행 파일을 찾을 수 없습니다."
-        exit 1
-    fi
-
-    if $DOCKER_BIN compose version >/dev/null 2>&1; then
-        DOCKER_COMPOSE_CMD="$DOCKER_BIN compose"
-    elif command -v docker-compose >/dev/null 2>&1; then
-        DOCKER_COMPOSE_CMD=$(command -v docker-compose)
-    else
-        log_error "Docker Compose를 찾을 수 없습니다."
-        exit 1
     fi
 }
 

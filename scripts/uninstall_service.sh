@@ -321,27 +321,6 @@ remove_install_dir() {
     rm -rf "$INSTALL_DIR"
 }
 
-# @description Docker Compose 명령어 감지 (docker compose vs docker-compose)
-detect_docker_compose_cmd() {
-    if [ -n "$DOCKER_COMPOSE_CMD" ]; then
-        return
-    fi
-
-    local DOCKER_BIN
-    DOCKER_BIN=$(command -v docker)
-    if [ -z "$DOCKER_BIN" ]; then
-        log_warning "Docker 실행 파일을 찾을 수 없습니다. 컨테이너 정리를 건너뜁니다."
-        return
-    fi
-
-    if $DOCKER_BIN compose version >/dev/null 2>&1; then
-        DOCKER_COMPOSE_CMD="$DOCKER_BIN compose"
-    elif command -v docker-compose >/dev/null 2>&1; then
-        DOCKER_COMPOSE_CMD=$(command -v docker-compose)
-    else
-        log_warning "Docker Compose를 찾을 수 없어 컨테이너 정리를 건너뜁니다."
-    fi
-}
 
 # --- [Execution] ---
 
