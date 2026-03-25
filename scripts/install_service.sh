@@ -965,10 +965,13 @@ check_legacy_service_status() {
 
 # --- [Execution] ---
 
-# 루트 권한 확인
-if [ "$EUID" -ne 0 ]; then
-  echo "Error: 이 스크립트는 root 권한으로 실행해야 합니다."
-  exit 1
-fi
+# Note: Wrap with source guard to allow testing individual functions
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    # 루트 권한 확인
+    if [ "$EUID" -ne 0 ]; then
+      echo "Error: 이 스크립트는 root 권한으로 실행해야 합니다."
+      exit 1
+    fi
 
-install_service
+    install_service
+fi
