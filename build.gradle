@@ -1,9 +1,9 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
-	id 'java'
-	id 'org.springframework.boot' version '4.0.2'
-	id 'io.spring.dependency-management' version '1.1.7'
+    id 'java'
+    id 'org.springframework.boot' version '4.0.2'
+    id 'io.spring.dependency-management' version '1.1.7'
 }
 
 group = 'io.github.mjyoun'
@@ -13,436 +13,598 @@ description = 'Demo project for Spring Boot'
 def environments = ['dev', 'prod', 'local', 'test', 'stage']
 
 java {
-	toolchain {
-		languageVersion = JavaLanguageVersion.of(25)
-	}
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
 }
 
 repositories {
-	mavenCentral()
+    mavenCentral()
 }
 
 dependencies {
-	implementation 'org.springframework.boot:spring-boot-starter-web'
-	implementation 'org.springframework.boot:spring-boot-starter-actuator'
-	implementation 'org.springframework.boot:spring-boot-starter-log4j2'
-	implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
-	testImplementation 'org.springframework.boot:spring-boot-starter-test'
-	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    implementation 'org.springframework.boot:spring-boot-starter-log4j2'
+    implementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
 configurations {
-	all {
-		exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
-	}
+    all {
+        exclude group: 'org.springframework.boot', module: 'spring-boot-starter-logging'
+    }
 }
 
 tasks.named('test') {
-	useJUnitPlatform()
+    useJUnitPlatform()
 }
 
 bootJar {
-	// 실행 가능한 JAR 생성 시 설정 파일 제외 (외부 config 사용 위함)
-	// src/main/resources에 있는 application.yml 등을 제외하여 빌드 결과물을 환경 독립적으로 만듦
-	exclude 'application*.yml', 'application*.properties', 'log4j2*'
+    // 실행 가능한 JAR 생성 시 설정 파일 제외 (외부 config 사용 위함)
+    // src/main/resources에 있는 application.yml 등을 제외하여 빌드 결과물을 환경 독립적으로 만듦
+    exclude 'application*.yml', 'application*.properties', 'log4j2*'
 }
 
 // 배포용 패키지 생성 태스크
 // 실행 가능한 JAR, 설정 파일(config), 시작/종료 스크립트(bin)를 묶어 zip 파일로 생성
 // 'package'는 예약어일 수 있으므로 따옴표로 감싸서 Task 이름으로 정의
 task 'package'(type: Zip) {
-	dependsOn bootJar
-	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    dependsOn bootJar
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
-	def distName = "${project.name}-${project.version}"
-	def envSuffix = ""
+    def distName = "${project.name}-${project.version}"
+    def envSuffix = ""
 
-	// 1. 환경별 파일 (Environment Specific Files)
-	// 먼저 추가된 파일이 우선순위를 가짐 (EXCLUDE 전략)
-	if (project.hasProperty('env')) {
-		def env = project.property('env')
-		envSuffix = "-${env}"
-		
-		from("config/$env") {
-			into 'config'
-			rename { String filename ->
-				filename.replace("-${env}", "")
-			}
-		}
-		
-		from("scripts/$env") {
-			into 'bin'
-			filter(ReplaceTokens, tokens: [appName: project.name])
-			rename { String filename ->
-				filename.replace("-${env}", "")
-			}
-			exclude '**/*test*'
-		}
-	}
-	
-	doFirst {
-		if (project.hasProperty('env')) {
-			println "📦 배포 패키지 생성 중 (환경: ${project.property('env')})"
-		} else {
-			println "📦 기본 환경(dev) 또는 지정되지 않은 환경으로 배포 패키지를 생성합니다."
-		}
-	}
+    // 1. 환경별 파일 (Environment Specific Files)
+    // 먼저 추가된 파일이 우선순위를 가짐 (EXCLUDE 전략)
+    if (project.hasProperty('env')) {
+        def env = project.property('env')
+        envSuffix = "-${env}"
+        
+        from("config/$env") {
+            into 'config'
+            rename { String filename ->
+                filename.replace("-${env}", "")
+            }
+        }
+        
+        from("scripts/$env") {
+            into 'bin'
+            filter(ReplaceTokens, tokens: [appName: project.name])
+            rename { String filename ->
+                filename.replace("-${env}", "")
+            }
+            exclude '**/*test*'
+        }
+    }
+    
+    doFirst {
+        if (project.hasProperty('env')) {
+            println "📦 배포 패키지 생성 중 (환경: ${project.property('env')})"
+        } else {
+            println "📦 기본 환경(dev) 또는 지정되지 않은 환경으로 배포 패키지를 생성합니다."
+        }
+    }
 
-	// 2. 기본 파일 (Base Files)
-	// 이미 추가된 파일(환경별 파일)이 있다면 이 파일들은 무시됨
-	from('config') {
-		into 'config'
-		// 환경별 폴더가 Zip 루트에 그대로 들어가는 것을 방지 (깔끔한 패키징)
-		exclude environments
-		if (project.hasProperty('env')) {
-			exclude project.property('env')
-		}
-	}
+    // 2. 기본 파일 (Base Files)
+    // 이미 추가된 파일(환경별 파일)이 있다면 이 파일들은 무시됨
+    from('config') {
+        into 'config'
+        // 환경별 폴더가 Zip 루트에 그대로 들어가는 것을 방지 (깔끔한 패키징)
+        exclude environments
+        if (project.hasProperty('env')) {
+            exclude project.property('env')
+        }
+    }
 
-	from('scripts') {
-		into 'bin'
-		filter(ReplaceTokens, tokens: [appName: project.name])
-		exclude environments
-		if (project.hasProperty('env')) {
-			exclude project.property('env')
-		}
-		exclude '**/*test*'
-	}
+    from('scripts') {
+        into 'bin'
+        filter(ReplaceTokens, tokens: [appName: project.name])
+        exclude environments
+        if (project.hasProperty('env')) {
+            exclude project.property('env')
+        }
+        exclude '**/*test*'
+    }
 
-	// 4. Docker 관련 파일 (서버에서 Docker 배포 시 사용)
-	// Dockerfile: dist 패키지 기반 Docker 이미지 빌드용 (docker/Dockerfile 동일한 구조 사용)
-	def dockerfileForDist = file('docker/Dockerfile')
-	if (dockerfileForDist.exists()) {
-		from(dockerfileForDist) {
-			into 'docker'
-		}
-	}
+    // 4. Docker 관련 파일 (서버에서 Docker 배포 시 사용)
+    // Dockerfile: dist 패키지 기반 Docker 이미지 빌드용 (docker/Dockerfile 동일한 구조 사용)
+    def dockerfileForDist = file('docker/Dockerfile')
+    if (dockerfileForDist.exists()) {
+        from(dockerfileForDist) {
+            into 'docker'
+        }
+    }
 
-	// 환경별 docker-compose.yml 선택
-	def packageEnv = project.hasProperty('env') ? project.property('env') : 'dev'
-	def pkgEnvComposeFile = file("docker/${packageEnv}/docker-compose-${packageEnv}.yml")
-	def pkgBaseComposeFile = file('docker/docker-compose.yml')
-	def pkgComposeFile = pkgEnvComposeFile.exists() ? pkgEnvComposeFile : pkgBaseComposeFile
-	if (pkgComposeFile.exists()) {
-		from(pkgComposeFile) {
-			into 'docker'
-			rename { 'docker-compose.yml' }
-		}
-	}
+    // 환경별 docker-compose.yml 선택
+    def packageEnv = project.hasProperty('env') ? project.property('env') : 'dev'
+    def pkgEnvComposeFile = file("docker/${packageEnv}/docker-compose-${packageEnv}.yml")
+    def pkgBaseComposeFile = file('docker/docker-compose.yml')
+    def pkgComposeFile = pkgEnvComposeFile.exists() ? pkgEnvComposeFile : pkgBaseComposeFile
+    if (pkgComposeFile.exists()) {
+        from(pkgComposeFile) {
+            into 'docker'
+            rename { 'docker-compose.yml' }
+        }
+    }
 
-	archiveFileName = "${distName}${envSuffix}.dist.zip"
-	destinationDirectory = file("${buildDir}/dist")
+    archiveFileName = "${distName}${envSuffix}.dist.zip"
+    destinationDirectory = file("${buildDir}/dist")
 
-	// 3. Libs
-	from(bootJar.outputs.files) {
-		into 'libs'
-	}
+    // 3. Libs
+    from(bootJar.outputs.files) {
+        into 'libs'
+    }
 }
 
 // 표준 'build' 태스크 실행 시 'package' 태스크도 함께 실행되도록 설정
 tasks.named('build') {
-	dependsOn 'package'
+    dependsOn 'package'
 }
 
 // Docker 빌드를 위한 컨텍스트와 배포 스크립트를 준비합니다.
 task prepareDockerContext {
-	dependsOn 'package'
-	group = 'build'
-	description = 'Docker 빌드를 위한 컨텍스트와 배포 스크립트를 준비합니다.'
+    dependsOn 'package'
+    group = 'build'
+    description = 'Docker 빌드를 위한 컨텍스트와 배포 스크립트를 준비합니다.'
 
-	doLast {
-		def distName = "${project.name}-${project.version}"
-		def envSuffix = project.hasProperty('env') ? "-${project.property('env')}" : ""
-		def distZipName = "${distName}${envSuffix}.dist.zip"
-		
-		def dockerContext = file("${buildDir}/docker-build")
-		def dockerDistDir = file("${buildDir}/docker-dist") 
-		
-		println "🐳 === Docker 빌드 컨텍스트 준비 시작 ==="
-		
-		// 1. 초기화 (Clean & Prepare)
-		delete dockerContext
-		mkdir dockerContext
-		
-		delete dockerDistDir
-		mkdir dockerDistDir
+    doLast {
+        def distName = "${project.name}-${project.version}"
+        def envSuffix = project.hasProperty('env') ? "-${project.property('env')}" : ""
+        def distZipName = "${distName}${envSuffix}.dist.zip"
+        
+        def dockerContext = file("${buildDir}/docker-build")
+        def dockerDistDir = file("${buildDir}/docker-dist") 
+        
+        println "🐳 === Docker 빌드 컨텍스트 준비 시작 ==="
+        
+        // 1. 초기화 (Clean & Prepare)
+        delete dockerContext
+        mkdir dockerContext
+        
+        delete dockerDistDir
+        mkdir dockerDistDir
 
-		// 2. 배포 패키지(Zip)에서 Docker 컨텍스트 준비
-		def distZipFile = file("${buildDir}/dist/${distZipName}")
-		if (!distZipFile.exists()) {
-			throw new GradleException("배포 파일을 찾을 수 없습니다: $distZipFile")
-		}
+        // 2. 배포 패키지(Zip)에서 Docker 컨텍스트 준비
+        def distZipFile = file("${buildDir}/dist/${distZipName}")
+        if (!distZipFile.exists()) {
+            throw new GradleException("배포 파일을 찾을 수 없습니다: $distZipFile")
+        }
 
-		copy {
-			from zipTree(distZipFile)
-			into dockerContext
-		}
+        copy {
+            from zipTree(distZipFile)
+            into dockerContext
+        }
 
-		// Dockerfile 복사
-		def dockerfilePath = file('docker/Dockerfile')
-		if (!dockerfilePath.exists()) {
-			throw new GradleException("Dockerfile을 찾을 수 없습니다: $dockerfilePath")
-		}
-		copy {
-			from dockerfilePath
-			into dockerContext
-		}
-		
-		// 3. 배포 스크립트 및 설정 파일 복사 (docker-dist)
-		println "📂 배포 스크립트 및 설정 파일 복사 중... (${dockerDistDir})"
-		
-		// 이미지 이름 결정 (Strategy 1, 2, 3 지원을 위한 동적 태그)
-		def registry = project.hasProperty('dockerRegistry') ? project.property('dockerRegistry') : ""
-		def tag = project.hasProperty('dockerImageTag') ? project.property('dockerImageTag') : "latest"
-		def imageName = "${project.name}:${tag}"
-		
-		if (registry) {
-			// 예: my-reg.com/my-project:v1.0.0
-			imageName = "${registry}/${project.name}:${tag}"
-			// 레지스트리 URL이 슬래시로 끝나지 않으면 추가 (단, 비어있지 않을 때)
-			if (!registry.endsWith('/')) {
-				imageName = "${registry}/${project.name}:${tag}"
-			}
-		}
-		println "🎯 대상 Docker 이미지: ${imageName}"
-		
-		// 환경별 docker-compose.yml 선택
-		def env = project.hasProperty('env') ? project.property('env') : 'dev'
-		def envComposeFile = file("docker/${env}/docker-compose-${env}.yml")
-		def baseComposeFile = file("docker/docker-compose.yml")
-		
-		def composeFile = envComposeFile.exists() ? envComposeFile : baseComposeFile
-		
-		if (!composeFile.exists()) {
-			throw new GradleException("docker-compose.yml 파일을 찾을 수 없습니다. 확인한 경로: $envComposeFile, $baseComposeFile")
-		}
-		
-		println "📄 사용된 docker-compose 파일: ${composeFile.absolutePath}"
-		
-		copy {
-			from composeFile
-			into dockerDistDir
-			rename { 'docker-compose.yml' }
-			filter(ReplaceTokens, tokens: [
-				appName: project.name.toString(), 
-				// LOG_PATH와 dockerImage는 install_docker_service.sh 시점에 .env로 주입되도록 제외
-			])
-		}
-		
-		// 호스트 마운트용 config 폴더 복사 추가 (Host 환경에서 설정 파일 직접 수정 위함)
-		def configDir = file("${dockerContext}/config")
-		if (configDir.exists()) {
-			copy {
-				from configDir
-				into "${dockerDistDir}/config"
-			}
+        // Dockerfile 복사
+        def dockerfilePath = file('docker/Dockerfile')
+        if (!dockerfilePath.exists()) {
+            throw new GradleException("Dockerfile을 찾을 수 없습니다: $dockerfilePath")
+        }
+        copy {
+            from dockerfilePath
+            into dockerContext
+        }
+        
+        // 3. 배포 스크립트 및 설정 파일 복사 (docker-dist)
+        println "📂 배포 스크립트 및 설정 파일 복사 중... (${dockerDistDir})"
+        
+        // 이미지 이름 결정 (Strategy 1, 2, 3 지원을 위한 동적 태그)
+        def registry = project.hasProperty('dockerRegistry') ? project.property('dockerRegistry') : ""
+        def tag = project.hasProperty('dockerImageTag') ? project.property('dockerImageTag') : "${project.version}"
+        def imageName = "${project.name}:${tag}"
+        
+        if (registry) {
+            // 예: my-reg.com/my-project:v1.0.0
+            imageName = "${registry}/${project.name}:${tag}"
+            // 레지스트리 URL이 슬래시로 끝나지 않으면 추가 (단, 비어있지 않을 때)
+            if (!registry.endsWith('/')) {
+                imageName = "${registry}/${project.name}:${tag}"
+            }
+        }
+        println "🎯 대상 Docker 이미지: ${imageName}"
+        
+        // 환경별 docker-compose.yml 선택
+        def env = project.hasProperty('env') ? project.property('env') : 'dev'
+        def envComposeFile = file("docker/${env}/docker-compose-${env}.yml")
+        def baseComposeFile = file("docker/docker-compose.yml")
+        
+        def composeFile = envComposeFile.exists() ? envComposeFile : baseComposeFile
+        
+        if (!composeFile.exists()) {
+            throw new GradleException("docker-compose.yml 파일을 찾을 수 없습니다. 확인한 경로: $envComposeFile, $baseComposeFile")
+        }
+        
+        println "📄 사용된 docker-compose 파일: ${composeFile.absolutePath}"
+        
+        copy {
+            from composeFile
+            into dockerDistDir
+            rename { 'docker-compose.yml' }
+            filter(ReplaceTokens, tokens: [
+                appName: project.name.toString(), 
+                // LOG_PATH와 dockerImage는 install_docker_service.sh 시점에 .env로 주입되도록 제외
+            ])
+        }
+        
+        // 호스트 마운트용 config 폴더 복사 추가 (Host 환경에서 설정 파일 직접 수정 위함)
+        def configDir = file("${dockerContext}/config")
+        if (configDir.exists()) {
+            copy {
+                from configDir
+                into "${dockerDistDir}/config"
+            }
 
-			println "📂 배포용 config 폴더 복사 완료 (Host Mount용)"
-		}
-		
-		// 스크립트 복사 (install, utils, cron)
-		// uninstall_docker_service.sh는 scripts/uninstall_service.sh로 통합되어 제거됨
-		['docker/install_docker_service.sh', 'scripts/utils.sh'].each { src ->
-			def f = file(src)
-			if (f.exists()) {
-				copy {
-					from f
-					into dockerDistDir
-					filter(ReplaceTokens, tokens: [appName: project.name])
-				}
-			}
-		}
-		
-		def cronDir = file('scripts/cron')
-		if (cronDir.exists()) {
-			copy {
-				from cronDir
-				into "${dockerDistDir}/cron"
-			}
-		}
-		
-		// .app-env.properties 복사
-		def envPropsFile = file("scripts/${env}/.app-env-${env}.properties")
-		def basePropsFile = file("scripts/.app-env.properties")
-		def propsFile = envPropsFile.exists() ? envPropsFile : basePropsFile
-		
-		if (propsFile.exists()) {
-			copy {
-				from propsFile
-				into dockerDistDir
-				rename { '.app-env.properties' }
-			}
-		}
-		
-		println "✅ Docker 컨텍스트 준비 완료"
-	}
+            println "📂 배포용 config 폴더 복사 완료 (Host Mount용)"
+        }
+        
+        // 스크립트 복사 (install, utils, cron)
+        // uninstall_docker_service.sh는 scripts/uninstall_service.sh로 통합되어 제거됨
+        ['docker/install_docker_service.sh', 'scripts/utils.sh'].each { src ->
+            def f = file(src)
+            if (f.exists()) {
+                copy {
+                    from f
+                    into dockerDistDir
+                    filter(ReplaceTokens, tokens: [appName: project.name])
+                }
+            }
+        }
+        
+        def cronDir = file('scripts/cron')
+        if (cronDir.exists()) {
+            copy {
+                from cronDir
+                into "${dockerDistDir}/cron"
+            }
+        }
+        
+        // .app-env.properties 복사
+        def envPropsFile = file("scripts/${env}/.app-env-${env}.properties")
+        def basePropsFile = file("scripts/.app-env.properties")
+        def propsFile = envPropsFile.exists() ? envPropsFile : basePropsFile
+        
+        if (propsFile.exists()) {
+            copy {
+                from propsFile
+                into dockerDistDir
+                rename { '.app-env.properties' }
+            }
+        }
+
+        // -----------------------------------------------------------------------
+        // DEPLOY-GUIDE.md 자동 생성
+        // Strategy 3(Registry) 배포 후 서버 담당자가 docker-dist 폴더를 받았을 때
+        // 어떻게 서비스를 실행해야 하는지 명확하게 안내하기 위한 가이드 파일
+        // registry/imageTag 값이 결정된 이 시점에 실제 값으로 채워서 생성함
+        // -----------------------------------------------------------------------
+        def guideImageName = imageName // 위에서 결정된 fullImageName 재사용
+        def guideAppName   = project.name
+        def guideEnv       = env
+        def guideTimestamp = new Date().format('yyyy-MM-dd HH:mm:ss')
+
+        def deployGuideFile = new File("${dockerDistDir}/DEPLOY-GUIDE.md")
+        deployGuideFile.text = """\
+# 🐳 ${guideAppName} — Docker 배포 가이드 (Strategy 3: Registry)
+
+> **이 파일은 `./gradlew dockerPushImage` 빌드 시 자동 생성되었습니다.**
+> 서버 담당자는 이 파일의 안내에 따라 서비스를 배포·실행하세요.
+
+- **빌드 환경**: `${guideEnv}`
+- **이미지**: `${guideImageName}`
+- **생성 일시**: ${guideTimestamp}
+
+---
+
+## 📋 이 폴더(docker-dist)에 포함된 파일
+
+| 파일 | 설명 |
+|------|------|
+| `docker-compose.yml` | 컨테이너 실행 설정 (`.env` 파일과 함께 사용) |
+| `install_docker_service.sh` | 서비스 자동 설치 스크립트 (Systemd/SysVinit 등록 포함) |
+| `utils.sh` | 공통 유틸리티 스크립트 |
+| `config/` | 애플리케이션 설정 파일 (Host Mount용 — 수정 가능) |
+| `.app-env.properties` | 로그 경로 등 배포 환경 기본값 |
+| `DEPLOY-GUIDE.md` | 이 파일 |
+
+---
+
+## 🚀 배포 순서
+
+### 1. 이 폴더를 서버로 전송
+
+```bash
+# SCP 예시 (로컬 PC → 서버)
+scp -r build/docker-dist/ user@your-server:/home/user/
+```
+
+### 2. 서버 접속 후 Docker 로그인 (Private Registry인 경우)
+
+```bash
+docker login ${registry ? registry.replace('/', '').split(':')[0] + (registry.contains(':') ? ':' + registry.split(':')[-1] : '') : '<your-registry>'}
+```
+
+### 3. Docker 이미지 Pull
+
+```bash
+docker pull ${guideImageName}
+```
+
+### 4-a. 자동 설치 (서비스 등록 포함, 권장)
+
+Systemd/SysVinit 서비스로 등록하고 재부팅 시에도 자동 시작되도록 설정합니다.
+
+```bash
+cd /home/user/docker-dist
+sudo ./install_docker_service.sh
+```
+
+> 스크립트 실행 시 **설치 경로**, **로그 경로**를 대화형으로 입력합니다.
+> `.env` 파일이 자동으로 생성됩니다.
+
+### 4-b. 수동 실행 (docker compose 직접)
+
+Systemd 등록 없이 바로 컨테이너를 실행하려면:
+
+```bash
+cd /home/user/docker-dist
+
+# .env 파일 직접 작성
+cat > .env <<EOF
+APP_NAME=${guideAppName}
+DOCKER_IMAGE=${guideImageName}
+LOG_PATH=/var/log/${guideAppName}
+DEST_DIR=\$(pwd)
+EOF
+
+mkdir -p /var/log/${guideAppName}
+
+# 컨테이너 실행
+docker compose up -d
+```
+
+---
+
+## 🔍 운영 명령어
+
+```bash
+# 컨테이너 상태 확인
+docker ps | grep ${guideAppName}
+
+# 실시간 로그 확인
+docker logs -f --tail 200 ${guideAppName}-app
+
+# 서비스 재시작 (Systemd인 경우)
+sudo systemctl restart ${guideAppName}
+
+# 컨테이너 직접 재시작
+docker compose restart
+
+# 서비스 중지
+docker compose down
+```
+
+---
+
+## ⚙️ 설정 파일 변경 방법
+
+`config/` 폴더의 파일(예: `application.yml`, `log4j2.yml`)은 컨테이너에 **Host Mount** 되어 있습니다.
+파일을 수정한 뒤 컨테이너를 재시작하면 **이미지 재빌드 없이** 즉시 반영됩니다.
+
+```bash
+# 설정 파일 수정 후
+docker compose restart
+# 또는
+sudo systemctl restart ${guideAppName}
+```
+"""
+
+        println "✅ Docker 컨텍스트 준비 완료"
+        println "📄 배포 가이드 생성 완료: ${deployGuideFile.absolutePath}"
+    }
 }
 
 // Docker 이미지를 로컬 데몬에 빌드합니다. (Server-side Build용)
 task dockerBuildImage {
-	dependsOn prepareDockerContext
-	group = 'build'
-	description = 'Docker 이미지를 로컬 데몬에 빌드합니다. (Server-side Build용)'
+    dependsOn prepareDockerContext
+    group = 'build'
+    description = 'Docker 이미지를 로컬 데몬에 빌드합니다. (Server-side Build용)'
 
-	doLast {
-		def registry = project.hasProperty('dockerRegistry') ? project.property('dockerRegistry') : ""
-		def tag = project.hasProperty('dockerImageTag') ? project.property('dockerImageTag') : "latest"
-		
-		def fullImageName = "${project.name}:${tag}"
-		if (registry) {
-			if (!registry.endsWith('/')) registry += '/'
-			fullImageName = "${registry}${project.name}:${tag}"
-		}
+    doLast {
+        def registry = project.hasProperty('dockerRegistry') ? project.property('dockerRegistry') : ""
+        def tag = project.hasProperty('dockerImageTag') ? project.property('dockerImageTag') : "${project.version}"
+        
+        def fullImageName = "${project.name}:${tag}"
+        if (registry) {
+            if (!registry.endsWith('/')) registry += '/'
+            fullImageName = "${registry}${project.name}:${tag}"
+        }
 
-		def dockerContext = file("${buildDir}/docker-build")
-		
-		println "🔨 === Docker 이미지 빌드 시작 ==="
-		println "🔖 대상 이미지 태그: $fullImageName"
-		
-		// docker build 실행
-		// 리눅스 배포를 위해 amd64 플랫폼 명시 (필요시 수정 가능)
-		def buildProc = ['docker', 'build', '--platform', 'linux/amd64', '-t', fullImageName, '.'].execute(null, dockerContext)
-		buildProc.waitForProcessOutput(System.out, System.err)
-		
-		if (buildProc.exitValue() != 0) {
-			throw new GradleException("Docker 빌드 실패")
-		}
-		
-		println "✨ === Docker 이미지 빌드 성공: $fullImageName ==="
-		println "📂 배포 파일 경로: ${buildDir}/docker-dist"
-		
-		if (!registry) {
-			println "🚀 실행 방법 (Strategy 2): cd ${buildDir}/docker-dist && docker-compose up -d"
-		}
-	}
+        def dockerContext = file("${buildDir}/docker-build")
+        
+        println "🔨 === Docker 이미지 빌드 시작 ==="
+        println "🔖 대상 이미지 태그: $fullImageName"
+        
+        // docker build 실행
+        // 리눅스 배포를 위해 amd64 플랫폼 명시 (필요시 수정 가능)
+        def buildProc = ['docker', 'build', '--platform', 'linux/amd64', '-t', fullImageName, '.'].execute(null, dockerContext)
+        buildProc.waitForProcessOutput(System.out, System.err)
+        
+        if (buildProc.exitValue() != 0) {
+            throw new GradleException("Docker 빌드 실패")
+        }
+        
+        println "✨ === Docker 이미지 빌드 성공: $fullImageName ==="
+        println "📂 배포 파일 경로: ${buildDir}/docker-dist"
+        
+        if (!registry) {
+            println "🚀 실행 방법 (Strategy 2): cd ${buildDir}/docker-dist && docker-compose up -d"
+        }
+    }
 }
 
 // Docker 이미지를 빌드하고 레지스트리에 Push합니다. (Strategy 3)
 task dockerPushImage {
-	dependsOn dockerBuildImage
-	group = 'build'
-	description = 'Docker 이미지를 빌드하고 레지스트리에 Push합니다. (Strategy 3)'
+    dependsOn dockerBuildImage
+    group = 'build'
+    description = 'Docker 이미지를 빌드하고 레지스트리에 Push합니다. (Strategy 3)'
 
-	doLast {
-		def registry = project.hasProperty('dockerRegistry') ? project.property('dockerRegistry') : ""
-		if (!registry) {
-			throw new GradleException("Push를 하려면 dockerRegistry 속성이 필요합니다. 예: -PdockerRegistry=my.reg.com")
-		}
-		
-		def tag = project.hasProperty('dockerImageTag') ? project.property('dockerImageTag') : "latest"
-		if (!registry.endsWith('/')) registry += '/'
-		
-		def fullImageName = "${registry}${project.name}:${tag}"
-		
-		println "☁️ === Docker 이미지 Push 시작 ==="
-		println "📤 이미지 Push 중: $fullImageName"
-		
-		def pushProc = ['docker', 'push', fullImageName].execute()
-		pushProc.waitForProcessOutput(System.out, System.err)
-		
-		if (pushProc.exitValue() != 0) {
-			throw new GradleException("Docker Push 실패. 레지스트리 로그인 상태를 확인해주세요.")
-		}
-		
-		println "✅ === Docker 이미지 Push 완료 ==="
-		println "📂 배포 파일 경로 (docker-compose.yml, scripts): ${buildDir}/docker-dist"
-		println "🚀 서버에서 'build/docker-dist' 파일들을 사용하여 배포할 수 있습니다."
-	}
+    doLast {
+        def registry = project.hasProperty('dockerRegistry') ? project.property('dockerRegistry') : ""
+        if (!registry) {
+            throw new GradleException("Push를 하려면 dockerRegistry 속성이 필요합니다. 예: -PdockerRegistry=my.reg.com")
+        }
+        
+        def tag = project.hasProperty('dockerImageTag') ? project.property('dockerImageTag') : "${project.version}"
+        if (!registry.endsWith('/')) registry += '/'
+        
+        def fullImageName = "${registry}${project.name}:${tag}"
+        
+        println "☁️ === Docker 이미지 Push 시작 ==="
+        println "📤 이미지 Push 중: $fullImageName"
+        
+        def pushProc = ['docker', 'push', fullImageName].execute()
+        pushProc.waitForProcessOutput(System.out, System.err)
+        
+        if (pushProc.exitValue() != 0) {
+            throw new GradleException("Docker Push 실패. 레지스트리 로그인 상태를 확인해주세요.")
+        }
+
+        // -----------------------------------------------------------------------
+        // Push 완료 후 서버 배포 방법을 콘솔에 단계별로 안내
+        // 실제 이미지명/경로를 채워서 출력하므로 그대로 복사·붙여넣기 가능
+        // -----------------------------------------------------------------------
+        def distDirPath = "${buildDir}/docker-dist"
+        println ""
+        println "╔══════════════════════════════════════════════════════════════════╗"
+        println "║  ✅  Docker 이미지 Push 완료                                     ║"
+        println "╠══════════════════════════════════════════════════════════════════╣"
+        println "║  🖼️   이미지  : ${fullImageName}"
+        println "║  📂  배포파일  : ${distDirPath}"
+        println "║  📄  가이드   : ${distDirPath}/DEPLOY-GUIDE.md"
+        println "╠══════════════════════════════════════════════════════════════════╣"
+        println "║  🚀 서버 배포 순서 (아래 명령어를 순서대로 실행하세요)             ║"
+        println "╠══════════════════════════════════════════════════════════════════╣"
+        println "║"
+        println "║  [1] 배포 파일 서버 전송"
+        println "║      scp -r ${distDirPath}/ user@your-server:/home/user/"
+        println "║"
+        println "║  [2] Registry 로그인 (Private Registry인 경우)"
+        println "║      docker login ${registry}"
+        println "║"
+        println "║  [3] 이미지 Pull"
+        println "║      docker pull ${fullImageName}"
+        println "║"
+        println "║  [4-a] 자동 설치 (Systemd 서비스 등록 포함 — 권장)"
+        println "║      cd /home/user/docker-dist"
+        println "║      sudo ./install_docker_service.sh"
+        println "║"
+        println "║  [4-b] 수동 실행 (docker compose 직접)"
+        println "║      cd /home/user/docker-dist"
+        println "║      echo 'DOCKER_IMAGE=${fullImageName}' >> .env"
+        println "║      docker compose up -d"
+        println "║"
+        println "║  💡 상세 가이드: ${distDirPath}/DEPLOY-GUIDE.md"
+        println "║"
+        println "╚══════════════════════════════════════════════════════════════════╝"
+    }
 }
 
 // Docker 이미지를 빌드하고 배포용 스크립트와 함께 Zip으로 패키징합니다. (Strategy 1)
 task dockerBuild {
-	dependsOn dockerBuildImage
-	group = 'build'
-	description = 'Docker 이미지를 빌드하고 배포용 스크립트와 함께 Zip으로 패키징합니다. (Strategy 1)'
+    dependsOn dockerBuildImage
+    group = 'build'
+    description = 'Docker 이미지를 빌드하고 배포용 스크립트와 함께 Zip으로 패키징합니다. (Strategy 1)'
 
-	doLast {
-		def envSuffix = project.hasProperty('env') ? "-${project.property('env')}" : ""
-		def dockerDistZipName = "${project.name}-docker${envSuffix}.zip" 
-		def dockerDistDir = file("${buildDir}/docker-dist")
-		
-		// Strategy 1: 항상 로컬 Project Name 태그로 저장
-		if (project.hasProperty('dockerRegistry')) {
-			println "⚠️ 경고: 'dockerBuild' 태스크는 Strategy 1 (로컬 빌드/패키징) 전용입니다. 'dockerRegistry' 속성은 무시됩니다."
-		}
+    doLast {
+        def envSuffix = project.hasProperty('env') ? "-${project.property('env')}" : ""
+        def dockerDistZipName = "${project.name}-docker${envSuffix}.zip" 
+        def dockerDistDir = file("${buildDir}/docker-dist")
+        
+        // Strategy 1: 항상 로컬 Project Name 태그로 저장
+        if (project.hasProperty('dockerRegistry')) {
+            println "⚠️ 경고: 'dockerBuild' 태스크는 Strategy 1 (로컬 빌드/패키징) 전용입니다. 'dockerRegistry' 속성은 무시됩니다."
+        }
 
-		def tagName = "${project.name}:latest"
-		def tarName = "${project.name}.tar"
+        def tagName = "${project.name}:latest"
+        def tarName = "${project.name}.tar"
 
-		println "📦 === Docker 배포 패키지 생성 시작 (Strategy 1) ==="
-		
-		// Export Docker Image (docker save)
-		println "💾 Docker 이미지 추출 중 (docker save) -> ${dockerDistDir}/${tarName}..."
-		
-		def saveProc = ['docker', 'save', '-o', "${dockerDistDir}/${tarName}", tagName].execute()
-		saveProc.waitForProcessOutput(System.out, System.err)
+        println "📦 === Docker 배포 패키지 생성 시작 (Strategy 1) ==="
+        
+        // Export Docker Image (docker save)
+        println "💾 Docker 이미지 추출 중 (docker save) -> ${dockerDistDir}/${tarName}..."
+        
+        def saveProc = ['docker', 'save', '-o', "${dockerDistDir}/${tarName}", tagName].execute()
+        saveProc.waitForProcessOutput(System.out, System.err)
 
-		if (saveProc.exitValue() != 0) {
-			throw new GradleException("Docker Save 실패. Strategy 1을 사용하려면 registry 옵션 없이 실행하세요.")
-		}
-		
-		// Create Final Zip
-		println "🗜️ 최종 배포용 Zip 생성 중: ${buildDir}/dist/${dockerDistZipName}"
-		ant.zip(destfile: "${buildDir}/dist/${dockerDistZipName}", basedir: dockerDistDir)
-		
-		println "✅ === Docker 배포 패키지 생성 완료: ${buildDir}/dist/${dockerDistZipName} ==="
-	}
+        if (saveProc.exitValue() != 0) {
+            throw new GradleException("Docker Save 실패. Strategy 1을 사용하려면 registry 옵션 없이 실행하세요.")
+        }
+        
+        // Create Final Zip
+        println "🗜️ 최종 배포용 Zip 생성 중: ${buildDir}/dist/${dockerDistZipName}"
+        ant.zip(destfile: "${buildDir}/dist/${dockerDistZipName}", basedir: dockerDistDir)
+        
+        println "✅ === Docker 배포 패키지 생성 완료: ${buildDir}/dist/${dockerDistZipName} ==="
+    }
 }
 
 // Kubernetes 배포용 매니페스트(YAML) 패키지를 생성합니다. (Strategy 3)
 task k8sBuild(type: Zip) {
-	dependsOn dockerBuildImage
-	group = 'distribution'
-	description = 'Kubernetes 배포용 매니페스트(YAML) 패키지를 생성합니다.'
+    dependsOn dockerBuildImage
+    group = 'distribution'
+    description = 'Kubernetes 배포용 매니페스트(YAML) 패키지를 생성합니다.'
 
-	def distName = "${project.name}-k8s"
-	def envSuffix = ""
-	
-	if (project.hasProperty('env')) {
-		def env = project.property('env')
-		envSuffix = "-${env}"
-	}
-	
-	archiveFileName = "${distName}${envSuffix}.zip"
-	destinationDirectory = file("${buildDir}/dist")
-	
-	// Strategy 3 지원을 위한 이미지 태그 결정 로직 (prepareDockerContext와 동일)
-	def registry = project.hasProperty('dockerRegistry') ? project.property('dockerRegistry') : ""
-	def tag = project.hasProperty('dockerImageTag') ? project.property('dockerImageTag') : "latest"
-	def imageName = "${project.name}:${tag}"
-	
-	if (registry) {
-		imageName = "${registry}/${project.name}:${tag}"
-		if (!registry.endsWith('/')) {
-			imageName = "${registry}/${project.name}:${tag}"
-		}
-	}
+    def distName = "${project.name}-k8s"
+    def envSuffix = ""
+    
+    if (project.hasProperty('env')) {
+        def env = project.property('env')
+        envSuffix = "-${env}"
+    }
+    
+    archiveFileName = "${distName}${envSuffix}.zip"
+    destinationDirectory = file("${buildDir}/dist")
+    
+    // Strategy 3 지원을 위한 이미지 태그 결정 로직 (prepareDockerContext와 동일)
+    def registry = project.hasProperty('dockerRegistry') ? project.property('dockerRegistry') : ""
+    def tag = project.hasProperty('dockerImageTag') ? project.property('dockerImageTag') : "${project.version}"
+    def imageName = "${project.name}:${tag}"
+    
+    if (registry) {
+        imageName = "${registry}/${project.name}:${tag}"
+        if (!registry.endsWith('/')) {
+            imageName = "${registry}/${project.name}:${tag}"
+        }
+    }
 
-	from('k8s') {
-		into 'k8s'
-		filter(ReplaceTokens, tokens: [
-			appName: project.name.toString(),
-			dockerImage: imageName.toString()
-		])
-	}
-	
-	doFirst {
-		if (project.hasProperty('env')) {
-			def env = project.property('env')
-			println "☸️ K8s 배포 패키지 생성 중 (환경: $env)"
-		}
-		println "🎯 K8s 대상 Docker 이미지: ${imageName}"
-	}
+    from('k8s') {
+        into 'k8s'
+        filter(ReplaceTokens, tokens: [
+            appName: project.name.toString(),
+            dockerImage: imageName.toString()
+        ])
+    }
+    
+    doFirst {
+        if (project.hasProperty('env')) {
+            def env = project.property('env')
+            println "☸️ K8s 배포 패키지 생성 중 (환경: $env)"
+        }
+        println "🎯 K8s 대상 Docker 이미지: ${imageName}"
+    }
 
-	doLast {
-		println "✅ === K8s 배포 패키지 생성 완료: ${destinationDirectory.get()}/${archiveFileName.get()} ==="
-	}
+    doLast {
+        println "✅ === K8s 배포 패키지 생성 완료: ${destinationDirectory.get()}/${archiveFileName.get()} ==="
+    }
 }
 
 // 기존 help 태스크 확장 (프로젝트 전용 가이드 추가)
 tasks.named('help') {
-	doLast {
-		println """
+    doLast {
+        println """
 ================================================================================
 🚀 [Build Template] 빌드 및 배포 가이드 (Spring Boot Boilerplate)
 ================================================================================
@@ -490,5 +652,5 @@ tasks.named('help') {
      - 예시: ./gradlew k8sBuild -Penv=prod
 ================================================================================
 """
-	}
+    }
 }
