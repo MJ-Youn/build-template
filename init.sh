@@ -1,8 +1,7 @@
 #!/bin/bash
 
 # 설정 파일 경로
-SETTINGS_FILE="settings.gradle"
-BUILD_FILE="build.gradle"
+POM_FILE="pom.xml"
 APP_CONFIG="config/application.yml"
 
 # OS 확인 및 sed 명령 설정 (Mac/Linux 호환성)
@@ -12,22 +11,24 @@ else
   SED_CMD=("sed" "-i")
 fi
 
-# 1. 현재 설정값 확인 (파싱 로직 강화)
-if [ -f "$SETTINGS_FILE" ]; then
-    # rootProject.name = '...' 형태에서 값 추출. 공백 및 작은따옴표 제거.
-    CURRENT_PROJECT_NAME=$(grep "rootProject.name" "$SETTINGS_FILE" | head -n 1 | cut -d"=" -f2 | tr -d "[:space:]'")
-else
-    echo "❌ $SETTINGS_FILE 을 찾을 수 없습니다."
+# 1. 현재 설정값 확인 (pom.xml 파싱)
+if [ ! -f "$POM_FILE" ]; then
+    echo "❌ $POM_FILE 을 찾을 수 없습니다."
     exit 1
 fi
 
-if [ -f "$BUILD_FILE" ]; then
-    # group = '...' 형태에서 값 추출. 맨 앞줄(들여쓰기 없는) group만 추출.
-    CURRENT_GROUP=$(grep "^group =" "$BUILD_FILE" | head -n 1 | cut -d"=" -f2 | tr -d "[:space:]'")
-else
-    echo "❌ $BUILD_FILE 을 찾을 수 없습니다."
-    exit 1
-fi
+# pom.xml에서 artifactId 추출 (첫 번째만 - parent 제외)
+# parent 블록 이후의 첫 번째 artifactId를 프로젝트 이름으로 사용
+CURRENT_PROJECT_NAME=$(grep -m1 '<artifactId>' "$POM_FILE" \
+    | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' \
+    | tr -d '[:space:]')
+
+# pom.xml에서 groupId 추출 (parent 블록 이후 첫 번째)
+CURRENT_GROUP=$(grep '<groupId>' "$POM_FILE" \
+    | grep -v 'springframework\|apache\|codehaus\|sonatype\|surefire' \
+    | head -n 1 \
+    | sed 's/.*<groupId>\(.*\)<\/groupId>.*/\1/' \
+    | tr -d '[:space:]')
 
 CURRENT_PORT="8080" # 기본값
 if [ -f "$APP_CONFIG" ]; then
@@ -40,7 +41,7 @@ fi
 
 # 디버깅: 파싱된 값 확인
 echo "========================================="
-echo "🚀 프로젝트 초기화 스크립트 (init.sh) - Path Fix"
+echo "🚀 프로젝트 초기화 스크립트 (init.sh) - Maven"
 echo "========================================="
 echo "현재 설정 (파싱 결과):"
 echo "- Project Name: [$CURRENT_PROJECT_NAME]"
@@ -78,13 +79,13 @@ fi
 
 # 3. 설정 적용
 
-# 3-1. settings.gradle 수정
-"${SED_CMD[@]}" "s/rootProject.name = .*/rootProject.name = '$NEW_PROJECT_NAME'/" "$SETTINGS_FILE"
-echo "✅ settings.gradle 수정 완료"
+# 3-1. pom.xml의 artifactId 수정
+"${SED_CMD[@]}" "s|<artifactId>${CURRENT_PROJECT_NAME}</artifactId>|<artifactId>${NEW_PROJECT_NAME}</artifactId>|" "$POM_FILE"
+echo "✅ pom.xml <artifactId> 수정 완료"
 
-# 3-2. build.gradle 수정
-"${SED_CMD[@]}" "s/^group = .*/group = '$NEW_GROUP_NAME'/" "$BUILD_FILE"
-echo "✅ build.gradle 수정 완료"
+# 3-2. pom.xml의 groupId 수정 (프로젝트 groupId만 변경, parent는 유지)
+"${SED_CMD[@]}" "s|<groupId>${CURRENT_GROUP}</groupId>|<groupId>${NEW_GROUP_NAME}</groupId>|" "$POM_FILE"
+echo "✅ pom.xml <groupId> 수정 완료"
 
 # 3-3. config/application.yml 수정
 if [ -f "$APP_CONFIG" ]; then

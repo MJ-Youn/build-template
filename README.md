@@ -34,12 +34,10 @@
 ./init.sh
 ```
 
-### 💡 2단계: 배포 및 빌드 가이드 확인 (`help`)
-
-프로젝트 전용으로 확장된 `help` 태스크를 통해 현재 설정된 환경별 빌드/배포 명령어 예시를 언제든 터미널에서 확인할 수 있습니다.
+### 💡 2단계: 빌드 및 배포 가이드 확인
 
 ```bash
-./gradlew help
+./mvnw help
 ```
 
 ### 3단계: 비즈니스 로직 개발
@@ -64,7 +62,7 @@
 
 ```
 [1/3] 📥 Git Pull        → 최신 소스 코드 수신
-[2/3] 🔨 Gradle Package  → 환경별 배포 패키지(ZIP) 빌드
+[2/3] 🔨 Maven Package   → 환경별 배포 패키지(ZIP) 빌드
 [3/3] 📦 AUTO 압축 해제   → bin/install_service.sh 자동 실행
 ```
 
@@ -84,17 +82,17 @@
 | 항목 | 설명 |
 |------|------|
 | Git 저장소 | `.git` 폴더가 존재하면 자동으로 `git pull` 실행, 없으면 건너뜀 |
-| JDK | `./gradlew` 실행 가능 환경 필요 |
+| JDK | `./mvnw` 실행 가능 환경 필요 |
 | `unzip` | 패키지 압축 해제에 필요 |
 | `bin/install_service.sh` | 빌드 패키지 내 포함된 설치 스크립트 |
 
 ### 📋 상세 동작
 
 1. **Git Pull**: 현재 디렉토리에 `.git` 폴더가 있으면 `git pull`을 실행하여 최신 코드를 반영합니다.
-2. **Gradle 빌드**: `./gradlew package -Penv=<환경명>` 을 실행하여 배포 패키지를 생성합니다.
-   - 결과물: `build/dist/{APP_NAME}-{version}-{env}.dist.zip`
+2. **Maven 빌드**: `./mvnw package -P<환경명>` 을 실행하여 배포 패키지를 생성합니다.
+   - 결과물: `target/dist/{APP_NAME}-{version}-{env}.dist.zip`
 3. **압축 해제 및 설치**: 생성된 ZIP 파일을 자동으로 찾아 압축을 해제하고, 내부의 `bin/install_service.sh`를 실행합니다.
-   - 압축 해제 경로: `build/dist/{ZIP파일명}/`
+   - 압축 해제 경로: `target/dist/{ZIP파일명}/`
    - 기존 폴더가 있으면 자동으로 삭제 후 재생성
 
 > ⚠️ **주의**: `install_service.sh` 가 `sudo` 권한이 필요한 경우, `sudo ./build_deploy.sh -Penv=prod` 대신 스크립트 내부의 권한 상승 방식을 사용하거나, `sudo` 없이 실행 가능한 환경을 구성하세요.
@@ -118,10 +116,10 @@
 
 ```bash
 # 운영(prod) 환경 배포용 패키지 생성
-./gradlew dockerBuild -Penv=prod
+./mvnw package -Pprod && ./bin/docker-package.sh prod
 ```
 
-- **결과물**: `build/dist/{APP_NAME}-docker-prod.zip`
+- **결과물**: `target/dist/{APP_NAME}-docker-prod.zip`
 - **포함 내용**:
     - `image.tar`: Docker 이미지 (linux/amd64)
     - `docker-compose.yml`: 실행 설정 (표준 변수 사용)
@@ -165,18 +163,18 @@ cd my-project
 **2. 빌드 및 실행 (Server)**
 
 ```bash
-# 1. Docker 이미지 빌드 및 배포 파일 구성
-./gradlew dockerBuildImage -Penv=prod
+# 1. Maven 빌드 후 Docker 이미지 빌드
+./mvnw package -Pprod
+./bin/docker-build.sh prod
 
 # 2. 생성된 배포 디렉토리로 이동
-cd build/docker-dist
+cd target/docker-dist
 
-# 3. 환경 변수 초기화 및 컨테이너 실행 (설정 파일 Host Extract 포함)
+# 3. 환경 변수 초기화 및 컨테이너 실행
 sudo ./install_docker_service.sh
-# (주의: 스크립트 없이 docker-compose up -d 단독 실행 시 .env 파일 직접 구성 필요)
 ```
 
-> 💡 **Tip**: 반복 배포 시 `git pull && ./gradlew dockerBuildImage -Penv=prod` 명령으로 빠르게 최신화할 수 있습니다. Legacy(일반 서버) 배포 환경이라면 `build_deploy.sh -Penv=prod`를 사용하면 Git pull → 빌드 → 설치까지 한 번에 자동화됩니다.
+> 💡 **Tip**: 반복 배포 시 `git pull && ./mvnw package -Pprod && ./bin/docker-build.sh prod` 명령으로 빠르게 최신화할 수 있습니다. Legacy(일반 서버) 배포 환경이라면 `build_deploy.sh -Penv=prod`를 사용하면 Git pull → 빌드 → 설치까지 한 번에 자동화됩니다.
 
 ### 🐳 Docker 배포 3: 레지스트리 (Push & Pull)
 
@@ -187,15 +185,16 @@ Docker Hub, ECR, GCR 등 원격 레지스트리를 활용하는 표준적인 방
 
 ```bash
 # 레지스트리 주소를 지정하여 빌드 및 Push
-./gradlew dockerPushImage -Penv=prod -PdockerRegistry=my-registry.com/repo
+./mvnw package -Pprod
+./bin/docker-push.sh my-registry.com/repo prod
 
-# (선택) 태그 지정 가능 (기본값: latest)
-# ./gradlew dockerPushImage -Penv=prod -PdockerRegistry=... -PdockerImageTag=v1.0.0
+# (선택) 태그 지정 가능 (기본값: pom.xml의 version)
+# ./bin/docker-push.sh my-registry.com/repo prod v1.0.0
 ```
 
 - **결과물**:
-    - Docker Registry에 이미지 업로드 (`my-registry.com/repo/{APP_NAME}:latest`)
-    - `build/docker-dist`: 실행에 필요한 파일들 (`docker-compose.yml`, `config`, 스크립트 등)
+    - Docker Registry에 이미지 업로드 (`my-registry.com/repo/{APP_NAME}:{version}`)
+    - `target/docker-dist`: 실행에 필요한 파일들 (`docker-compose.yml`, `config`, 스크립트, `DEPLOY-GUIDE.md` 등)
 
 **2. 배포 (Server)**
 
@@ -219,10 +218,10 @@ Docker 없이 Java(JDK)만 설치된 서버에 배포하는 방식입니다.
 **1. 빌드 (Development PC)**
 
 ```bash
-./gradlew package -Penv=prod
+./mvnw package -Pprod
 ```
 
-- **결과물**: `build/dist/{APP_NAME}-{version}-prod.dist.zip`
+- **결과물**: `target/dist/{APP_NAME}-{version}-prod.dist.zip`
 
 **2. 배포 (Server) — 수동**
 
@@ -249,10 +248,12 @@ Docker 배포를 넘어, Kubernetes 환경을 위한 매니페스트(`yaml`)도 
 
 ```bash
 # K8s 배포 패키지 생성 (Docker 빌드도 포함됨)
-./gradlew k8sBuild -Penv=prod
+./mvnw package -Pprod
+./bin/docker-build.sh prod
+# 이후 target/docker-dist/k8s/ 매니페스트를 서버에 전송하여 kubectl apply
 ```
 
-- **결과물**: `build/dist/{APP_NAME}-k8s-prod.zip`
+- **결과물**: `target/dist/{APP_NAME}-k8s-prod.zip`
 - **내용**: `deployment.yaml`, `service.yaml`, `configmap.yaml` (프로젝트 이름 자동 적용됨)
 
 **2. 배포 (K8s Cluster)**
@@ -329,7 +330,7 @@ curl -v http://localhost:8080/
 
 1. `scripts/prod/.app-env.properties` 생성
 2. 내용 작성: `LOG_PATH="/var/log/my-service"`
-3. `./gradlew package -Penv=prod` 실행 시 자동으로 적용됨.
+3. `./mvnw package -Pprod` 실행 시 자동으로 적용됨.
 
 ---
 
@@ -343,7 +344,7 @@ flowchart TD
     %% 자동화 스크립트 (build_deploy.sh)
     subgraph AutoScript ["🤖 build_deploy.sh (자동화)"]
         direction LR
-        AS1["📥 git pull"] --> AS2["🔨 gradlew package"]
+        AS1["📥 git pull"] --> AS2["🔨 mvnw package"]
         AS2 --> AS3["📦 unzip + install_service.sh"]
     end
 
@@ -353,7 +354,7 @@ flowchart TD
     %% 서브그래프: Legacy
     subgraph Legacy ["🖥️ Legacy Path (Jar)"]
         direction TB
-        LegacyBuild["☕ Gradle 패키징<br/>(Jar + Scripts)"]
+        LegacyBuild["☕ Maven 패키징<br/>(Jar + Scripts)"]
         LegacyBuild --> LegacyTrans["📂 파일 전송/압축해제"]
         LegacyTrans --> LegacyDeploy["⚙️ 서비스 등록/실행<br/>(Systemd/SysVinit)"]
     end
@@ -365,7 +366,7 @@ flowchart TD
 
         %% Strategy 1: Local Image
         subgraph DockerOpt1 ["① 로컬 빌드 + 전송"]
-            D1_Build["🔨 로컬 빌드<br/>(dockerBuild task)"]
+            D1_Build["🔨 로컬 빌드<br/>(docker-package.sh)"]
             D1_Save["💾 Docker Image Save<br/>(.tar 파일)"]
             D1_Trans["📂 파일 전송<br/>(Local -> Server)"]
             D1_Load["📦 Image Load<br/>(docker load)"]
@@ -452,17 +453,17 @@ flowchart TD
 sequenceDiagram
     autonumber
     actor Dev as 🧑‍💻 개발자
-    participant Gradle as 🐘 Gradle (Build)
+    participant Maven as 🔷 Maven (Build)
     participant Server as 🖥️ 운영 서버
     participant K8s as ☸️ K8s 클러스터
 
-    Dev->>Gradle: 1. 빌드 명령 실행 (./gradlew ...)
-    activate Gradle
+    Dev->>Maven: 1. 빌드 명령 실행 (./mvnw ...)
+    activate Maven
 
-    alt 🐳 Legacy 배포 (package)
-        Gradle->>Gradle: Jar 빌드 + 스크립트 패키징
-        Gradle-->>Dev: {APP_NAME}.dist.zip 생성
-        deactivate Gradle
+    alt 🐳 Legacy 배포 (./mvnw package)
+        Maven->>Maven: Jar 빌드 + 스크립트 패키징
+        Maven-->>Dev: {APP_NAME}.dist.zip 생성
+        deactivate Maven
         Dev->>Server: 2. Zip 파일 전송 & 압축 해제
         activate Server
         Dev->>Server: 3. install_service.sh 실행
@@ -470,11 +471,11 @@ sequenceDiagram
         Server-->>Dev: 서비스 시작 완료
         deactivate Server
 
-    else 🖥️ Docker 배포 (dockerBuild)
-        activate Gradle
-        Gradle->>Gradle: Docker 빌드 (Image) + 스크립트 패키징
-        Gradle-->>Dev: {APP_NAME}-docker.zip 생성
-        deactivate Gradle
+    else 🖥️ Docker 배포 (docker-package.sh)
+        activate Maven
+        Maven->>Maven: Docker 빌드 (Image) + 스크립트 패키징
+        Maven-->>Dev: {APP_NAME}-docker.zip 생성
+        deactivate Maven
         Dev->>Server: 2. Zip 파일 전송 & 압축 해제
         activate Server
         Dev->>Server: 3. install_docker_service.sh 실행
@@ -482,11 +483,11 @@ sequenceDiagram
         Server-->>Dev: 컨테이너 실행 완료
         deactivate Server
 
-    else ☸️ K8s 배포 (k8sBuild)
-        activate Gradle
-        Gradle->>Gradle: K8s 매니페스트 생성 (YAML)
-        Gradle-->>Dev: {APP_NAME}-k8s.zip 생성
-        deactivate Gradle
+    else ☸️ K8s 배포
+        activate Maven
+        Maven->>Maven: K8s 매니페스트 생성 (YAML)
+        Maven-->>Dev: {APP_NAME}-k8s.zip 생성
+        deactivate Maven
         Dev->>K8s: 2. kubectl apply -f ...
         activate K8s
         K8s-->>Dev: Pod/Service 배포 완료

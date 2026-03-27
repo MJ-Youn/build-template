@@ -8,7 +8,7 @@
 #
 # 실행 순서:
 #   1. Git pull (현재 디렉토리가 Git 저장소인 경우)
-#   2. Gradle package 빌드 (-Penv=<환경명>)
+#   2. Maven package 빌드 (-P<환경명>)
 #   3. 빌드 결과물(ZIP) 압축 해제 후 bin/install_service.sh 실행
 #
 # @author 윤명준 (MJ Yune)
@@ -79,35 +79,35 @@ fi
 echo ""
 
 # -----------------------------------------------------------------------------
-# STEP 2. Gradle 빌드
-# ./gradlew package -Penv=<env> 실행
+# STEP 2. Maven 빌드
+# ./mvnw package -P<env> 실행
 # -----------------------------------------------------------------------------
-echo -e "${CYAN}[2/3] 🔨 Gradle 빌드 시작 (./gradlew package -Penv=${ENV_VALUE})${NC}"
+echo -e "${CYAN}[2/3] 🔨 Maven 빌드 시작 (./mvnw package -P${ENV_VALUE})${NC}"
 
-GRADLEW="${SCRIPT_DIR}/gradlew"
+MVNW="${SCRIPT_DIR}/mvnw"
 
-if [ ! -f "${GRADLEW}" ]; then
-    echo -e "${RED}❌ gradlew 파일을 찾을 수 없습니다: ${GRADLEW}${NC}"
+if [ ! -f "${MVNW}" ]; then
+    echo -e "${RED}❌ mvnw 파일을 찾을 수 없습니다: ${MVNW}${NC}"
     exit 1
 fi
 
-# gradlew 실행 권한 확인 및 부여
-if [ ! -x "${GRADLEW}" ]; then
-    echo -e "${YELLOW}⚠️  gradlew에 실행 권한이 없어 권한을 부여합니다.${NC}"
-    chmod +x "${GRADLEW}"
+# mvnw 실행 권한 확인 및 부여
+if [ ! -x "${MVNW}" ]; then
+    echo -e "${YELLOW}⚠️  mvnw에 실행 권한이 없어 권한을 부여합니다.${NC}"
+    chmod +x "${MVNW}"
 fi
 
-"${GRADLEW}" -p "${SCRIPT_DIR}" package "-Penv=${ENV_VALUE}"
-echo -e "${GREEN}✅ Gradle 빌드 완료${NC}"
+"${MVNW}" -f "${SCRIPT_DIR}/pom.xml" package "-P${ENV_VALUE}" -DskipTests
+echo -e "${GREEN}✅ Maven 빌드 완료${NC}"
 echo ""
 
 # -----------------------------------------------------------------------------
 # STEP 3. 빌드 결과물(ZIP) 압축 해제 및 install_service.sh 실행
-# 빌드 결과물: ./build/dist/<appName>-<version>-<env>.dist.zip
+# 빌드 결과물: ./target/dist/<appName>-<version>-<env>.dist.zip
 # -----------------------------------------------------------------------------
 echo -e "${CYAN}[3/3] 📦 빌드 결과물 압축 해제 및 설치 스크립트 실행${NC}"
 
-DIST_DIR="${SCRIPT_DIR}/build/dist"
+DIST_DIR="${SCRIPT_DIR}/target/dist"
 
 # build/dist 디렉토리 존재 여부 확인
 if [ ! -d "${DIST_DIR}" ]; then

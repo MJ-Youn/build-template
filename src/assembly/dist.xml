@@ -1,0 +1,110 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Maven Assembly Descriptor — 배포용 ZIP 패키지 구성
+    Gradle 'package' 태스크를 대체합니다.
+
+    생성 결과물: target/dist/{artifactId}-{version}-{env}.dist.zip
+
+    ZIP 내부 구조:
+      libs/     - Spring Boot FAT JAR
+      config/   - 환경별 통합 설정 파일 (Overlay 적용됨)
+      bin/      - 배포/운영 Shell Script
+      docker/   - Dockerfile + docker-compose.yml
+
+    @author 윤명준 (MJ Yune)
+    @since  2026-03-27
+-->
+<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.2.0
+          https://maven.apache.org/xsd/assembly-2.2.0.xsd">
+
+    <id>dist</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+    <!-- ZIP 내부에 최상위 디렉토리 없이 바로 파일 배치 -->
+    <includeBaseDirectory>false</includeBaseDirectory>
+
+    <fileSets>
+
+        <!-- ============================================================
+             1. libs/ — Spring Boot FAT JAR
+             ============================================================ -->
+        <fileSet>
+            <directory>${project.build.directory}</directory>
+            <outputDirectory>libs</outputDirectory>
+            <includes>
+                <!-- repackage된 실행 가능한 JAR만 포함 -->
+                <include>${project.artifactId}-${project.version}.jar</include>
+            </includes>
+        </fileSet>
+
+        <!-- ============================================================
+             2. config/ — 환경별 Overlay가 적용된 설정 파일
+             resources-plugin이 미리 target/dist-config/ 에 구성해둔 파일 사용
+             ============================================================ -->
+        <fileSet>
+            <directory>${project.build.directory}/dist-config</directory>
+            <outputDirectory>config</outputDirectory>
+        </fileSet>
+
+        <!-- ============================================================
+             3. bin/ — 공통 운영 스크립트 (환경별 폴더 제외, 테스트 파일 제외)
+             @appName@ 토큰은 filter.properties로 치환
+             ============================================================ -->
+        <fileSet>
+            <directory>scripts</directory>
+            <outputDirectory>bin</outputDirectory>
+            <filtered>true</filtered>
+            <fileMode>0755</fileMode>
+            <excludes>
+                <!-- 환경별 하위 폴더 제외 -->
+                <exclude>dev/**</exclude>
+                <exclude>prod/**</exclude>
+                <exclude>local/**</exclude>
+                <exclude>test/**</exclude>
+                <exclude>stage/**</exclude>
+                <!-- 테스트 관련 파일 제외 -->
+                <exclude>**/*test*</exclude>
+                <!-- 테스트 디렉토리 제외 -->
+                <exclude>tests/**</exclude>
+            </excludes>
+        </fileSet>
+
+        <!-- 환경별 scripts Overlay (공통 파일에 덮어쓰기) -->
+        <fileSet>
+            <directory>scripts/${env}</directory>
+            <outputDirectory>bin</outputDirectory>
+            <filtered>true</filtered>
+            <fileMode>0755</fileMode>
+            <excludes>
+                <exclude>**/*test*</exclude>
+            </excludes>
+        </fileSet>
+
+        <!-- ============================================================
+             4. docker/ — Dockerfile + 환경별 docker-compose.yml
+             ============================================================ -->
+        <fileSet>
+            <directory>docker</directory>
+            <outputDirectory>docker</outputDirectory>
+            <includes>
+                <include>Dockerfile</include>
+            </includes>
+        </fileSet>
+
+        <!-- 환경별 docker-compose 파일 선택 -->
+        <fileSet>
+            <directory>docker/${env}</directory>
+            <outputDirectory>docker</outputDirectory>
+            <includes>
+                <!-- docker-compose-{env}.yml → docker-compose.yml 로 복사됨
+                     (rename은 assembly에서 직접 지원 안 되므로 동일 이름 유지)  -->
+                <include>docker-compose-${env}.yml</include>
+            </includes>
+        </fileSet>
+
+    </fileSets>
+
+</assembly>

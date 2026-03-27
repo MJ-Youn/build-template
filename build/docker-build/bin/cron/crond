@@ -1,0 +1,5 @@
+# /etc/cron.d/@APP_NAME@
+# Cron job for @APP_NAME@ service
+#
+# Daily Log Clean-up (Delete logs older than 30 days)
+0 0 * * * @REAL_USER@ find @LOG_PATH@ -name "@APP_NAME@.log*" -mtime +30 -delete

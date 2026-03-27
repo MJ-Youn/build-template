@@ -1,0 +1,271 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <!-- ========== 프로젝트 기본 정보 ========== -->
+    <!-- init.sh 실행 시 아래 값들이 자동으로 치환됩니다 -->
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>4.0.2</version>
+        <relativePath/>
+    </parent>
+
+    <groupId>io.github.mjyoun</groupId>
+    <artifactId>build_test</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <packaging>jar</packaging>
+    <description>Demo project for Spring Boot</description>
+
+    <!-- ========== 전역 속성 ========== -->
+    <properties>
+        <java.version>25</java.version>
+        <!-- 환경 기본값 (Maven Profile로 재정의 가능) -->
+        <env>dev</env>
+        <!-- Docker 관련 속성 (커맨드라인에서 -DdockerRegistry=... 로 오버라이드) -->
+        <dockerRegistry></dockerRegistry>
+        <dockerImageTag>${project.version}</dockerImageTag>
+        <!-- 패키지 결과물 경로 -->
+        <dist.dir>${project.build.directory}/dist</dist.dir>
+        <docker.dist.dir>${project.build.directory}/docker-dist</docker.dist.dir>
+        <docker.build.dir>${project.build.directory}/docker-build</docker.build.dir>
+    </properties>
+
+    <!-- ========== 의존성 ========== -->
+    <dependencies>
+        <!-- Spring Boot Web -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+            <exclusions>
+                <!-- Log4j2 사용을 위해 기본 Logback 제거 -->
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- Spring Boot Actuator -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>org.springframework.boot</groupId>
+                    <artifactId>spring-boot-starter-logging</artifactId>
+                </exclusion>
+            </exclusions>
+        </dependency>
+
+        <!-- Log4j2 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-log4j2</artifactId>
+        </dependency>
+
+        <!-- YAML 설정 파일 파싱 (Log4j2 YAML 설정 포함) -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.dataformat</groupId>
+            <artifactId>jackson-dataformat-yaml</artifactId>
+        </dependency>
+
+        <!-- 테스트 -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- MockMvc 테스트 지원 (Spring Boot 4.x에서 별도 모듈로 분리됨) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-test-autoconfigure</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <!-- ========== 빌드 플러그인 ========== -->
+    <build>
+        <plugins>
+
+            <!-- Java 버전 설정 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <release>${java.version}</release>
+                </configuration>
+            </plugin>
+
+            <!-- Spring Boot 실행 가능한 FAT JAR 생성 -->
+            <!-- 외부 config 사용을 위해 빌드 결과물에서 설정 파일 제외 -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <configuration>
+                    <!-- src/main/resources의 application*.yml, log4j2* 파일을 JAR에서 제외 -->
+                    <!-- 실제 설정은 외부 config/ 디렉토리에서 로드 -->
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
+                <!-- JAR 빌드 후 repackage 자동 실행 -->
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- resources-plugin: 설정 파일 내 @appName@ 토큰 치환 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <!-- 1. 공통 config 복사 -->
+                    <execution>
+                        <id>copy-config-base</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/dist-config</outputDirectory>
+                            <overwrite>false</overwrite>
+                            <resources>
+                                <resource>
+                                    <directory>config</directory>
+                                    <excludes>
+                                        <exclude>dev/**</exclude>
+                                        <exclude>prod/**</exclude>
+                                        <exclude>local/**</exclude>
+                                        <exclude>test/**</exclude>
+                                        <exclude>stage/**</exclude>
+                                    </excludes>
+                                    <filtering>false</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <!-- 2. 환경별 config Overlay (덮어쓰기) -->
+                    <execution>
+                        <id>copy-config-env</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/dist-config</outputDirectory>
+                            <overwrite>true</overwrite>
+                            <resources>
+                                <resource>
+                                    <directory>config/${env}</directory>
+                                    <filtering>false</filtering>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- assembly-plugin: ZIP 배포 패키지 생성 (package 태스크 대체) -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.7.1</version>
+                <configuration>
+                    <!-- 파일명: {artifactId}-{version}-{env}.dist -->
+                    <finalName>${project.artifactId}-${project.version}-${env}.dist</finalName>
+                    <appendAssemblyId>false</appendAssemblyId>
+                    <outputDirectory>${dist.dir}</outputDirectory>
+                    <descriptors>
+                        <descriptor>src/assembly/dist.xml</descriptor>
+                    </descriptors>
+                    <!-- @appName@ 토큰 치환 (scripts/ 내 Shell Script용) -->
+                    <filters>
+                        <filter>src/assembly/filter.properties</filter>
+                    </filters>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>make-dist-zip</id>
+                        <!-- package 페이즈에 자동 실행 -->
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <!-- exec-plugin: Docker 관련 Shell Script 실행 -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <version>3.4.1</version>
+            </plugin>
+
+        </plugins>
+    </build>
+
+    <!-- ========== 환경별 Maven Profile ========== -->
+    <!-- 기존 -Penv=dev 방식과 동일하게 -Pdev 또는 -Pprod 로 사용 -->
+    <profiles>
+
+        <!-- [기본값] 개발 환경 -->
+        <profile>
+            <id>dev</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <properties>
+                <env>dev</env>
+            </properties>
+        </profile>
+
+        <!-- 운영 환경 -->
+        <profile>
+            <id>prod</id>
+            <properties>
+                <env>prod</env>
+            </properties>
+        </profile>
+
+        <!-- 로컬 환경 -->
+        <profile>
+            <id>local</id>
+            <properties>
+                <env>local</env>
+            </properties>
+        </profile>
+
+        <!-- 테스트 환경 -->
+        <profile>
+            <id>test</id>
+            <properties>
+                <env>test</env>
+            </properties>
+        </profile>
+
+        <!-- 스테이징 환경 -->
+        <profile>
+            <id>stage</id>
+            <properties>
+                <env>stage</env>
+            </properties>
+        </profile>
+
+    </profiles>
+
+</project>
