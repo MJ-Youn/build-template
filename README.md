@@ -334,7 +334,7 @@ curl -v http://localhost:8080/
 
 ---
 
-## 🧜‍♀️ 개발 워크플로우 (Workflow)
+## 🧜‍♀️ 배포 워크플로우 (Workflow)
 
 ```mermaid
 flowchart TD
@@ -439,68 +439,146 @@ flowchart TD
     class AS1,AS2,AS3 remote_env;
 ```
 
-## 🧜‍♀️ 개발 시퀀스 (Sequence Diagram)
+## 🧜‍♀️ 배포 시퀀스 (Sequence Diagram)
+
+### 📦 Legacy 배포 (`./gradlew package`)
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Dev as 🧑‍💻 개발자
-    participant Gradle as 🐘 Gradle (Build)
+    participant Gradle as 🐘 Gradle
     participant Server as 🖥️ 운영 서버
+
+    Dev->>Gradle: ./gradlew package -Penv=prod
+    activate Gradle
+    Gradle->>Gradle: Jar 빌드 + Scripts + Dockerfile 패키징
+    Gradle-->>Dev: {APP_NAME}-{version}-prod.dist.zip 생성
+    deactivate Gradle
+
+    Dev->>Server: scp + unzip
+    activate Server
+    Dev->>Server: sudo ./bin/install_service.sh
+
+    Note over Server: 배포 방식 선택 (대화형)
+
+    alt 1) Legacy — Java 직접 실행
+        Server->>Server: JDK로 JAR 실행
+        Server->>Server: Systemd/SysVinit 서비스 등록
+    else 2) Docker — 패키지 내 Dockerfile 빌드
+        Server->>Server: docker build
+        Server->>Server: docker compose up -d
+        Server->>Server: Systemd/SysVinit 서비스 등록
+    end
+
+    Server-->>Dev: 서비스 시작 완료
+    deactivate Server
+```
+
+### 🐳 Docker 배포 (3가지 전략)
+
+#### Strategy 1 — 로컬 이미지 파일 전송 (`./gradlew dockerBuild`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as 🧑‍💻 개발자
+    participant Gradle as 🐘 Gradle
+    participant Server as 🖥️ 운영 서버
+
+    Dev->>Gradle: ./gradlew dockerBuild -Penv=prod
+    activate Gradle
+    Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)
+    Gradle->>Gradle: docker save → image.tar 추출
+    Gradle->>Gradle: tar + 배포 스크립트 → docker.zip 패키징
+    Gradle-->>Dev: {APP_NAME}-docker-prod.zip 생성
+    deactivate Gradle
+
+    Dev->>Server: scp + unzip
+    activate Server
+    Dev->>Server: sudo ./install_docker_service.sh
+    Server->>Server: docker load (image.tar)
+    Server->>Server: docker compose up -d
+    Server->>Server: Systemd/SysVinit 서비스 등록
+    Server-->>Dev: 컨테이너 실행 완료
+    deactivate Server
+```
+
+#### Strategy 2 — 서버에서 직접 빌드 (`./gradlew dockerBuildImage`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as 🧑‍💻 개발자
+    participant Gradle as 🐘 Gradle
+    participant Server as 🖥️ 운영 서버
+
+    Dev->>Server: git clone / git pull (소스 전송)
+    activate Server
+    Server->>Gradle: ./gradlew dockerBuildImage -Penv=prod
+    activate Gradle
+    Gradle->>Gradle: Jar 빌드 + docker-build/ 컨텍스트 구성
+    Gradle->>Server: docker build (서버 로컬)
+    deactivate Gradle
+    Server->>Server: sudo ./install_docker_service.sh
+    Server->>Server: docker compose up -d
+    Server->>Server: Systemd/SysVinit 서비스 등록
+    Server-->>Dev: 컨테이너 실행 완료
+    deactivate Server
+```
+
+#### Strategy 3 — Registry Push & Pull (`./gradlew dockerPushImage`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as 🧑‍💻 개발자
+    participant Gradle as 🐘 Gradle
+    participant Registry as 🗄️ Docker Registry
+    participant Server as 🖥️ 운영 서버
+
+    Dev->>Gradle: ./gradlew dockerPushImage -Penv=prod -PdockerRegistry=...
+    activate Gradle
+    Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)
+    Gradle->>Gradle: DEPLOY-GUIDE.md 자동 생성
+    Gradle->>Registry: docker push {image}:{tag}
+    Gradle-->>Dev: Push 완료 + docker-dist/ 폴더 준비
+    deactivate Gradle
+
+    Dev->>Server: scp docker-dist/ 폴더 전송
+    activate Server
+    Server->>Registry: docker pull {image}:{tag}
+    Dev->>Server: sudo ./install_docker_service.sh
+    Server->>Server: docker compose up -d
+    Server->>Server: Systemd/SysVinit 서비스 등록
+    Server-->>Dev: 컨테이너 실행 완료
+    deactivate Server
+```
+
+### ☸️ Kubernetes 배포 (`./gradlew k8sBuild`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as 🧑‍💻 개발자
+    participant Gradle as 🐘 Gradle
+    participant Registry as 🗄️ Docker Registry
     participant K8s as ☸️ K8s 클러스터
 
-    Dev->>Gradle: 1. 빌드 명령 실행 (./gradlew ...)
+    Dev->>Gradle: ./gradlew k8sBuild -Penv=prod -PdockerRegistry=...
     activate Gradle
+    Gradle->>Gradle: Docker 이미지 빌드
+    Gradle->>Registry: docker push
+    Gradle->>Gradle: K8s 매니페스트 YAML 생성
+    Gradle-->>Dev: {APP_NAME}-k8s-prod.zip 생성
+    deactivate Gradle
 
-    alt 📦 package 태스크 (Legacy + Docker 겸용)
-        Gradle->>Gradle: Jar 빌드 + Scripts + Dockerfile 패키징
-        Gradle-->>Dev: {APP_NAME}.dist.zip 생성
-        deactivate Gradle
-        Dev->>Server: 2. Zip 파일 전송 & 압축 해제
-        activate Server
-        Dev->>Server: 3. install_service.sh 실행
-        Note over Server: 배포 방식 선택<br/>1) Legacy  2) Docker
-        alt Legacy 방식 선택
-            Server->>Server: Java Jar 직접 실행<br/>(Systemd/SysVinit 등록)
-        else Docker 방식 선택
-            Server->>Server: Dockerfile로 이미지 빌드<br/>docker compose up -d<br/>(Systemd/SysVinit 등록)
-        end
-        Server-->>Dev: 서비스 시작 완료
-        deactivate Server
-
-    else 🐳 dockerBuild (Strategy 1 — 로컬 이미지 전송)
-        activate Gradle
-        Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)<br/>image.tar 추출 + 스크립트 패키징
-        Gradle-->>Dev: {APP_NAME}-docker.zip 생성
-        deactivate Gradle
-        Dev->>Server: 2. Zip 파일 전송 & 압축 해제
-        activate Server
-        Dev->>Server: 3. install_docker_service.sh 실행
-        Server->>Server: docker load & docker compose up -d
-        Server-->>Dev: 컨테이너 실행 완료
-        deactivate Server
-
-    else ☁️ dockerPushImage (Strategy 3 — Registry)
-        activate Gradle
-        Gradle->>Gradle: Docker 이미지 빌드 & Registry Push
-        Gradle-->>Dev: Push 완료 + DEPLOY-GUIDE.md 생성
-        deactivate Gradle
-        Dev->>Server: 2. docker-dist/ 폴더 전송
-        activate Server
-        Server->>Server: docker pull {image}
-        Dev->>Server: 3. install_docker_service.sh 실행
-        Server->>Server: docker compose up -d<br/>(Systemd/SysVinit 등록)
-        Server-->>Dev: 컨테이너 실행 완료
-        deactivate Server
-
-    else ☸️ k8sBuild (Kubernetes)
-        activate Gradle
-        Gradle->>Gradle: K8s 매니페스트 생성 (YAML)
-        Gradle-->>Dev: {APP_NAME}-k8s.zip 생성
-        deactivate Gradle
-        Dev->>K8s: 2. kubectl apply -f ...
-        activate K8s
-        K8s-->>Dev: Pod/Service 배포 완료
-        deactivate K8s
-    end
+    Dev->>K8s: unzip → kubectl apply -f configmap.yaml
+    activate K8s
+    Dev->>K8s: kubectl apply -f deployment.yaml
+    Dev->>K8s: kubectl apply -f service.yaml
+    K8s->>Registry: 이미지 Pull
+    K8s-->>Dev: Pod/Service 배포 완료
+    deactivate K8s
 ```
+
