@@ -81,21 +81,21 @@
 
 ### ✅ 사전 조건
 
-| 항목 | 설명 |
-|------|------|
-| Git 저장소 | `.git` 폴더가 존재하면 자동으로 `git pull` 실행, 없으면 건너뜀 |
-| JDK | `./gradlew` 실행 가능 환경 필요 |
-| `unzip` | 패키지 압축 해제에 필요 |
-| `bin/install_service.sh` | 빌드 패키지 내 포함된 설치 스크립트 |
+| 항목                     | 설명                                                           |
+| ------------------------ | -------------------------------------------------------------- |
+| Git 저장소               | `.git` 폴더가 존재하면 자동으로 `git pull` 실행, 없으면 건너뜀 |
+| JDK                      | `./gradlew` 실행 가능 환경 필요                                |
+| `unzip`                  | 패키지 압축 해제에 필요                                        |
+| `bin/install_service.sh` | 빌드 패키지 내 포함된 설치 스크립트                            |
 
 ### 📋 상세 동작
 
 1. **Git Pull**: 현재 디렉토리에 `.git` 폴더가 있으면 `git pull`을 실행하여 최신 코드를 반영합니다.
 2. **Gradle 빌드**: `./gradlew package -Penv=<환경명>` 을 실행하여 배포 패키지를 생성합니다.
-   - 결과물: `build/dist/{APP_NAME}-{version}-{env}.dist.zip`
+    - 결과물: `build/dist/{APP_NAME}-{version}-{env}.dist.zip`
 3. **압축 해제 및 설치**: 생성된 ZIP 파일을 자동으로 찾아 압축을 해제하고, 내부의 `bin/install_service.sh`를 실행합니다.
-   - 압축 해제 경로: `build/dist/{ZIP파일명}/`
-   - 기존 폴더가 있으면 자동으로 삭제 후 재생성
+    - 압축 해제 경로: `build/dist/{ZIP파일명}/`
+    - 기존 폴더가 있으면 자동으로 삭제 후 재생성
 
 > ⚠️ **주의**: `install_service.sh` 가 `sudo` 권한이 필요한 경우, `sudo ./build_deploy.sh -Penv=prod` 대신 스크립트 내부의 권한 상승 방식을 사용하거나, `sudo` 없이 실행 가능한 환경을 구성하세요.
 
@@ -104,6 +104,7 @@
 ## 📦 빌드 및 배포 (Build & Deploy)
 
 > **💡 Docker 배포 시 주요 특징 (설정 파일 Host Mount & .env 적용)**
+>
 > - 배포 결과물에는 호스트 환경에서 직접 수정 가능한 `config/` 디렉토리가 포함됩니다.
 > - `install_docker_service.sh` 실행 시 혹은 `docker-compose up` 시 서버 측 `config/` 폴더가 컨테이너 내부로 바인드 마운트되어, **이미지 재빌드 없이 `application.yml`, `log4j2.yml` 등을 런타임에 즉시 변경**할 수 있습니다.
 > - 초기 설치 시 빈 마운트로 인한 파일 유실을 막기 위해 이미지에서 초기 설정 파일들을 자동으로 추출(Seed)하는 방어 로직이 내장되어 있습니다.
@@ -340,34 +341,26 @@ flowchart TD
     Start["🚀 1. 프로젝트 생성"] --> Dev["💻 2. 개발 및 커스터마이징"]
     Dev --> BuildSelect{"🛠️ 3. 빌드/배포 방식 선택"}
 
-    %% 자동화 스크립트 (build_deploy.sh)
-    subgraph AutoScript ["🤖 build_deploy.sh (자동화)"]
-        direction LR
-        AS1["📥 git pull"] --> AS2["🔨 gradlew package"]
-        AS2 --> AS3["📦 unzip + install_service.sh"]
-    end
-
-    BuildSelect -->|자동화| AutoScript
-    AutoScript --> LegacyDeploy2["⚙️ 서비스 등록/실행"]
-
-    %% 서브그래프: Legacy
-    subgraph Legacy ["🖥️ Legacy Path (Jar)"]
+    %% 서브그래프: package 태스크 (Legacy + Docker 겸용)
+    subgraph PackagePath ["📦 package 태스크 (Legacy + Docker 겸용)"]
         direction TB
-        LegacyBuild["☕ Gradle 패키징<br/>(Jar + Scripts)"]
+        LegacyBuild["☕ Gradle 패키징<br/>(Jar + Scripts + Dockerfile)"]
         LegacyBuild --> LegacyTrans["📂 파일 전송/압축해제"]
-        LegacyTrans --> LegacyDeploy["⚙️ 서비스 등록/실행<br/>(Systemd/SysVinit)"]
+        LegacyTrans --> InstallSelect{"⚙️ 배포 방식 선택<br/>(install_service.sh)"}
+        InstallSelect -->|"1 Legacy (Java)"| LegacyRun["☕ Java 직접 실행<br/>(Systemd/SysVinit 등록)"]
+        InstallSelect -->|"2 Docker"| PkgDocker["🐳 배포 패키지 내<br/>Dockerfile로 이미지 빌드<br/>& Compose 실행"]
     end
 
-    %% 서브그래프: Docker Strategies
-    subgraph Docker ["🐳 Docker Path"]
+    %% 서브그래프: Docker 전용 전략
+    subgraph DockerPath ["🐳 Docker Path (전용 태스크)"]
         direction TB
         DockerDecide{"전략 선택"}
 
         %% Strategy 1: Local Image
         subgraph DockerOpt1 ["① 로컬 빌드 + 전송"]
-            D1_Build["🔨 로컬 빌드<br/>(dockerBuild task)"]
+            D1_Build["🔨 dockerBuild task<br/>(이미지 빌드)"]
             D1_Save["💾 Docker Image Save<br/>(.tar 파일)"]
-            D1_Trans["📂 파일 전송<br/>(Local -> Server)"]
+            D1_Trans["📂 파일 전송<br/>(Local → Server)"]
             D1_Load["📦 Image Load<br/>(docker load)"]
 
             D1_Build --> D1_Save --> D1_Trans --> D1_Load
@@ -376,16 +369,16 @@ flowchart TD
         %% Strategy 2: Source Transfer
         subgraph DockerOpt2 ["② 소스 전송 + 서버 빌드"]
             D2_Trans["📂 소스/Dockerfile 전송"]
-            D2_Build["🔨 서버 빌드<br/>(docker build)"]
+            D2_Build["🔨 서버 빌드<br/>(dockerBuildImage task)"]
 
             D2_Trans --> D2_Build
         end
 
         %% Strategy 3: Repository
-        subgraph DockerOpt3 ["③ Repository (Hub/Private)"]
-            D3_Build["🔨 로컬 빌드"]
+        subgraph DockerOpt3 ["③ Registry Push & Pull"]
+            D3_Build["🔨 로컬 빌드<br/>(dockerPushImage task)"]
             D3_Push["☁️ Push to Registry<br/>(on Local PC)"]
-            D3_Pull["⬇️ Pull form Registry<br/>(on Server)"]
+            D3_Pull["⬇️ Pull from Registry<br/>(on Server)"]
 
             D3_Build --> D3_Push --> D3_Pull
         end
@@ -407,12 +400,12 @@ flowchart TD
     end
 
     %% 메인 연결
-    BuildSelect -->|Legacy| LegacyBuild
-    BuildSelect -->|Docker| DockerDecide
-    BuildSelect -->|K8s| K8sBuild
+    BuildSelect -->|"package"| LegacyBuild
+    BuildSelect -->|"Docker 전용 태스크"| DockerDecide
+    BuildSelect -->|"k8sBuild"| K8sBuild
 
-    LegacyDeploy --> Monitor["📈 통합 모니터링"]
-    LegacyDeploy2 --> Monitor
+    LegacyRun --> Monitor["📈 통합 모니터링"]
+    PkgDocker --> Monitor
     DockerService --> Monitor
     K8sDeploy --> Monitor
 
@@ -437,12 +430,12 @@ flowchart TD
     classDef remote_env fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000;
 
     class Start,Dev start;
-    class BuildSelect,DockerDecide decision;
+    class BuildSelect,DockerDecide,InstallSelect, decision;
     class Monitor endNode;
 
     %% Nodes & Legend Styling (Local vs Remote)
-    class LegacyBuild,LegacyTrans,K8sBuild,D1_Build,D1_Save,D1_Trans,D2_Trans,D3_Build,D3_Push,L1 local_env;
-    class LegacyDeploy,LegacyDeploy2,K8sDeploy,D1_Load,D2_Build,D3_Pull,DockerService,L2 remote_env;
+    class LegacyBuild,K8sBuild,D1_Build,D1_Save,D1_Trans,D2_Trans,D3_Build,D3_Push,L1 local_env;
+    class LegacyTrans,LegacyRun,PkgDocker,K8sDeploy,D1_Load,D2_Build,D3_Pull,DockerService,L2 remote_env;
     class AS1,AS2,AS3 remote_env;
 ```
 
@@ -459,30 +452,48 @@ sequenceDiagram
     Dev->>Gradle: 1. 빌드 명령 실행 (./gradlew ...)
     activate Gradle
 
-    alt 🐳 Legacy 배포 (package)
-        Gradle->>Gradle: Jar 빌드 + 스크립트 패키징
+    alt 📦 package 태스크 (Legacy + Docker 겸용)
+        Gradle->>Gradle: Jar 빌드 + Scripts + Dockerfile 패키징
         Gradle-->>Dev: {APP_NAME}.dist.zip 생성
         deactivate Gradle
         Dev->>Server: 2. Zip 파일 전송 & 압축 해제
         activate Server
         Dev->>Server: 3. install_service.sh 실행
-        Server->>Server: Systemd/SysVinit 서비스 등록
+        Note over Server: 배포 방식 선택<br/>1) Legacy  2) Docker
+        alt Legacy 방식 선택
+            Server->>Server: Java Jar 직접 실행<br/>(Systemd/SysVinit 등록)
+        else Docker 방식 선택
+            Server->>Server: Dockerfile로 이미지 빌드<br/>docker compose up -d<br/>(Systemd/SysVinit 등록)
+        end
         Server-->>Dev: 서비스 시작 완료
         deactivate Server
 
-    else 🖥️ Docker 배포 (dockerBuild)
+    else 🐳 dockerBuild (Strategy 1 — 로컬 이미지 전송)
         activate Gradle
-        Gradle->>Gradle: Docker 빌드 (Image) + 스크립트 패키징
+        Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)<br/>image.tar 추출 + 스크립트 패키징
         Gradle-->>Dev: {APP_NAME}-docker.zip 생성
         deactivate Gradle
         Dev->>Server: 2. Zip 파일 전송 & 압축 해제
         activate Server
         Dev->>Server: 3. install_docker_service.sh 실행
-        Server->>Server: Docker Image 로드 & Compose Up
+        Server->>Server: docker load & docker compose up -d
         Server-->>Dev: 컨테이너 실행 완료
         deactivate Server
 
-    else ☸️ K8s 배포 (k8sBuild)
+    else ☁️ dockerPushImage (Strategy 3 — Registry)
+        activate Gradle
+        Gradle->>Gradle: Docker 이미지 빌드 & Registry Push
+        Gradle-->>Dev: Push 완료 + DEPLOY-GUIDE.md 생성
+        deactivate Gradle
+        Dev->>Server: 2. docker-dist/ 폴더 전송
+        activate Server
+        Server->>Server: docker pull {image}
+        Dev->>Server: 3. install_docker_service.sh 실행
+        Server->>Server: docker compose up -d<br/>(Systemd/SysVinit 등록)
+        Server-->>Dev: 컨테이너 실행 완료
+        deactivate Server
+
+    else ☸️ k8sBuild (Kubernetes)
         activate Gradle
         Gradle->>Gradle: K8s 매니페스트 생성 (YAML)
         Gradle-->>Dev: {APP_NAME}-k8s.zip 생성
