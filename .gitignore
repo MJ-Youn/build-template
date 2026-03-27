@@ -18,6 +18,12 @@ Thumbs.db
 build/
 !gradle/wrapper/gradle-wrapper.jar
 
+### Maven ###
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
 ### Application ###
 # Ignore logs
 log/
