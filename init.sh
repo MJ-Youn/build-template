@@ -12,6 +12,28 @@ else
   SED_CMD=("sed" "-i")
 fi
 
+# 입력값 검증 함수
+validate_input() {
+    local input_name="$1"
+    local input_value="$2"
+    local regex="$3"
+
+    if [[ ! "$input_value" =~ $regex ]]; then
+        echo "❌ $input_name 이(가) 올바르지 않습니다: $input_value"
+        echo "허용된 형식: $regex"
+        exit 1
+    fi
+}
+
+# sed 치환 문자열 이스케이프 함수
+escape_sed() {
+    # 1. \ 를 \\ 로 이스케이프
+    # 2. & 를 \& 로 이스케이프
+    # 3. / 를 \/ 로 이스케이프
+    # 4. | 를 \| 로 이스케이프
+    echo "$1" | sed 's/\\/\\\\/g; s/&/\\&/g; s/\//\\\//g; s/|/\\|/g'
+}
+
 # 1. 현재 설정값 확인 (파싱 로직 강화)
 if [ -f "$SETTINGS_FILE" ]; then
     # rootProject.name = '...' 형태에서 값 추출. 공백 및 작은따옴표 제거.
@@ -56,12 +78,15 @@ fi
 # 2. 사용자 입력 받기
 read -p "새로운 Project Name을 입력하세요 [$CURRENT_PROJECT_NAME]: " NEW_PROJECT_NAME
 NEW_PROJECT_NAME=${NEW_PROJECT_NAME:-$CURRENT_PROJECT_NAME}
+validate_input "Project Name" "$NEW_PROJECT_NAME" "^[a-zA-Z0-9._-]+$"
 
 read -p "새로운 Group Name을 입력하세요 [$CURRENT_GROUP]: " NEW_GROUP_NAME
 NEW_GROUP_NAME=${NEW_GROUP_NAME:-$CURRENT_GROUP}
+validate_input "Group Name" "$NEW_GROUP_NAME" "^[a-zA-Z0-9._-]+$"
 
 read -p "새로운 Server Port를 입력하세요 [$CURRENT_PORT]: " NEW_PORT
 NEW_PORT=${NEW_PORT:-$CURRENT_PORT}
+validate_input "Server Port" "$NEW_PORT" "^[0-9]+$"
 
 echo "-----------------------------------------"
 echo "변경할 설정:"
@@ -76,32 +101,37 @@ if [[ "$CONFIRM" != "y" && "$CONFIRM" != "Y" ]]; then
     exit 0
 fi
 
+# sed용 변수 이스케이프
+ESCAPED_PROJECT_NAME=$(escape_sed "$NEW_PROJECT_NAME")
+ESCAPED_GROUP_NAME=$(escape_sed "$NEW_GROUP_NAME")
+ESCAPED_PORT=$(escape_sed "$NEW_PORT")
+
 # 3. 설정 적용
 
 # 3-1. settings.gradle 수정
-"${SED_CMD[@]}" "s/rootProject.name = .*/rootProject.name = '$NEW_PROJECT_NAME'/" "$SETTINGS_FILE"
+"${SED_CMD[@]}" "s/rootProject.name = .*/rootProject.name = '$ESCAPED_PROJECT_NAME'/" "$SETTINGS_FILE"
 echo "✅ settings.gradle 수정 완료"
 
 # 3-2. build.gradle 수정
-"${SED_CMD[@]}" "s/^group = .*/group = '$NEW_GROUP_NAME'/" "$BUILD_FILE"
+"${SED_CMD[@]}" "s/^group = .*/group = '$ESCAPED_GROUP_NAME'/" "$BUILD_FILE"
 echo "✅ build.gradle 수정 완료"
 
 # 3-3. config/application.yml 수정
 if [ -f "$APP_CONFIG" ]; then
     # Server Port 수정
     if grep -q "port:" "$APP_CONFIG"; then
-        "${SED_CMD[@]}" "s/port: .*/port: $NEW_PORT/" "$APP_CONFIG"
+        "${SED_CMD[@]}" "s/port: .*/port: $ESCAPED_PORT/" "$APP_CONFIG"
     else
          if ! grep -q "server:" "$APP_CONFIG"; then
-            echo -e "\nserver:\n  port: $NEW_PORT" >> "$APP_CONFIG"
+            echo -e "\nserver:\n  port: $ESCAPED_PORT" >> "$APP_CONFIG"
          fi
     fi
 
     # Spring Application Name 수정
     if grep -q "name: $CURRENT_PROJECT_NAME" "$APP_CONFIG"; then
-        "${SED_CMD[@]}" "s/name: $CURRENT_PROJECT_NAME/name: $NEW_PROJECT_NAME/" "$APP_CONFIG"
+        "${SED_CMD[@]}" "s/name: $CURRENT_PROJECT_NAME/name: $ESCAPED_PROJECT_NAME/" "$APP_CONFIG"
     elif grep -q "name:" "$APP_CONFIG"; then
-        "${SED_CMD[@]}" "s/name: .*/name: $NEW_PROJECT_NAME/" "$APP_CONFIG"
+        "${SED_CMD[@]}" "s/name: .*/name: $ESCAPED_PROJECT_NAME/" "$APP_CONFIG"
     fi
     echo "✅ config/application.yml 수정 완료"
 fi
@@ -187,10 +217,11 @@ echo "📝 Java 파일 내 package/import 문 수정 중..."
 # package 구문 수정 (구분자 | 사용)
 # 기존 패키지명이 포함된 모든 구문을 새 패키지명으로 변경
 # 예: package io.github.mjyoun.build_test; -> package kr.co.lguplus.hdrms_web;
-find src -name "*.java" -exec "${SED_CMD[@]}" "s|package ${OLD_FULL_PKG}|package ${NEW_FULL_PKG}|g" {} +
+ESCAPED_NEW_FULL_PKG=$(escape_sed "$NEW_FULL_PKG")
+find src -name "*.java" -exec "${SED_CMD[@]}" "s|package ${OLD_FULL_PKG}|package ${ESCAPED_NEW_FULL_PKG}|g" {} +
 
 # import 구문 수정 (구분자 | 사용)
-find src -name "*.java" -exec "${SED_CMD[@]}" "s|import ${OLD_FULL_PKG}|import ${NEW_FULL_PKG}|g" {} +
+find src -name "*.java" -exec "${SED_CMD[@]}" "s|import ${OLD_FULL_PKG}|import ${ESCAPED_NEW_FULL_PKG}|g" {} +
 
 echo "✅ 패키지 구조 및 내용 변경 완료"
 
