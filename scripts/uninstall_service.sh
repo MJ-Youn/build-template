@@ -253,11 +253,11 @@ remove_logs() {
                 log_warning "'$LOG_PATH' 는 시스템 공유 디렉토리입니다."
                 log_info "디렉토리 전체 삭제 대신 '$APP_NAME' 관련 파일만 삭제합니다."
                 local DELETED_COUNT=0
+                # Using -delete is much faster than rm in a loop (no process fork for each file)
                 while IFS= read -r -d '' f; do
                     log_info "삭제: $f"
-                    rm -f "$f"
                     DELETED_COUNT=$((DELETED_COUNT + 1))
-                done < <(find "$LOG_PATH" -maxdepth 1 -name "${APP_NAME}*" -print0 2>/dev/null)
+                done < <(find "$LOG_PATH" -maxdepth 1 -name "${APP_NAME}*" -delete -print0 2>/dev/null)
 
                 if [ "$DELETED_COUNT" -gt 0 ]; then
                     log_success "$DELETED_COUNT 개의 로그 파일이 삭제되었습니다."
