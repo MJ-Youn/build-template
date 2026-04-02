@@ -22,6 +22,39 @@ else
     log_success() { echo "✅  $1"; }
     log_warning() { echo "⚠️  $1"; }
     log_error() { echo "❌  $1"; }
+
+    # @description Docker Compose 명령어 감지 (Fallback)
+    detect_docker_compose_cmd() {
+        local fail_on_error="${1:-false}"
+        if [ -n "$DOCKER_COMPOSE_CMD" ]; then return 0; fi
+
+        local DOCKER_BIN
+        DOCKER_BIN=$(command -v docker)
+        if [ -z "$DOCKER_BIN" ]; then
+            if [ "$fail_on_error" = "true" ]; then
+                log_error "Docker 실행 파일을 찾을 수 없습니다."
+                exit 1
+            else
+                log_warning "Docker 실행 파일을 찾을 수 없습니다. 컨테이너 작업을 건너뜁니다."
+                return 1
+            fi
+        fi
+
+        if $DOCKER_BIN compose version >/dev/null 2>&1; then
+            DOCKER_COMPOSE_CMD="$DOCKER_BIN compose"
+        elif command -v docker-compose >/dev/null 2>&1; then
+            DOCKER_COMPOSE_CMD=$(command -v docker-compose)
+        else
+            if [ "$fail_on_error" = "true" ]; then
+                log_error "Docker Compose를 찾을 수 없습니다."
+                exit 1
+            else
+                log_warning "Docker Compose를 찾을 수 없어 컨테이너 작업을 건너뜁니다."
+                return 1
+            fi
+        fi
+        return 0
+    }
 fi
 
 # --- [Constants & Variables] ---
@@ -259,7 +292,7 @@ register_service() {
     fi
 
     # Docker Compose 명령어 감지
-    detect_docker_compose_cmd
+    detect_docker_compose_cmd "true"
     log_info "Docker Compose 명령어: $DOCKER_COMPOSE_CMD"
 
     log_step "서비스 등록 및 시작..."
@@ -355,23 +388,6 @@ EOF
         
         log_success "서비스가 등록되었습니다 (sysvinit)."
         service $APP_NAME restart
-    fi
-}
-
-detect_docker_compose_cmd() {
-    DOCKER_BIN=$(command -v docker)
-    if [ -z "$DOCKER_BIN" ]; then
-        log_error "Docker 실행 파일을 찾을 수 없습니다."
-        exit 1
-    fi
-
-    if $DOCKER_BIN compose version >/dev/null 2>&1; then
-        DOCKER_COMPOSE_CMD="$DOCKER_BIN compose"
-    elif command -v docker-compose >/dev/null 2>&1; then
-        DOCKER_COMPOSE_CMD=$(command -v docker-compose)
-    else
-        log_error "Docker Compose를 찾을 수 없습니다."
-        exit 1
     fi
 }
 
