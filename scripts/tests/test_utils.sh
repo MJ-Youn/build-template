@@ -221,6 +221,46 @@ else
     FAILED=$((FAILED + 1))
 fi
 
+echo -e "\n--- Running tests for wait_for_condition ---"
+
+# Test 1: Immediate success
+if wait_for_condition "true" 1 0.1; then
+    echo -e "   [PASS] Immediate success handled"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "   [FAIL] Immediate success failed"
+    FAILED=$((FAILED + 1))
+fi
+
+# Test 2: Success after delay
+TEMP_FILE=$(mktemp)
+rm "$TEMP_FILE"
+(sleep 0.5 && touch "$TEMP_FILE") &
+if wait_for_condition "[ -f $TEMP_FILE ]" 2 0.1; then
+    echo -e "   [PASS] Success after delay handled"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "   [FAIL] Success after delay failed"
+    FAILED=$((FAILED + 1))
+fi
+rm -f "$TEMP_FILE"
+
+# Test 3: Timeout
+start_time=$SECONDS
+if ! wait_for_condition "false" 1 0.1; then
+    duration=$((SECONDS - start_time))
+    if (( duration >= 1 )); then
+        echo -e "   [PASS] Timeout handled correctly after ${duration}s"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e "   [FAIL] Timeout returned too early (${duration}s)"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo -e "   [FAIL] Timeout should have occurred"
+    FAILED=$((FAILED + 1))
+fi
+
 echo -e "\n--- Tests completed: $PASSED passed, $FAILED failed ---"
 
 if [ $FAILED -ne 0 ]; then

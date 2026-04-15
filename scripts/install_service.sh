@@ -705,7 +705,7 @@ EOF
         register_cron
 
         # 서비스 상태 출력
-        sleep 2
+        wait_for_condition "docker ps -f \"name=${APP_NAME}-app\" --format \"{{.Status}}\" | grep -q '.'" 5 0.2
         local CONTAINER_STATUS
         local CONTAINER_ID
         CONTAINER_STATUS=$(docker ps -f "name=${APP_NAME}-app" --format "{{.Status}}")
@@ -910,7 +910,7 @@ register_path() {
 
 # @description Legacy 배포 완료 후 서비스 상태 확인
 check_legacy_service_status() {
-    sleep 2
+    wait_for_condition "[ \"\$(systemctl show --property MainPID --value $APP_NAME)\" != \"0\" ]" 5 0.2
     local CURRENT_PID
     CURRENT_PID=$(systemctl show --property MainPID --value $APP_NAME)
 
