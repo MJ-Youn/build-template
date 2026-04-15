@@ -52,12 +52,19 @@ assert_unsafe "/var/log"
 assert_unsafe "/root"
 assert_unsafe "/tmp"
 
-# 3. Normalization tests (should resolve to sensitive paths)
+# 3. Sensitive system paths (Sub-directories)
+assert_unsafe "/bin/sh"
+assert_unsafe "/etc/passwd"
+assert_unsafe "/usr/bin/ls"
+assert_unsafe "/root/.ssh"
+
+# 4. Normalization tests (should resolve to sensitive paths)
 assert_unsafe "/etc/../etc"
 assert_unsafe "/usr/bin/."
 assert_unsafe "//etc"
+assert_unsafe "/etc/passwd/../shadow"
 
-# 4. Safe paths (Absolute paths not in sensitive list)
+# 5. Safe paths (Absolute paths not in sensitive list)
 assert_safe "/opt/my-app"
 assert_safe "/home/user/my-project"
 assert_safe "/tmp/safe-to-delete-dir"

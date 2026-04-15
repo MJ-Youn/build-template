@@ -189,9 +189,18 @@ determine_install_dir() {
     fi
 
     if [ -z "$DEST_DIR" ]; then
-        log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
-        read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
-        DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
+        while true; do
+            log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
+            read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
+            DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
+
+            if is_safe_path "$DEST_DIR"; then
+                break
+            else
+                log_error "허용되지 않는 설치 경로입니다 ($DEST_DIR). 다른 경로를 입력해주세요."
+                DEST_DIR=""
+            fi
+        done
     fi
 
     log_info "최종 설치 위치: $DEST_DIR"
@@ -288,10 +297,19 @@ configure_legacy_env() {
 
     # LOG_PATH 설정 (없는 경우 사용자 입력)
     if [ -z "$LOG_PATH" ]; then
-        DEFAULT_LOG_PATH="$DEST_DIR/log"
-        log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
-        read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
-        LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
+        while true; do
+            DEFAULT_LOG_PATH="$DEST_DIR/log"
+            log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
+            read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
+            LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
+
+            if is_safe_path "$LOG_PATH"; then
+                break
+            else
+                log_error "허용되지 않는 로그 경로입니다 ($LOG_PATH). 다른 경로를 입력해주세요."
+                LOG_PATH=""
+            fi
+        done
 
         if grep -q "^LOG_PATH=" "$DEST_PROP_FILE"; then
             sed -i "/^LOG_PATH=/c\\LOG_PATH=\"$LOG_PATH\"" "$DEST_PROP_FILE"
@@ -480,9 +498,18 @@ determine_docker_install_dir() {
     fi
 
     if [ -z "$DEST_DIR" ]; then
-        log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
-        read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
-        DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
+        while true; do
+            log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
+            read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
+            DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
+
+            if is_safe_path "$DEST_DIR"; then
+                break
+            else
+                log_error "허용되지 않는 설치 경로입니다 ($DEST_DIR). 다른 경로를 입력해주세요."
+                DEST_DIR=""
+            fi
+        done
     fi
 
     log_info "설치 위치: $DEST_DIR"
@@ -590,10 +617,19 @@ configure_docker_env() {
 
     # LOG_PATH 설정
     if [ -z "$LOG_PATH" ]; then
-        local DEFAULT_LOG_PATH="$DEST_DIR/log"
-        log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
-        read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
-        LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
+        while true; do
+            local DEFAULT_LOG_PATH="$DEST_DIR/log"
+            log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
+            read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
+            LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
+
+            if is_safe_path "$LOG_PATH"; then
+                break
+            else
+                log_error "허용되지 않는 로그 경로입니다 ($LOG_PATH). 다른 경로를 입력해주세요."
+                LOG_PATH=""
+            fi
+        done
 
         if grep -q "^LOG_PATH=" "$DEST_PROP"; then
             grep -v "^LOG_PATH=" "$DEST_PROP" > "$DEST_PROP.tmp"
