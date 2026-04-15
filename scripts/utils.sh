@@ -60,7 +60,7 @@ log_error() {
 
 # --- [Validation API] ---
 
-# @description 경로 안전성 검사 (시스템 중요 디렉토리 삭제 방지)
+# @description 경로 안전성 검사 (시스템 중요 디렉토리 변조 및 삭제 방지)
 # @param $1 검사할 경로
 # @return 0: 안전함, 1: 위험함
 is_safe_path() {
@@ -69,12 +69,18 @@ is_safe_path() {
         return 1
     fi
 
+    # 경로 정규화 (심볼릭 링크 해제 및 .. 처리)
     local normalized_path
     normalized_path=$(readlink -f "$path" 2>/dev/null || echo "$path")
 
-    # 삭제 금지된 중요 시스템 경로 목록 (빠른 검사를 위해 case 문 사용)
+    # 1. 절대 경로 여부 확인 및 루트 디렉토리 거부
+    if [[ ! "$normalized_path" =~ ^/ ]] || [[ "$normalized_path" == "/" ]]; then
+        return 1
+    fi
+
+    # 2. 삭제/변조 금지된 중요 시스템 경로 목록 (정확한 일치)
     case "$normalized_path" in
-        "/" | "/bin" | "/boot" | "/dev" | "/etc" | "/home" | "/lib" | "/lib64" | \
+        "/bin" | "/boot" | "/dev" | "/etc" | "/home" | "/lib" | "/lib64" | \
         "/media" | "/mnt" | "/opt" | "/proc" | "/root" | "/run" | "/sbin" | \
         "/srv" | "/sys" | "/tmp" | "/usr" | "/var" | "/usr/bin" | "/usr/sbin" | \
         "/usr/lib" | "/var/log" | "/usr/local/bin" | "/usr/local/sbin" | "/usr/local/lib" | \
@@ -83,10 +89,16 @@ is_safe_path() {
             ;;
     esac
 
-    # 최상위 디렉토리(예: /foo) 형식은 허용하되, / 자체는 불가
-    if [[ ! "$normalized_path" =~ ^/ ]] || [[ "$normalized_path" == "/" ]]; then
-        return 1 # Not safe
-    fi
+    # 3. 중요 시스템 경로의 하위 디렉토리 거부 (Privilege Escalation 방지)
+    # /opt/myapp 이나 /var/log/myapp 등은 허용하되, 시스템 바이너리/설정 경로는 보호
+    case "$normalized_path" in
+        "/bin/"* | "/boot/"* | "/dev/"* | "/etc/"* | "/lib/"* | "/lib64/"* | \
+        "/proc/"* | "/root/"* | "/run/"* | "/sbin/"* | "/sys/"* | "/usr/bin/"* | \
+        "/usr/sbin/"* | "/usr/lib/"* | "/usr/local/bin/"* | "/usr/local/sbin/"* | \
+        "/usr/local/lib/"*)
+            return 1 # Not safe
+            ;;
+    esac
 
     return 0 # Safe
 }

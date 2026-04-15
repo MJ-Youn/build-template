@@ -23,6 +23,20 @@ else
     log_warning() { echo "⚠️  $1"; }
     log_error() { echo "❌  $1"; }
 
+    # @description 경로 안전성 검사 (Fallback)
+    is_safe_path() {
+        local path=$1
+        if [ -z "$path" ]; then return 1; fi
+        local normalized_path
+        normalized_path=$(readlink -f "$path" 2>/dev/null || echo "$path")
+        if [[ ! "$normalized_path" =~ ^/ ]] || [[ "$normalized_path" == "/" ]]; then return 1; fi
+        case "$normalized_path" in
+            "/bin" | "/boot" | "/dev" | "/etc" | "/home" | "/lib" | "/lib64" | "/media" | "/mnt" | "/opt" | "/proc" | "/root" | "/run" | "/sbin" | "/srv" | "/sys" | "/tmp" | "/usr" | "/var" | "/usr/bin" | "/usr/sbin" | "/usr/lib" | "/var/log" | "/usr/local/bin" | "/usr/local/sbin" | "/usr/local/lib" | "/log") return 1 ;;
+            "/bin/"* | "/boot/"* | "/dev/"* | "/etc/"* | "/lib/"* | "/lib64/"* | "/proc/"* | "/root/"* | "/run/"* | "/sbin/"* | "/sys/"* | "/usr/bin/"* | "/usr/sbin/"* | "/usr/lib/"* | "/usr/local/bin/"* | "/usr/local/sbin/"* | "/usr/local/lib/"*) return 1 ;;
+        esac
+        return 0
+    }
+
     # @description Docker Compose 명령어 감지 (Fallback)
     detect_docker_compose_cmd() {
         local fail_on_error="${1:-false}"
@@ -123,9 +137,18 @@ determine_install_dir() {
     fi
 
     if [ -z "$DEST_DIR" ]; then
-        log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
-        read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
-        DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
+        while true; do
+            log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
+            read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
+            DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
+
+            if is_safe_path "$DEST_DIR"; then
+                break
+            else
+                log_error "허용되지 않는 설치 경로입니다 ($DEST_DIR). 다른 경로를 입력해주세요."
+                DEST_DIR=""
+            fi
+        done
     fi
 
     log_info "설치 위치: $DEST_DIR"
@@ -170,10 +193,19 @@ configure_env() {
 
     # LOG_PATH 설정
     if [ -z "$LOG_PATH" ]; then
-        DEFAULT_LOG_PATH="$DEST_DIR/log"
-        log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
-        read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
-        LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
+        while true; do
+            DEFAULT_LOG_PATH="$DEST_DIR/log"
+            log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
+            read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
+            LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
+
+            if is_safe_path "$LOG_PATH"; then
+                break
+            else
+                log_error "허용되지 않는 로그 경로입니다 ($LOG_PATH). 다른 경로를 입력해주세요."
+                LOG_PATH=""
+            fi
+        done
         
         # 설정 파일에 저장
         if grep -q "^LOG_PATH=" "$PROP_FILE"; then
