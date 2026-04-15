@@ -40,4 +40,15 @@ else
     add_path_to_profile() { return 1; }
     is_safe_path() { return 0; }
     detect_docker_compose_cmd() { return 1; }
+    wait_for_condition() {
+        local condition_cmd="$1"
+        local timeout="${2:-5}"
+        local interval="${3:-0.2}"
+        local start_time=$SECONDS
+        while true; do
+            if eval "$condition_cmd" >/dev/null 2>&1; then return 0; fi
+            if (( SECONDS - start_time >= timeout )); then return 1; fi
+            sleep "$interval"
+        done
+    }
 fi

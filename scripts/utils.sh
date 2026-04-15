@@ -158,3 +158,29 @@ add_path_to_profile() {
     fi
     return 1
 }
+
+# --- [Wait API] ---
+
+# @description 특정 조건이 만족될 때까지 대기 (Polling)
+# @param $1 조건 확인을 위한 명령어 (문자열)
+# @param $2 최대 대기 시간 (초, 기본값: 5)
+# @param $3 확인 주기 (초, 기본값: 0.2)
+# @return 0: 성공, 1: 타임아웃
+wait_for_condition() {
+    local condition_cmd="$1"
+    local timeout="${2:-5}"
+    local interval="${3:-0.2}"
+    local start_time=$SECONDS
+
+    while true; do
+        if eval "$condition_cmd" >/dev/null 2>&1; then
+            return 0
+        fi
+
+        if (( SECONDS - start_time >= timeout )); then
+            return 1
+        fi
+
+        sleep "$interval"
+    done
+}
