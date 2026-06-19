@@ -11,7 +11,7 @@
 #   2. Gradle package 빌드 (-Penv=<환경명>)
 #   3. 빌드 결과물(ZIP) 압축 해제 후 bin/install_service.sh 실행
 #
-# @author 윤명준 (MJ Yune)
+# @author 윤명준 (MJ Yun)
 # @since  2026-03-19
 # =============================================================================
 
