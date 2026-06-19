@@ -216,6 +216,35 @@
                 <version>3.4.1</version>
             </plugin>
 
+            <!-- antrun-plugin: docker-compose 파일 fallback 처리 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>prepare-docker-compose</id>
+                        <phase>prepare-package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <mkdir dir="${project.build.directory}/docker-dist"/>
+                                <!-- 1. 기본 docker-compose.yml 파일 복사 (실패해도 무시) -->
+                                <copy file="docker/docker-compose.yml" tofile="${project.build.directory}/docker-dist/docker-compose.yml" failonerror="false"/>
+                                <!-- 2. 환경별 docker-compose-${env}.yml 파일이 존재하면 덮어쓰기 (실패해도 무시) -->
+                                <copy file="docker/${env}/docker-compose-${env}.yml" tofile="${project.build.directory}/docker-dist/docker-compose.yml" overwrite="true" failonerror="false"/>
+                                
+                                <!-- 3. 설정 파일 fallback 처리: dist-config 내의 환경별 파일로 덮어쓰기 -->
+                                <copy file="${project.build.directory}/dist-config/application-${env}.yml" tofile="${project.build.directory}/dist-config/application.yml" overwrite="true" failonerror="false"/>
+                                <copy file="${project.build.directory}/dist-config/log4j2-${env}.yml" tofile="${project.build.directory}/dist-config/log4j2.yml" overwrite="true" failonerror="false"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
         </plugins>
     </build>
 

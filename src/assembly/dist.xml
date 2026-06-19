@@ -47,6 +47,11 @@
         <fileSet>
             <directory>${project.build.directory}/dist-config</directory>
             <outputDirectory>config</outputDirectory>
+            <excludes>
+                <!-- 환경별 파일이름 자체는 패키지에서 제외 (이미 기본 이름으로 덮어씌워짐) -->
+                <exclude>application-${env}.yml</exclude>
+                <exclude>log4j2-${env}.yml</exclude>
+            </excludes>
         </fileSet>
 
         <!-- ============================================================
@@ -94,17 +99,17 @@
             </includes>
         </fileSet>
 
-        <!-- 환경별 docker-compose 파일 선택 -->
-        <fileSet>
-            <directory>docker/${env}</directory>
-            <outputDirectory>docker</outputDirectory>
-            <includes>
-                <!-- docker-compose-{env}.yml → docker-compose.yml 로 복사됨
-                     (rename은 assembly에서 직접 지원 안 되므로 동일 이름 유지)  -->
-                <include>docker-compose-${env}.yml</include>
-            </includes>
-        </fileSet>
-
     </fileSets>
+
+    <files>
+
+        <!-- 환경별 docker-compose 파일 선택 (이름을 docker-compose.yml로 변경) -->
+        <!-- maven-antrun-plugin에서 준비한 fallback이 적용된 파일을 사용합니다 -->
+        <file>
+            <source>${project.build.directory}/docker-dist/docker-compose.yml</source>
+            <outputDirectory>docker</outputDirectory>
+            <destName>docker-compose.yml</destName>
+        </file>
+    </files>
 
 </assembly>
