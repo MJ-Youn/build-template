@@ -15,7 +15,7 @@
 #   1. prepare-docker.sh 실행 (빌드 컨텍스트 구성)
 #   2. docker build --platform linux/amd64 실행
 #
-# @author 윤명준 (MJ Yune)
+# @author 윤명준 (MJ Yun)
 # @since  2026-03-27
 # ==============================================================================
 

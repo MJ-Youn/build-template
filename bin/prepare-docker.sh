@@ -13,7 +13,7 @@
 #   target/docker-build/  : docker build 컨텍스트 (Dockerfile + libs + config + bin)
 #   target/docker-dist/   : 서버 배포에 필요한 파일 (docker-compose, scripts, config, DEPLOY-GUIDE.md)
 #
-# @author 윤명준 (MJ Yune)
+# @author 윤명준 (MJ Yun)
 # @since  2026-03-27
 # ==============================================================================
 

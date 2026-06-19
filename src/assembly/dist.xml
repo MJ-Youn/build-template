@@ -11,7 +11,7 @@
       bin/      - 배포/운영 Shell Script
       docker/   - Dockerfile + docker-compose.yml
 
-    @author 윤명준 (MJ Yune)
+    @author 윤명준 (MJ Yun)
     @since  2026-03-27
 -->
 <assembly xmlns="http://maven.apache.org/ASSEMBLY/2.2.0"

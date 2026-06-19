@@ -3,7 +3,7 @@
 # File: install_service.sh
 # Description: 서비스 설치 및 실행 스크립트 (Legacy / Docker 배포 방식 지원)
 #              Systemd / SysVinit 자동 감지
-# Author: 윤명준 (MJ Yune)
+# Author: 윤명준 (MJ Yun)
 # Since: 2026-02-11
 # ==============================================================================
 
