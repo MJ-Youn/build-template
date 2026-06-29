@@ -59,6 +59,7 @@ JAVA_OPTS=(
     "-Dapp.name=$APP_NAME"
     "-Dlog.path=$LOG_PATH"
     "-Dlogging.config=$PROJECT_ROOT/config/log4j2.yml"
+    $EXTRA_JAVA_OPTS
 )
 
 # Docker 환경 감지 및 실행 분기

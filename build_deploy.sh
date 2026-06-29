@@ -156,7 +156,7 @@ chmod +x "${INSTALL_SCRIPT}"
 echo -e "   🛠️  설치 스크립트 실행 중: ${INSTALL_SCRIPT}"
 echo ""
 
-"${INSTALL_SCRIPT}"
+sudo "${INSTALL_SCRIPT}"
 
 echo ""
 echo -e "${CYAN}======================================================${NC}"

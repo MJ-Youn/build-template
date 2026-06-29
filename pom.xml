@@ -190,11 +190,11 @@
                     <appendAssemblyId>false</appendAssemblyId>
                     <outputDirectory>${dist.dir}</outputDirectory>
                     <descriptors>
-                        <descriptor>src/assembly/dist.xml</descriptor>
+                        <descriptor>assembly/dist.xml</descriptor>
                     </descriptors>
                     <!-- @appName@ 토큰 치환 (scripts/ 내 Shell Script용) -->
                     <filters>
-                        <filter>src/assembly/filter.properties</filter>
+                        <filter>assembly/filter.properties</filter>
                     </filters>
                 </configuration>
                 <executions>
