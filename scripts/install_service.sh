@@ -513,7 +513,7 @@ build_docker_image_from_dist() {
     log_info "Dockerfile: $DOCKERFILE_PATH"
     log_info "이미지 태그: $IMAGE_TAG"
 
-    docker build -t "$IMAGE_TAG" -f "$DOCKERFILE_PATH" "$PKG_ROOT"
+    docker build --build-arg APP_NAME="$APP_NAME" -t "$IMAGE_TAG" -f "$DOCKERFILE_PATH" "$PKG_ROOT"
 
     if [ $? -ne 0 ]; then
         log_error "Docker 이미지 빌드 실패"
