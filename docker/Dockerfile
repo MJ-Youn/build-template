@@ -2,8 +2,11 @@ FROM eclipse-temurin:25-jdk-alpine
 
 WORKDIR /app
 
-# Alpine 이미지는 기본적으로 bash가 없으므로 설치
-RUN apk add --no-cache bash
+# Alpine 이미지는 기본적으로 bash가 없으므로 설치, 권한 전환을 위한 패키지 추가
+RUN apk add --no-cache bash su-exec shadow
+
+# nccatuser 계정 생성 (기본 UID/GID: 1000)
+RUN addgroup -g 1000 nccatuser && adduser -u 1000 -G nccatuser -S nccatuser
 
 # 배포 패키지 내용 복사
 # libs, config, bin 폴더가 빌드 컨텍스트 루트에 있다고 가정
@@ -14,9 +17,10 @@ COPY config/ /app/config/
 COPY bin/start.sh /app/bin/start.sh
 COPY bin/utils.sh /app/bin/utils.sh
 COPY bin/bootstrap.sh /app/bin/bootstrap.sh
+COPY bin/.app-env.properties /app/bin/.app-env.properties
 
-# 스크립트 실행 권한 부여
-RUN chmod +x /app/bin/*.sh
+# 스크립트 실행 권한 부여 및 /app 소유권 변경
+RUN chmod +x /app/bin/*.sh && chown -R nccatuser:nccatuser /app
 
 # 애플리케이션 실행
-CMD ["./bin/start.sh"]
+ENTRYPOINT ["/app/bin/start.sh"]

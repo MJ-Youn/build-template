@@ -189,18 +189,9 @@ determine_install_dir() {
     fi
 
     if [ -z "$DEST_DIR" ]; then
-        while true; do
-            log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
-            read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
-            DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
-
-            if is_safe_path "$DEST_DIR"; then
-                break
-            else
-                log_error "허용되지 않는 설치 경로입니다 ($DEST_DIR). 다른 경로를 입력해주세요."
-                DEST_DIR=""
-            fi
-        done
+        log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
+        read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
+        DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
     fi
 
     log_info "최종 설치 위치: $DEST_DIR"
@@ -297,19 +288,10 @@ configure_legacy_env() {
 
     # LOG_PATH 설정 (없는 경우 사용자 입력)
     if [ -z "$LOG_PATH" ]; then
-        while true; do
-            DEFAULT_LOG_PATH="$DEST_DIR/log"
-            log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
-            read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
-            LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
-
-            if is_safe_path "$LOG_PATH"; then
-                break
-            else
-                log_error "허용되지 않는 로그 경로입니다 ($LOG_PATH). 다른 경로를 입력해주세요."
-                LOG_PATH=""
-            fi
-        done
+        DEFAULT_LOG_PATH="$DEST_DIR/log"
+        log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
+        read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
+        LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
 
         if grep -q "^LOG_PATH=" "$DEST_PROP_FILE"; then
             sed -i "/^LOG_PATH=/c\\LOG_PATH=\"$LOG_PATH\"" "$DEST_PROP_FILE"
@@ -451,14 +433,17 @@ install_docker_mode() {
     # 설치 위치 결정
     determine_docker_install_dir
 
-    # Docker 이미지 빌드 (dist 파일 기반)
-    build_docker_image_from_dist
-
     # docker-compose 및 관련 파일 복사
     copy_docker_files
 
     # 환경 설정 (LOG_PATH 등)
     configure_docker_env
+
+    # 생성된 환경변수를 빌드 컨텍스트에 포함하여 Docker 빌드 시 추가될 수 있도록 함
+    cp "$DEST_DIR/.app-env.properties" "$PKG_ROOT/bin/" 2>/dev/null || touch "$PKG_ROOT/bin/.app-env.properties"
+
+    # Docker 이미지 빌드 (dist 파일 기반)
+    build_docker_image_from_dist
 
     # docker-compose.yml 환경변수(.env) 설정
     configure_compose
@@ -498,18 +483,9 @@ determine_docker_install_dir() {
     fi
 
     if [ -z "$DEST_DIR" ]; then
-        while true; do
-            log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
-            read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
-            DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
-
-            if is_safe_path "$DEST_DIR"; then
-                break
-            else
-                log_error "허용되지 않는 설치 경로입니다 ($DEST_DIR). 다른 경로를 입력해주세요."
-                DEST_DIR=""
-            fi
-        done
+        log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
+        read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
+        DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
     fi
 
     log_info "설치 위치: $DEST_DIR"
@@ -617,19 +593,10 @@ configure_docker_env() {
 
     # LOG_PATH 설정
     if [ -z "$LOG_PATH" ]; then
-        while true; do
-            local DEFAULT_LOG_PATH="$DEST_DIR/log"
-            log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
-            read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
-            LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
-
-            if is_safe_path "$LOG_PATH"; then
-                break
-            else
-                log_error "허용되지 않는 로그 경로입니다 ($LOG_PATH). 다른 경로를 입력해주세요."
-                LOG_PATH=""
-            fi
-        done
+        local DEFAULT_LOG_PATH="$DEST_DIR/log"
+        log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
+        read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
+        LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
 
         if grep -q "^LOG_PATH=" "$DEST_PROP"; then
             grep -v "^LOG_PATH=" "$DEST_PROP" > "$DEST_PROP.tmp"
@@ -741,7 +708,7 @@ EOF
         register_cron
 
         # 서비스 상태 출력
-        wait_for_condition "docker ps -f \"name=${APP_NAME}-app\" --format \"{{.Status}}\" | grep -q '.'" 5 0.2
+        sleep 2
         local CONTAINER_STATUS
         local CONTAINER_ID
         CONTAINER_STATUS=$(docker ps -f "name=${APP_NAME}-app" --format "{{.Status}}")
@@ -946,7 +913,7 @@ register_path() {
 
 # @description Legacy 배포 완료 후 서비스 상태 확인
 check_legacy_service_status() {
-    wait_for_condition "[ \"\$(systemctl show --property MainPID --value $APP_NAME)\" != \"0\" ]" 5 0.2
+    sleep 2
     local CURRENT_PID
     CURRENT_PID=$(systemctl show --property MainPID --value $APP_NAME)
 
@@ -982,13 +949,10 @@ check_legacy_service_status() {
 
 # --- [Execution] ---
 
-# Note: Wrap with source guard to allow testing individual functions
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    # 루트 권한 확인
-    if [ "$EUID" -ne 0 ]; then
-      echo "Error: 이 스크립트는 root 권한으로 실행해야 합니다."
-      exit 1
-    fi
-
-    install_service
+# 루트 권한 확인
+if [ "$EUID" -ne 0 ]; then
+  echo "Error: 이 스크립트는 root 권한으로 실행해야 합니다."
+  exit 1
 fi
+
+install_service

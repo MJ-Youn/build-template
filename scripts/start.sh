@@ -59,6 +59,7 @@ JAVA_OPTS=(
     "-Dapp.name=$APP_NAME"
     "-Dlog.path=$LOG_PATH"
     "-Dlogging.config=$PROJECT_ROOT/config/log4j2.yml"
+    $EXTRA_JAVA_OPTS
 )
 
 # Docker 환경 감지 및 실행 분기
@@ -75,8 +76,31 @@ if [ -f /.dockerenv ] || [ "$$" -eq 1 ]; then
     echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}LOG${NC}     : ${YELLOW}$LOG_PATH/${APP_NAME}.log${NC} (Console + File)"
     echo -e "${BOLD}${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
 
-    # exec로 프로세스 대체 (PID 1 유지)
-    exec java -jar "${JAVA_OPTS[@]}" "$JAR_FILE"
+    # APP_NAME에서 특수문자, 공백, 대문자를 제거하여 안전한 Linux 계정명 생성
+    CLEAN_APP_NAME=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g')
+    APP_USER="${CLEAN_APP_NAME}user"
+
+    # APP_UID / APP_GID 환경 변수가 있으면 해당 UID/GID로 ${APP_USER} 권한 변경
+    if [ -n "$APP_UID" ] && [ -n "$APP_GID" ]; then
+        log_info "전달된 APP_UID($APP_UID), APP_GID($APP_GID)에 맞게 ${APP_USER} 권한을 조정합니다."
+        groupmod -o -g "$APP_GID" "${APP_USER}" 2>/dev/null || true
+        usermod -o -u "$APP_UID" "${APP_USER}" 2>/dev/null || true
+    fi
+
+    # 디렉토리 권한 설정 (Docker 볼륨 마운트 시 root 소유권 문제 해결)
+    if id "${APP_USER}" &>/dev/null; then
+        log_info "${APP_USER} 권한으로 애플리케이션을 실행합니다."
+        mkdir -p "$LOG_PATH"
+        chown -R "${APP_USER}:${APP_USER}" "$LOG_PATH"
+        chown -R "${APP_USER}:${APP_USER}" "$PROJECT_ROOT/config" 2>/dev/null || true
+        
+        # exec로 프로세스 대체 (PID 1 유지) 및 su-exec로 권한 강등
+        exec su-exec "${APP_USER}" java -jar "${JAVA_OPTS[@]}" "$JAR_FILE"
+    else
+        log_info "${APP_USER}를 찾을 수 없어 기본 권한으로 실행합니다."
+        # exec로 프로세스 대체 (PID 1 유지)
+        exec java -jar "${JAVA_OPTS[@]}" "$JAR_FILE"
+    fi
 else
     # 일반 환경: nohup을 사용하여 백그라운드에서 실행 유지
     nohup java -jar "${JAVA_OPTS[@]}" "$JAR_FILE" > /dev/null 2>&1 &
