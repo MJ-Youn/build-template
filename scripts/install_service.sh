@@ -44,8 +44,8 @@ select_deploy_mode() {
     echo ""
 
     while true; do
-        read -p "   선택 [1/2] (기본값: 1): " MODE_INPUT
-        MODE_INPUT="${MODE_INPUT:-1}"
+        read -p "   선택 [1/2] (기본값: 2): " MODE_INPUT
+        MODE_INPUT="${MODE_INPUT:-2}"
         case "$MODE_INPUT" in
             1)
                 DEPLOY_MODE="legacy"
