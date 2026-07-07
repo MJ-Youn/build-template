@@ -494,35 +494,33 @@ determine_docker_install_dir() {
     chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR"
 }
 
-# @description dist 패키지 파일로 Docker 이미지를 처리 (빌드, 로드, 혹은 패스)
-# PKG_ROOT/docker/Dockerfile이 있으면 빌드, .tar가 있으면 로드, 없으면 Registry/Local 사용
+# @description dist 패키지 파일로 Docker 이미지를 빌드
+# dist.zip 압축 해제 경로(PKG_ROOT)를 빌드 컨텍스트로 활용
+# PKG_ROOT/docker/Dockerfile을 사용하여 이미지 생성
 build_docker_image_from_dist() {
-    log_step "Docker 이미지 확인 및 빌드..."
+    log_step "Docker 이미지 빌드 중 (배포 파일 기반)..."
 
-    local DOCKERFILE_PATH="$PKG_ROOT/docker/Dockerfile"
-    local IMAGE_TAR="$PKG_ROOT/${APP_NAME}.tar"
+    DOCKERFILE_PATH="$PKG_ROOT/docker/Dockerfile"
+
+    if [ ! -f "$DOCKERFILE_PATH" ]; then
+        log_error "Dockerfile을 찾을 수 없습니다: $DOCKERFILE_PATH"
+        exit 1
+    fi
+
     local IMAGE_TAG="${APP_NAME}:latest"
 
-    if [ -f "$DOCKERFILE_PATH" ]; then
-        log_info "Dockerfile 발견. 이미지를 빌드합니다."
-        log_info "빌드 컨텍스트: $PKG_ROOT"
-        docker build --build-arg APP_NAME="$APP_NAME" -t "$IMAGE_TAG" -f "$DOCKERFILE_PATH" "$PKG_ROOT"
-        if [ $? -ne 0 ]; then
-            log_error "Docker 이미지 빌드 실패"
-            exit 1
-        fi
-        log_success "Docker 이미지 빌드 완료"
-    elif [ -f "$IMAGE_TAR" ]; then
-        log_info "이미지 압축 파일 발견($IMAGE_TAR). 이미지를 로드합니다."
-        docker load -i "$IMAGE_TAR"
-        if [ $? -ne 0 ]; then
-            log_error "Docker 이미지 로드 실패"
-            exit 1
-        fi
-        log_success "Docker 이미지 로드 완료"
-    else
-        log_info "Dockerfile과 이미지 압축 파일이 없습니다. 로컬/레지스트리 이미지를 사용합니다."
+    log_info "빌드 컨텍스트: $PKG_ROOT"
+    log_info "Dockerfile: $DOCKERFILE_PATH"
+    log_info "이미지 태그: $IMAGE_TAG"
+
+    docker build --build-arg APP_NAME="$APP_NAME" -t "$IMAGE_TAG" -f "$DOCKERFILE_PATH" "$PKG_ROOT"
+
+    if [ $? -ne 0 ]; then
+        log_error "Docker 이미지 빌드 실패"
+        exit 1
     fi
+
+    log_success "Docker 이미지 빌드 완료: $IMAGE_TAG"
 }
 
 # @description Docker 관련 파일 복사 (docker-compose, uninstall 스크립트 등)
@@ -630,12 +628,6 @@ configure_compose() {
         exit 1
     fi
 
-    # 이미지 소스에 따라 DOCKER_IMAGE 변수 설정
-    local DOCKER_IMAGE=""
-    if [ -f "$PKG_ROOT/docker/Dockerfile" ] || [ -f "$PKG_ROOT/${APP_NAME}.tar" ]; then
-        DOCKER_IMAGE="${APP_NAME}:latest"
-    fi
-
     cat <<EOF > "$ENV_FILE"
 # ==========================================================
 # Docker Compose Environment Variables
@@ -644,12 +636,8 @@ configure_compose() {
 APP_NAME=$APP_NAME
 LOG_PATH=$LOG_PATH
 DEST_DIR=$DEST_DIR
+DOCKER_IMAGE=${APP_NAME}:latest
 EOF
-
-    # DOCKER_IMAGE 값이 있으면 추가 (없으면 docker-compose.yml의 기본값 사용)
-    if [ -n "$DOCKER_IMAGE" ]; then
-        echo "DOCKER_IMAGE=$DOCKER_IMAGE" >> "$ENV_FILE"
-    fi
 
     log_success "환경 및 볼륨(.env) 설정 업데이트 완료"
 
