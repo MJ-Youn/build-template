@@ -9,66 +9,13 @@
 # --- [Script Init] ---
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-# utils.sh 로드
-UTILS_PATH="$SCRIPT_DIR/utils.sh"
-if [ -f "$UTILS_PATH" ]; then
-    source "$UTILS_PATH"
+# bootstrap.sh 로드 (공통 유틸리티 및 로깅 함수)
+BOOTSTRAP_PATH="$(dirname "$SCRIPT_DIR")/scripts/bootstrap.sh"
+if [ -f "$BOOTSTRAP_PATH" ]; then
+    source "$BOOTSTRAP_PATH"
 else
-    # utils.sh가 없으면 최소한의 로깅 함수 정의 (Fallback)
-    echo "Warning: utils.sh not found at $UTILS_PATH"
-    log_header() { echo "🚀  $1"; }
-    log_step() { echo "➡️  $1"; }
-    log_info() { echo "   ℹ️  $1"; }
-    log_success() { echo "✅  $1"; }
-    log_warning() { echo "⚠️  $1"; }
-    log_error() { echo "❌  $1"; }
-
-    # @description 경로 안전성 검사 (Fallback)
-    is_safe_path() {
-        local path=$1
-        if [ -z "$path" ]; then return 1; fi
-        local normalized_path
-        normalized_path=$(readlink -f "$path" 2>/dev/null || echo "$path")
-        if [[ ! "$normalized_path" =~ ^/ ]] || [[ "$normalized_path" == "/" ]]; then return 1; fi
-        case "$normalized_path" in
-            "/bin" | "/boot" | "/dev" | "/etc" | "/home" | "/lib" | "/lib64" | "/media" | "/mnt" | "/opt" | "/proc" | "/root" | "/run" | "/sbin" | "/srv" | "/sys" | "/tmp" | "/usr" | "/var" | "/usr/bin" | "/usr/sbin" | "/usr/lib" | "/var/log" | "/usr/local/bin" | "/usr/local/sbin" | "/usr/local/lib" | "/log") return 1 ;;
-            "/bin/"* | "/boot/"* | "/dev/"* | "/etc/"* | "/lib/"* | "/lib64/"* | "/proc/"* | "/root/"* | "/run/"* | "/sbin/"* | "/sys/"* | "/usr/bin/"* | "/usr/sbin/"* | "/usr/lib/"* | "/usr/local/bin/"* | "/usr/local/sbin/"* | "/usr/local/lib/"*) return 1 ;;
-        esac
-        return 0
-    }
-
-    # @description Docker Compose 명령어 감지 (Fallback)
-    detect_docker_compose_cmd() {
-        local fail_on_error="${1:-false}"
-        if [ -n "$DOCKER_COMPOSE_CMD" ]; then return 0; fi
-
-        local DOCKER_BIN
-        DOCKER_BIN=$(command -v docker)
-        if [ -z "$DOCKER_BIN" ]; then
-            if [ "$fail_on_error" = "true" ]; then
-                log_error "Docker 실행 파일을 찾을 수 없습니다."
-                exit 1
-            else
-                log_warning "Docker 실행 파일을 찾을 수 없습니다. 컨테이너 작업을 건너뜁니다."
-                return 1
-            fi
-        fi
-
-        if $DOCKER_BIN compose version >/dev/null 2>&1; then
-            DOCKER_COMPOSE_CMD="$DOCKER_BIN compose"
-        elif command -v docker-compose >/dev/null 2>&1; then
-            DOCKER_COMPOSE_CMD=$(command -v docker-compose)
-        else
-            if [ "$fail_on_error" = "true" ]; then
-                log_error "Docker Compose를 찾을 수 없습니다."
-                exit 1
-            else
-                log_warning "Docker Compose를 찾을 수 없어 컨테이너 작업을 건너뜁니다."
-                return 1
-            fi
-        fi
-        return 0
-    }
+    echo "Error: bootstrap.sh not found at $BOOTSTRAP_PATH"
+    exit 1
 fi
 
 # --- [Constants & Variables] ---
