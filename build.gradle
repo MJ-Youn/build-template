@@ -240,9 +240,8 @@ task prepareDockerContext {
             println "📂 배포용 config 폴더 복사 완료 (Host Mount용)"
         }
         
-        // 스크립트 복사 (install, utils, cron)
-        // uninstall_docker_service.sh는 scripts/uninstall_service.sh로 통합되어 제거됨
-        ['docker/install_docker_service.sh', 'scripts/utils.sh'].each { src ->
+        // 스크립트 복사 (install, utils, bootstrap)
+        ['scripts/install_service.sh', 'scripts/utils.sh', 'scripts/bootstrap.sh'].each { src ->
             def f = file(src)
             if (f.exists()) {
                 copy {
@@ -303,7 +302,8 @@ task prepareDockerContext {
 | 파일 | 설명 |
 |------|------|
 | `docker-compose.yml` | 컨테이너 실행 설정 (`.env` 파일과 함께 사용) |
-| `install_docker_service.sh` | 서비스 자동 설치 스크립트 (Systemd/SysVinit 등록 포함) |
+| `install_service.sh` | 서비스 자동 설치 스크립트 (Systemd/SysVinit 등록 포함) |
+| `bootstrap.sh` | 공통 로딩 유틸리티 |
 | `utils.sh` | 공통 유틸리티 스크립트 |
 | `config/` | 애플리케이션 설정 파일 (Host Mount용 — 수정 가능) |
 | `.app-env.properties` | 로그 경로 등 배포 환경 기본값 |
@@ -338,7 +338,7 @@ Systemd/SysVinit 서비스로 등록하고 재부팅 시에도 자동 시작되�
 
 ```bash
 cd /home/user/docker-dist
-sudo ./install_docker_service.sh
+sudo ./install_service.sh
 ```
 
 > 스크립트 실행 시 **설치 경로**, **로그 경로**를 대화형으로 입력합니다.
@@ -499,7 +499,7 @@ task dockerPushImage {
         println "║"
         println "║  [4-a] 자동 설치 (Systemd 서비스 등록 포함 — 권장)"
         println "║      cd /home/user/docker-dist"
-        println "║      sudo ./install_docker_service.sh"
+        println "║      sudo ./install_service.sh"
         println "║"
         println "║  [4-b] 수동 실행 (docker compose 직접)"
         println "║      cd /home/user/docker-dist"

@@ -106,7 +106,7 @@
 > **💡 Docker 배포 시 주요 특징 (설정 파일 Host Mount & .env 적용)**
 >
 > - 배포 결과물에는 호스트 환경에서 직접 수정 가능한 `config/` 디렉토리가 포함됩니다.
-> - `install_docker_service.sh` 실행 시 혹은 `docker-compose up` 시 서버 측 `config/` 폴더가 컨테이너 내부로 바인드 마운트되어, **이미지 재빌드 없이 `application.yml`, `log4j2.yml` 등을 런타임에 즉시 변경**할 수 있습니다.
+> - `install_service.sh` 실행 시 혹은 `docker-compose up` 시 서버 측 `config/` 폴더가 컨테이너 내부로 바인드 마운트되어, **이미지 재빌드 없이 `application.yml`, `log4j2.yml` 등을 런타임에 즉시 변경**할 수 있습니다.
 > - 초기 설치 시 빈 마운트로 인한 파일 유실을 막기 위해 이미지에서 초기 설정 파일들을 자동으로 추출(Seed)하는 방어 로직이 내장되어 있습니다.
 > - 자체 문자열 치환(`@VAR@`) 대신 표준 **Docker Compose `.env` 파일** 환경변수를 사용하여 `docker-compose up` 명령어 단독 실행 시에도 완벽하게 동작합니다.
 
@@ -127,8 +127,8 @@
     - `image.tar`: Docker 이미지 (linux/amd64)
     - `docker-compose.yml`: 실행 설정 (표준 변수 사용)
     - `config/`: 운영 환경용 설정 파일 (Host Mount용)
-    - `install_docker_service.sh`: 서비스 등록/실행 및 `.env` 파일 생성 스크립트
-    - `uninstall_docker_service.sh`: 서비스 제거 스크립트
+    - `install_service.sh`: 서비스 등록/실행 및 `.env` 파일 생성 스크립트
+    - `uninstall_service.sh`: 서비스 제거 스크립트
     - `utils.sh`: 공통 스크립트
 
 **2. 배포 (Production Server)**
@@ -140,7 +140,7 @@ scp build/dist/{APP_NAME}-docker-prod.zip user@server:/home/user/
 # 2. 서버 접속 후 압축 해제 및 설치
 unzip {APP_NAME}-docker-prod.zip -d deploy
 cd deploy
-sudo ./install_docker_service.sh
+sudo ./install_service.sh
 ```
 
 - **자동 수행**:
@@ -173,7 +173,7 @@ cd my-project
 cd build/docker-dist
 
 # 3. 환경 변수 초기화 및 컨테이너 실행 (설정 파일 Host Extract 포함)
-sudo ./install_docker_service.sh
+sudo ./install_service.sh
 # (주의: 스크립트 없이 docker-compose up -d 단독 실행 시 .env 파일 직접 구성 필요)
 ```
 
@@ -208,7 +208,7 @@ CI/CD 파이프라인을 통해 설정 파일만 배포하거나, scp로 전송�
 cd docker-dist
 
 # 2. 서비스 등록 (이미지는 레지스트리에서 자동 Pull 및 .env 구성)
-sudo ./install_docker_service.sh
+sudo ./install_service.sh
 ```
 
 > ⚠️ **주의**: Private Registry를 사용하는 경우, 서버에서 `docker login`이 선행되어야 합니다.
@@ -496,7 +496,7 @@ sequenceDiagram
 
     Dev->>Server: scp + unzip
     activate Server
-    Dev->>Server: sudo ./install_docker_service.sh
+    Dev->>Server: sudo ./install_service.sh
     Server->>Server: docker load (image.tar)
     Server->>Server: docker compose up -d
     Server->>Server: Systemd/SysVinit 서비스 등록
@@ -520,7 +520,7 @@ sequenceDiagram
     Gradle->>Gradle: Jar 빌드 + docker-build/ 컨텍스트 구성
     Gradle->>Server: docker build (서버 로컬)
     deactivate Gradle
-    Server->>Server: sudo ./install_docker_service.sh
+    Server->>Server: sudo ./install_service.sh
     Server->>Server: docker compose up -d
     Server->>Server: Systemd/SysVinit 서비스 등록
     Server-->>Dev: 컨테이너 실행 완료
@@ -548,7 +548,7 @@ sequenceDiagram
     Dev->>Server: scp docker-dist/ 폴더 전송
     activate Server
     Server->>Registry: docker pull {image}:{tag}
-    Dev->>Server: sudo ./install_docker_service.sh
+    Dev->>Server: sudo ./install_service.sh
     Server->>Server: docker compose up -d
     Server->>Server: Systemd/SysVinit 서비스 등록
     Server-->>Dev: 컨테이너 실행 완료
