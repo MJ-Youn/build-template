@@ -109,8 +109,8 @@ echo "   📄 사용된 docker-compose: $COMPOSE_SRC"
 # @appName@ 토큰 치환 후 복사
 sed "s/@appName@/$APP_NAME/g" "$COMPOSE_SRC" > "$DOCKER_DIST_DIR/docker-compose.yml"
 
-# 2. 스크립트 복사 (install_docker_service.sh, utils.sh)
-for SRC_FILE in "docker/install_docker_service.sh" "scripts/utils.sh"; do
+# 2. 스크립트 복사 (install_service.sh, uninstall_service.sh, bootstrap.sh, utils.sh)
+for SRC_FILE in "scripts/install_service.sh" "scripts/uninstall_service.sh" "scripts/bootstrap.sh" "scripts/utils.sh"; do
     FULL_SRC="$PROJECT_ROOT/$SRC_FILE"
     if [ -f "$FULL_SRC" ]; then
         sed "s/@appName@/$APP_NAME/g" "$FULL_SRC" > "$DOCKER_DIST_DIR/$(basename "$FULL_SRC")"
@@ -159,7 +159,7 @@ cat > "$DOCKER_DIST_DIR/DEPLOY-GUIDE.md" << EOF
 | 파일 | 설명 |
 |------|------|
 | \`docker-compose.yml\` | 컨테이너 실행 설정 (\`.env\` 파일과 함께 사용) |
-| \`install_docker_service.sh\` | 서비스 자동 설치 스크립트 (Systemd/SysVinit 등록 포함) |
+| \`install_service.sh\` | 서비스 배포 (Docker/Legacy) 및 설정 스크립트 |
 | \`utils.sh\` | 공통 유틸리티 스크립트 |
 | \`config/\` | 애플리케이션 설정 파일 (Host Mount용 — 수정 가능) |
 | \`.app-env.properties\` | 로그 경로 등 배포 환경 기본값 |
@@ -191,7 +191,7 @@ docker pull ${FULL_IMAGE_NAME}
 
 \`\`\`bash
 cd /home/user/docker-dist
-sudo ./install_docker_service.sh
+sudo ./install_service.sh
 \`\`\`
 
 ### 4-b. 수동 실행 (docker compose 직접)

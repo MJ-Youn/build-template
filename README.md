@@ -79,21 +79,21 @@
 
 ### ✅ 사전 조건
 
-| 항목 | 설명 |
-|------|------|
-| Git 저장소 | `.git` 폴더가 존재하면 자동으로 `git pull` 실행, 없으면 건너뜀 |
-| JDK | `./mvnw` 실행 가능 환경 필요 |
-| `unzip` | 패키지 압축 해제에 필요 |
-| `bin/install_service.sh` | 빌드 패키지 내 포함된 설치 스크립트 |
+| 항목                     | 설명                                                           |
+| ------------------------ | -------------------------------------------------------------- |
+| Git 저장소               | `.git` 폴더가 존재하면 자동으로 `git pull` 실행, 없으면 건너뜀 |
+| JDK                      | `./mvnw` 실행 가능 환경 필요                                   |
+| `unzip`                  | 패키지 압축 해제에 필요                                        |
+| `bin/install_service.sh` | 빌드 패키지 내 포함된 설치 스크립트                            |
 
 ### 📋 상세 동작
 
 1. **Git Pull**: 현재 디렉토리에 `.git` 폴더가 있으면 `git pull`을 실행하여 최신 코드를 반영합니다.
 2. **Maven 빌드**: `./mvnw package -P<환경명>` 을 실행하여 배포 패키지를 생성합니다.
-   - 결과물: `target/dist/{APP_NAME}-{version}-{env}.dist.zip`
+    - 결과물: `target/dist/{APP_NAME}-{version}-{env}.dist.zip`
 3. **압축 해제 및 설치**: 생성된 ZIP 파일을 자동으로 찾아 압축을 해제하고, 내부의 `bin/install_service.sh`를 실행합니다.
-   - 압축 해제 경로: `target/dist/{ZIP파일명}/`
-   - 기존 폴더가 있으면 자동으로 삭제 후 재생성
+    - 압축 해제 경로: `target/dist/{ZIP파일명}/`
+    - 기존 폴더가 있으면 자동으로 삭제 후 재생성
 
 > ⚠️ **주의**: `install_service.sh` 가 `sudo` 권한이 필요한 경우, `sudo ./build_deploy.sh -Penv=prod` 대신 스크립트 내부의 권한 상승 방식을 사용하거나, `sudo` 없이 실행 가능한 환경을 구성하세요.
 
@@ -102,8 +102,9 @@
 ## 📦 빌드 및 배포 (Build & Deploy)
 
 > **💡 Docker 배포 시 주요 특징 (설정 파일 Host Mount & .env 적용)**
+>
 > - 배포 결과물에는 호스트 환경에서 직접 수정 가능한 `config/` 디렉토리가 포함됩니다.
-> - `install_docker_service.sh` 실행 시 혹은 `docker-compose up` 시 서버 측 `config/` 폴더가 컨테이너 내부로 바인드 마운트되어, **이미지 재빌드 없이 `application.yml`, `log4j2.yml` 등을 런타임에 즉시 변경**할 수 있습니다.
+> - `install_service.sh` 실행 시 혹은 `docker-compose up` 시 서버 측 `config/` 폴더가 컨테이너 내부로 바인드 마운트되어, **이미지 재빌드 없이 `application.yml`, `log4j2.yml` 등을 런타임에 즉시 변경**할 수 있습니다.
 > - 초기 설치 시 빈 마운트로 인한 파일 유실을 막기 위해 이미지에서 초기 설정 파일들을 자동으로 추출(Seed)하는 방어 로직이 내장되어 있습니다.
 > - 자체 문자열 치환(`@VAR@`) 대신 표준 **Docker Compose `.env` 파일** 환경변수를 사용하여 `docker-compose up` 명령어 단독 실행 시에도 완벽하게 동작합니다.
 
@@ -124,8 +125,8 @@
     - `image.tar`: Docker 이미지 (linux/amd64)
     - `docker-compose.yml`: 실행 설정 (표준 변수 사용)
     - `config/`: 운영 환경용 설정 파일 (Host Mount용)
-    - `install_docker_service.sh`: 서비스 등록/실행 및 `.env` 파일 생성 스크립트
-    - `uninstall_docker_service.sh`: 서비스 제거 스크립트
+    - `install_service.sh`: 서비스 등록/실행 및 `.env` 파일 생성 스크립트 (Legacy/Docker 선택)
+    - `uninstall_service.sh`: 서비스 제거 스크립트
     - `utils.sh`: 공통 스크립트
 
 **2. 배포 (Production Server)**
@@ -137,7 +138,7 @@ scp build/dist/{APP_NAME}-docker-prod.zip user@server:/home/user/
 # 2. 서버 접속 후 압축 해제 및 설치
 unzip {APP_NAME}-docker-prod.zip -d deploy
 cd deploy
-sudo ./install_docker_service.sh
+sudo ./install_service.sh
 ```
 
 - **자동 수행**:
@@ -171,7 +172,7 @@ cd my-project
 cd target/docker-dist
 
 # 3. 환경 변수 초기화 및 컨테이너 실행
-sudo ./install_docker_service.sh
+sudo ./install_service.sh
 ```
 
 > 💡 **Tip**: 반복 배포 시 `git pull && ./mvnw package -Pprod && ./bin/docker-build.sh prod` 명령으로 빠르게 최신화할 수 있습니다. Legacy(일반 서버) 배포 환경이라면 `build_deploy.sh -Penv=prod`를 사용하면 Git pull → 빌드 → 설치까지 한 번에 자동화됩니다.
@@ -206,7 +207,7 @@ CI/CD 파이프라인을 통해 설정 파일만 배포하거나, scp로 전송�
 cd docker-dist
 
 # 2. 서비스 등록 (이미지는 레지스트리에서 자동 Pull 및 .env 구성)
-sudo ./install_docker_service.sh
+sudo ./install_service.sh
 ```
 
 > ⚠️ **주의**: Private Registry를 사용하는 경우, 서버에서 `docker login`이 선행되어야 합니다.
@@ -478,7 +479,7 @@ sequenceDiagram
         deactivate Maven
         Dev->>Server: 2. Zip 파일 전송 & 압축 해제
         activate Server
-        Dev->>Server: 3. install_docker_service.sh 실행
+        Dev->>Server: 3. install_service.sh 실행
         Server->>Server: Docker Image 로드 & Compose Up
         Server-->>Dev: 컨테이너 실행 완료
         deactivate Server
