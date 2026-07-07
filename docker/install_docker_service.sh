@@ -9,19 +9,13 @@
 # --- [Script Init] ---
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
-# utils.sh 로드
-UTILS_PATH="$SCRIPT_DIR/utils.sh"
-if [ -f "$UTILS_PATH" ]; then
-    source "$UTILS_PATH"
+# bootstrap.sh 로드 (공통 유틸리티 및 로깅 함수)
+BOOTSTRAP_PATH="$(dirname "$SCRIPT_DIR")/scripts/bootstrap.sh"
+if [ -f "$BOOTSTRAP_PATH" ]; then
+    source "$BOOTSTRAP_PATH"
 else
-    # utils.sh가 없으면 최소한의 로깅 함수 정의 (Fallback)
-    echo "Warning: utils.sh not found at $UTILS_PATH"
-    log_header() { echo "🚀  $1"; }
-    log_step() { echo "➡️  $1"; }
-    log_info() { echo "   ℹ️  $1"; }
-    log_success() { echo "✅  $1"; }
-    log_warning() { echo "⚠️  $1"; }
-    log_error() { echo "❌  $1"; }
+    echo "Error: bootstrap.sh not found at $BOOTSTRAP_PATH"
+    exit 1
 fi
 
 # --- [Constants & Variables] ---
@@ -90,9 +84,18 @@ determine_install_dir() {
     fi
 
     if [ -z "$DEST_DIR" ]; then
-        log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
-        read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
-        DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
+        while true; do
+            log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
+            read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
+            DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
+
+            if is_safe_path "$DEST_DIR"; then
+                break
+            else
+                log_error "허용되지 않는 설치 경로입니다 ($DEST_DIR). 다른 경로를 입력해주세요."
+                DEST_DIR=""
+            fi
+        done
     fi
 
     log_info "설치 위치: $DEST_DIR"
@@ -137,10 +140,19 @@ configure_env() {
 
     # LOG_PATH 설정
     if [ -z "$LOG_PATH" ]; then
-        DEFAULT_LOG_PATH="$DEST_DIR/log"
-        log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
-        read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
-        LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
+        while true; do
+            DEFAULT_LOG_PATH="$DEST_DIR/log"
+            log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
+            read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
+            LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
+
+            if is_safe_path "$LOG_PATH"; then
+                break
+            else
+                log_error "허용되지 않는 로그 경로입니다 ($LOG_PATH). 다른 경로를 입력해주세요."
+                LOG_PATH=""
+            fi
+        done
         
         # 설정 파일에 저장
         if grep -q "^LOG_PATH=" "$PROP_FILE"; then
@@ -259,7 +271,7 @@ register_service() {
     fi
 
     # Docker Compose 명령어 감지
-    detect_docker_compose_cmd
+    detect_docker_compose_cmd "true"
     log_info "Docker Compose 명령어: $DOCKER_COMPOSE_CMD"
 
     log_step "서비스 등록 및 시작..."
@@ -355,23 +367,6 @@ EOF
         
         log_success "서비스가 등록되었습니다 (sysvinit)."
         service $APP_NAME restart
-    fi
-}
-
-detect_docker_compose_cmd() {
-    DOCKER_BIN=$(command -v docker)
-    if [ -z "$DOCKER_BIN" ]; then
-        log_error "Docker 실행 파일을 찾을 수 없습니다."
-        exit 1
-    fi
-
-    if $DOCKER_BIN compose version >/dev/null 2>&1; then
-        DOCKER_COMPOSE_CMD="$DOCKER_BIN compose"
-    elif command -v docker-compose >/dev/null 2>&1; then
-        DOCKER_COMPOSE_CMD=$(command -v docker-compose)
-    else
-        log_error "Docker Compose를 찾을 수 없습니다."
-        exit 1
     fi
 }
 
