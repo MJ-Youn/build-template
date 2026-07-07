@@ -433,14 +433,17 @@ install_docker_mode() {
     # 설치 위치 결정
     determine_docker_install_dir
 
-    # Docker 이미지 빌드 (dist 파일 기반)
-    build_docker_image_from_dist
-
     # docker-compose 및 관련 파일 복사
     copy_docker_files
 
     # 환경 설정 (LOG_PATH 등)
     configure_docker_env
+
+    # 생성된 환경변수를 빌드 컨텍스트에 포함하여 Docker 빌드 시 추가될 수 있도록 함
+    cp "$DEST_DIR/.app-env.properties" "$PKG_ROOT/bin/" 2>/dev/null || touch "$PKG_ROOT/bin/.app-env.properties"
+
+    # Docker 이미지 빌드 (dist 파일 기반)
+    build_docker_image_from_dist
 
     # docker-compose.yml 환경변수(.env) 설정
     configure_compose
@@ -946,13 +949,10 @@ check_legacy_service_status() {
 
 # --- [Execution] ---
 
-# Note: Wrap with source guard to allow testing individual functions
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    # 루트 권한 확인
-    if [ "$EUID" -ne 0 ]; then
-      echo "Error: 이 스크립트는 root 권한으로 실행해야 합니다."
-      exit 1
-    fi
-
-    install_service
+# 루트 권한 확인
+if [ "$EUID" -ne 0 ]; then
+  echo "Error: 이 스크립트는 root 권한으로 실행해야 합니다."
+  exit 1
 fi
+
+install_service
