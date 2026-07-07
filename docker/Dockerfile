@@ -5,8 +5,11 @@ WORKDIR /app
 # Alpine 이미지는 기본적으로 bash가 없으므로 설치, 권한 전환을 위한 패키지 추가
 RUN apk add --no-cache bash su-exec shadow
 
-# nccatuser 계정 생성 (기본 UID/GID: 1000)
-RUN addgroup -g 1000 nccatuser && adduser -u 1000 -G nccatuser -S nccatuser
+ARG APP_NAME="app"
+# APP_NAME 기반 계정 생성 (기본 UID/GID: 1000)
+RUN CLEAN_APP_NAME=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g') && \
+    APP_USER="${CLEAN_APP_NAME}user" && \
+    addgroup -g 1000 ${APP_USER} && adduser -u 1000 -G ${APP_USER} -S ${APP_USER}
 
 # 배포 패키지 내용 복사
 # libs, config, bin 폴더가 빌드 컨텍스트 루트에 있다고 가정
@@ -20,7 +23,9 @@ COPY bin/bootstrap.sh /app/bin/bootstrap.sh
 COPY bin/.app-env.properties /app/bin/.app-env.properties
 
 # 스크립트 실행 권한 부여 및 /app 소유권 변경
-RUN chmod +x /app/bin/*.sh && chown -R nccatuser:nccatuser /app
+RUN CLEAN_APP_NAME=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g') && \
+    APP_USER="${CLEAN_APP_NAME}user" && \
+    chmod +x /app/bin/*.sh && chown -R ${APP_USER}:${APP_USER} /app
 
 # 애플리케이션 실행
 ENTRYPOINT ["/app/bin/start.sh"]
