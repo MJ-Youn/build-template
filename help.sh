@@ -26,21 +26,27 @@ cat << 'EOF'
      - 서버 배포 시 install_service.sh를 실행하면 Legacy 또는 Docker 방식을 선택할 수 있습니다.
      - 예시: ./mvnw package -Pprod
 
-  🐳 2. dockerBuild (Strategy 1)
-     - 로컬 Docker 데몬에 이미지를 빌드하고 스크립트와 함께 Zip 배포 패키지 생성
-     - **주의**: 네트워크를 통해 Image Tar를 직접 전송하는 방식이므로, 저장소가 없을 때 유용
-     - 산출물: target/dist/{APP_NAME}-docker-{env}.zip
-     - 예시: ./mvnw package -PdockerBuild -Pprod
+  🐳 2. dockerBuildOffline (Strategy 1 - 오프라인/폐쇄망 환경용)
+     - [타겟 환경] 외부 인터넷이나 레지스트리 접근이 불가한 폐쇄망 서버
+     - [작업 내용] 이미지를 빌드하고 .tar로 추출하여 스크립트와 함께 Zip 압축
+     - [전송 방식] 완성된 Zip 파일을 운영 서버로 직접 복사(전송)해야 함
+     - [주요 산출물] target/dist/{APP_NAME}-docker-{env}.zip
+     - [실행 예시] ./mvnw package -Pprod && ./bin/docker-build-offline.sh prod
 
-  🔨 3. dockerBuildImage (Strategy 2)
-     - 파일 전송(소스 코드 전송)을 서버에서 직접 받아 서버 Local 데몬에 이미지 빌드 시 활용
-     - 바로 `docker-compose up` 으로 실행할 수 있도록 `target/docker-dist/` 환경 구성
-     - 예시: ./mvnw package -PdockerBuildImage -Pprod
+  🔨 3. dockerBuildLocal (Strategy 2 - 운영 서버 직접 빌드용)
+     - [타겟 환경] 배포할 운영 서버 내에서 소스를 직접 빌드하는 환경
+     - [작업 내용] 로컬 데몬에 이미지를 만들고 즉시 실행할 수 있도록 환경 구성
+     - [전송 방식] 파일 전송 불필요 (바로 cd target/docker-dist 후 실행)
+     - [주요 산출물] 로컬 Docker Image + target/docker-dist/ 폴더
+     - [실행 예시] ./mvnw package -Pprod && ./bin/docker-build-local.sh prod
 
-  ☁️ 4. dockerPushImage (Strategy 3)
-     - 빌드 후 원격 레지스트리로 Image Push 수행 (CI/CD 표준 동작)
-     - 옵션 필요: -DdockerRegistry={REGISTRY_URL} [-DdockerImageTag={TAG_NAME}]
-     - 예시: ./mvnw package -PdockerPushImage -Pprod -DdockerRegistry=my.reg.com/repo
+  ☁️ 4. dockerBuildRemote (Strategy 3 - 표준 CI/CD 파이프라인용)
+     - [타겟 환경] AWS ECR, Docker Hub 등의 원격 저장소를 활용하는 환경
+     - [작업 내용] Docker 이미지를 빌드하고 지정된 원격 레지스트리로 push
+     - [전송 방식] 파일 전송 불필요 (운영 서버에서 docker pull로 수신)
+     - [주요 산출물] 원격 레지스트리에 업로드된 Docker Image
+     - [옵션 필수] -DdockerRegistry={REGISTRY_URL} (선택: -DdockerImageTag={TAG_NAME})
+     - [실행 예시] ./mvnw package -Pprod && ./bin/docker-build-remote.sh my.reg.com/repo prod
 
   ☸️ 5. k8sBuild
      - Kubernetes 배포 매니페스트 (deployment.yaml 등) 스캐폴딩 생성

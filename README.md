@@ -464,6 +464,19 @@ flowchart TD
     class AS1,AS2,AS3 remote_env;
 ```
 
+### 🐳 Docker 배포 (3가지 전략)
+
+세 가지 Docker 배포 전략은 주로 **어디서 빌드하고 어떻게 서버에 배포할 것인가(네트워크 및 인프라 환경)**에 따라 나뉩니다. 다음 표를 참고하여 환경에 맞는 태스크를 선택하세요.
+
+| 구분 | Strategy 1: `dockerBuildOffline` | Strategy 2: `dockerBuildLocal` | Strategy 3: `dockerBuildRemote` |
+|:---:|:---|:---|:---|
+| **핵심 목적** | 외부 서버 전송을 위한 **단일 Zip 패키지 생성** | 서버 자체에서 **이미지를 만들고 즉시 실행 준비** | 원격 저장소를 활용한 **표준 파이프라인 구성** |
+| **타겟 환경** | 인터넷/레지스트리 접근이 불가한 **폐쇄망 환경** | 배포 서버 안에서 소스를 직접 빌드하는 **로컬 실행 환경** | AWS ECR, Docker Hub 등 **원격 레지스트리 환경** |
+| **작업 내용** | 이미지 빌드 + `.tar` 추출 + Zip 파일로 압축 | 이미지 빌드 + 실행 폴더(`docker-dist/`) 구성 | 이미지 빌드 + 원격 레지스트리로 `docker push` |
+| **주요 산출물** | `target/dist/...-docker-prod.zip` | Docker Image + `target/docker-dist/` 폴더 | Remote Registry에 업로드된 Docker Image |
+| **전송 방식** | 수동 전송 필요 (Zip 파일을 서버로 직접 복사) | 불필요 (바로 그 자리에서 실행 가능) | 자동 풀 (운영 서버에서 `docker pull`로 수신) |
+| **실행 예시** | `./bin/docker-build-offline.sh prod` | `./bin/docker-build-local.sh prod` | `./bin/docker-build-remote.sh my.reg.com/repo prod` |
+
 ## 🧜‍♀️ 개발 시퀀스 (Sequence Diagram)
 
 ```mermaid
@@ -488,7 +501,7 @@ sequenceDiagram
         Server-->>Dev: 서비스 시작 완료
         deactivate Server
 
-    else 🖥️ Docker 배포 (docker-package.sh)
+    else 🖥️ Docker 배포 (docker-build-offline.sh)
         activate Maven
         Maven->>Maven: Docker 빌드 (Image) + 스크립트 패키징
         Maven-->>Dev: {APP_NAME}-docker.zip 생성

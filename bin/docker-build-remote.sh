@@ -1,10 +1,10 @@
 #!/bin/bash
 # ==============================================================================
-# File: bin/docker-push.sh
+# File: bin/docker-build-remote.sh
 # Description: Docker 이미지를 빌드하고 레지스트리에 Push합니다.
-#              Gradle 'dockerPushImage' 태스크(Strategy 3)를 대체합니다.
+#              Gradle 'dockerBuildRemote' 태스크(Strategy 3)를 대체합니다.
 #
-# 사용법: ./bin/docker-push.sh <dockerRegistry> [env] [dockerImageTag]
+# 사용법: ./bin/docker-build-remote.sh <dockerRegistry> [env] [dockerImageTag]
 #   dockerRegistry: (필수) Docker 레지스트리 주소 (예: my-registry.com/repo)
 #   env           : 환경 (dev, prod 등, 기본값: dev)
 #   dockerImageTag: Docker 이미지 태그 (기본값: pom.xml의 version)
@@ -29,15 +29,15 @@ DOCKER_TAG="${3:-}"
 # Registry 필수 확인
 if [ -z "$DOCKER_REGISTRY" ]; then
     echo "❌ dockerRegistry 파라미터가 필요합니다."
-    echo "   사용법: ./bin/docker-push.sh <dockerRegistry> [env] [dockerImageTag]"
-    echo "   예시:   ./bin/docker-push.sh my-registry.com/repo prod"
+    echo "   사용법: ./bin/docker-build-remote.sh <dockerRegistry> [env] [dockerImageTag]"
+    echo "   예시:   ./bin/docker-build-remote.sh my-registry.com/repo prod"
     exit 1
 fi
 
 # --- [프로젝트 정보 파싱] ---
 POM_FILE="$PROJECT_ROOT/pom.xml"
-APP_NAME=$(grep -m1 '<artifactId>' "$POM_FILE" | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' | tr -d '[:space:]')
-APP_VERSION=$(grep -m1 '<version>' "$POM_FILE" | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d '[:space:]')
+APP_NAME=$(sed -n '/<parent>/,/<\/parent>/!p' "$POM_FILE" | grep -m1 '<artifactId>' | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' | tr -d '[:space:]')
+APP_VERSION=$(sed -n '/<parent>/,/<\/parent>/!p' "$POM_FILE" | grep -m1 '<version>' | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d '[:space:]')
 
 if [ -z "$DOCKER_TAG" ]; then
     DOCKER_TAG="$APP_VERSION"
@@ -50,7 +50,7 @@ DOCKER_DIST_DIR="$PROJECT_ROOT/target/docker-dist"
 # --- [Step 1] Docker 이미지 빌드 ---
 echo "☁️ === Docker 이미지 Push 시작 ==="
 echo "🔨 [1/2] Docker 이미지 빌드 중..."
-"$SCRIPT_DIR/docker-build.sh" "$ENV_VALUE" "$DOCKER_REGISTRY" "$DOCKER_TAG"
+"$SCRIPT_DIR/docker-build-local.sh" "$ENV_VALUE" "$DOCKER_REGISTRY" "$DOCKER_TAG"
 
 # --- [Step 2] Docker Push ---
 echo ""

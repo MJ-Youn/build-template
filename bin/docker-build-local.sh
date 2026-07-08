@@ -1,10 +1,10 @@
 #!/bin/bash
 # ==============================================================================
-# File: bin/docker-build.sh
+# File: bin/docker-build-local.sh
 # Description: Docker 이미지를 로컬 데몬에 빌드합니다.
-#              Gradle 'dockerBuildImage' 태스크(Strategy 2)를 대체합니다.
+#              Gradle 'dockerBuildLocal' 태스크(Strategy 2)를 대체합니다.
 #
-# 사용법: ./bin/docker-build.sh [env] [dockerRegistry] [dockerImageTag]
+# 사용법: ./bin/docker-build-local.sh [env] [dockerRegistry] [dockerImageTag]
 #   env           : 환경 (dev, prod 등, 기본값: dev)
 #   dockerRegistry: Docker 레지스트리 주소 (비어있으면 로컬 태그 사용)
 #   dockerImageTag: Docker 이미지 태그 (기본값: pom.xml의 version)
@@ -32,8 +32,8 @@ DOCKER_TAG="${3:-}"
 
 # --- [프로젝트 정보 파싱] ---
 POM_FILE="$PROJECT_ROOT/pom.xml"
-APP_NAME=$(grep -m1 '<artifactId>' "$POM_FILE" | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' | tr -d '[:space:]')
-APP_VERSION=$(grep -m1 '<version>' "$POM_FILE" | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d '[:space:]')
+APP_NAME=$(sed -n '/<parent>/,/<\/parent>/!p' "$POM_FILE" | grep -m1 '<artifactId>' | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' | tr -d '[:space:]')
+APP_VERSION=$(sed -n '/<parent>/,/<\/parent>/!p' "$POM_FILE" | grep -m1 '<version>' | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d '[:space:]')
 
 if [ -z "$DOCKER_TAG" ]; then
     DOCKER_TAG="$APP_VERSION"
@@ -61,6 +61,9 @@ echo "   📂 빌드 컨텍스트: $DOCKER_BUILD_DIR"
 
 # 리눅스 배포를 위해 amd64 플랫폼 명시 (필요시 수정 가능)
 docker build --platform linux/amd64 -t "$FULL_IMAGE_NAME" "$DOCKER_BUILD_DIR"
+
+# 빌드 후 임시 빌드 컨텍스트 폴더 삭제
+rm -rf "$DOCKER_BUILD_DIR"
 
 echo ""
 echo "✨ === Docker 이미지 빌드 성공: $FULL_IMAGE_NAME ==="

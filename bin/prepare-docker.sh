@@ -37,8 +37,8 @@ if [ ! -f "$POM_FILE" ]; then
 fi
 
 # pom.xml에서 artifactId, version 추출
-APP_NAME=$(grep -m1 '<artifactId>' "$POM_FILE" | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' | tr -d '[:space:]')
-APP_VERSION=$(grep -m1 '<version>' "$POM_FILE" | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d '[:space:]')
+APP_NAME=$(sed -n '/<parent>/,/<\/parent>/!p' "$POM_FILE" | grep -m1 '<artifactId>' | sed 's/.*<artifactId>\(.*\)<\/artifactId>.*/\1/' | tr -d '[:space:]')
+APP_VERSION=$(sed -n '/<parent>/,/<\/parent>/!p' "$POM_FILE" | grep -m1 '<version>' | sed 's/.*<version>\(.*\)<\/version>.*/\1/' | tr -d '[:space:]')
 
 if [ -z "$DOCKER_TAG" ]; then
     DOCKER_TAG="$APP_VERSION"
