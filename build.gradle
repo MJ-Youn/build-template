@@ -562,6 +562,11 @@ task dockerBuildOffline {
         delete dockerDistDir
         
         println "✅ === Docker 배포 패키지 생성 완료: ${buildDir}/dist/${dockerDistZipName} ==="
+        println ""
+        println "💡 서버 배포 방법:"
+        println "   scp ${buildDir}/dist/${dockerDistZipName} user@server:/home/user/"
+        println "   unzip ${dockerDistZipName} -d deploy && cd deploy"
+        println "   sudo ./install_service.sh"
     }
 }
 
