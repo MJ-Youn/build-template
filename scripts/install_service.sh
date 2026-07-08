@@ -349,6 +349,7 @@ After=network.target
 User=$REAL_USER
 Group=$SERVICE_GROUP
 Type=forking
+WorkingDirectory=$DEST_DIR
 ExecStart=$START_SCRIPT
 ExecStop=$STOP_SCRIPT
 PIDFile=$DEST_DIR/run/application.pid
@@ -683,6 +684,8 @@ Requires=docker.service
 Wants=network-online.target
 
 [Service]
+User=$REAL_USER
+Group=$SERVICE_GROUP
 Type=simple
 WorkingDirectory=$DEST_DIR
 ExecStart=$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up

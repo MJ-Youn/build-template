@@ -234,7 +234,7 @@ cd {APP_NAME}
 sudo ./bin/install_service.sh
 ```
 
-**2-b. 배포 (Server) — 자동화 스크립트 사용 (권장)**
+**3. 배포 (Server) — 자동화 스크립트 사용 (권장)**
 
 서버에 소스 코드가 이미 있는 경우, `build_deploy.sh`로 Git pull부터 설치까지 한 번에 처리할 수 있습니다.
 
