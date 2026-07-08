@@ -119,7 +119,7 @@
 
 ```bash
 # 운영(prod) 환경 배포용 패키지 생성
-./gradlew dockerBuild -Penv=prod
+./gradlew dockerBuildOffline -Penv=prod
 ```
 
 - **결과물**: `build/dist/{APP_NAME}-docker-prod.zip`
@@ -167,7 +167,7 @@ cd my-project
 
 ```bash
 # 1. Docker 이미지 빌드 및 배포 파일 구성
-./gradlew dockerBuildImage -Penv=prod
+./gradlew dockerBuildLocal -Penv=prod
 
 # 2. 생성된 배포 디렉토리로 이동
 cd build/docker-dist
@@ -177,7 +177,7 @@ sudo ./install_service.sh
 # (주의: 스크립트 없이 docker-compose up -d 단독 실행 시 .env 파일 직접 구성 필요)
 ```
 
-> 💡 **Tip**: 반복 배포 시 `git pull && ./gradlew dockerBuildImage -Penv=prod` 명령으로 빠르게 최신화할 수 있습니다. Legacy(일반 서버) 배포 환경이라면 `build_deploy.sh -Penv=prod`를 사용하면 Git pull → 빌드 → 설치까지 한 번에 자동화됩니다.
+> 💡 **Tip**: 반복 배포 시 `git pull && ./gradlew dockerBuildLocal -Penv=prod` 명령으로 빠르게 최신화할 수 있습니다. Legacy(일반 서버) 배포 환경이라면 `build_deploy.sh -Penv=prod`를 사용하면 Git pull → 빌드 → 설치까지 한 번에 자동화됩니다.
 
 ### 🐳 Docker 배포 3: 레지스트리 (Push & Pull)
 
@@ -188,10 +188,10 @@ Docker Hub, ECR, GCR 등 원격 레지스트리를 활용하는 표준적인 방
 
 ```bash
 # 레지스트리 주소를 지정하여 빌드 및 Push
-./gradlew dockerPushImage -Penv=prod -PdockerRegistry=my-registry.com/repo
+./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=my-registry.com/repo
 
 # (선택) 태그 지정 가능 (기본값: latest)
-# ./gradlew dockerPushImage -Penv=prod -PdockerRegistry=... -PdockerImageTag=v1.0.0
+# ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=... -PdockerImageTag=v1.0.0
 ```
 
 - **결과물**:
@@ -358,7 +358,7 @@ flowchart TD
 
         %% Strategy 1: Local Image
         subgraph DockerOpt1 ["① 로컬 빌드 + 전송"]
-            D1_Build["🔨 dockerBuild task<br/>(이미지 빌드)"]
+            D1_Build["🔨 dockerBuildOffline task<br/>(이미지 빌드)"]
             D1_Save["💾 Docker Image Save<br/>(.tar 파일)"]
             D1_Trans["📂 파일 전송<br/>(Local → Server)"]
             D1_Load["📦 Image Load<br/>(docker load)"]
@@ -369,14 +369,14 @@ flowchart TD
         %% Strategy 2: Source Transfer
         subgraph DockerOpt2 ["② 소스 전송 + 서버 빌드"]
             D2_Trans["📂 소스/Dockerfile 전송"]
-            D2_Build["🔨 서버 빌드<br/>(dockerBuildImage task)"]
+            D2_Build["🔨 서버 빌드<br/>(dockerBuildLocal task)"]
 
             D2_Trans --> D2_Build
         end
 
         %% Strategy 3: Repository
         subgraph DockerOpt3 ["③ Registry Push & Pull"]
-            D3_Build["🔨 로컬 빌드<br/>(dockerPushImage task)"]
+            D3_Build["🔨 로컬 빌드<br/>(dockerBuildRemote task)"]
             D3_Push["☁️ Push to Registry<br/>(on Local PC)"]
             D3_Pull["⬇️ Pull from Registry<br/>(on Server)"]
 
@@ -477,7 +477,18 @@ sequenceDiagram
 
 ### 🐳 Docker 배포 (3가지 전략)
 
-#### Strategy 1 — 로컬 이미지 파일 전송 (`./gradlew dockerBuild`)
+세 가지 Docker 배포 전략은 주로 **어디서 빌드하고 어떻게 서버에 배포할 것인가(네트워크 및 인프라 환경)**에 따라 나뉩니다. 다음 표를 참고하여 환경에 맞는 태스크를 선택하세요.
+
+| 구분 | Strategy 1: `dockerBuildOffline` | Strategy 2: `dockerBuildLocal` | Strategy 3: `dockerBuildRemote` |
+|:---:|:---|:---|:---|
+| **핵심 목적** | 외부 서버 전송을 위한 **단일 Zip 패키지 생성** | 서버 자체에서 **이미지를 만들고 즉시 실행 준비** | 원격 저장소를 활용한 **표준 파이프라인 구성** |
+| **타겟 환경** | 인터넷/레지스트리 접근이 불가한 **폐쇄망 환경** | 배포 서버 안에서 소스를 직접 빌드하는 **로컬 실행 환경** | AWS ECR, Docker Hub 등 **원격 레지스트리 환경** |
+| **작업 내용** | 이미지 빌드 + `.tar` 추출 + Zip 파일로 압축 | 이미지 빌드 + 실행 폴더(`docker-dist/`) 구성 | 이미지 빌드 + 원격 레지스트리로 `docker push` |
+| **주요 산출물** | `build/dist/...-docker-prod.zip` | Docker Image + `build/docker-dist/` 폴더 | Remote Registry에 업로드된 Docker Image |
+| **전송 방식** | 수동 전송 필요 (Zip 파일을 서버로 직접 복사) | 불필요 (바로 그 자리에서 실행 가능) | 자동 풀 (운영 서버에서 `docker pull`로 수신) |
+| **실행 예시** | `./gradlew dockerBuildOffline -Penv=prod` | `./gradlew dockerBuildLocal -Penv=prod` | `./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=...` |
+
+#### Strategy 1 — 로컬 이미지 파일 전송 (`./gradlew dockerBuildOffline`)
 
 ```mermaid
 sequenceDiagram
@@ -486,7 +497,7 @@ sequenceDiagram
     participant Gradle as 🐘 Gradle
     participant Server as 🖥️ 운영 서버
 
-    Dev->>Gradle: ./gradlew dockerBuild -Penv=prod
+    Dev->>Gradle: ./gradlew dockerBuildOffline -Penv=prod
     activate Gradle
     Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)
     Gradle->>Gradle: docker save → image.tar 추출
@@ -504,7 +515,7 @@ sequenceDiagram
     deactivate Server
 ```
 
-#### Strategy 2 — 서버에서 직접 빌드 (`./gradlew dockerBuildImage`)
+#### Strategy 2 — 서버에서 직접 빌드 (`./gradlew dockerBuildLocal`)
 
 ```mermaid
 sequenceDiagram
@@ -515,7 +526,7 @@ sequenceDiagram
 
     Dev->>Server: git clone / git pull (소스 전송)
     activate Server
-    Server->>Gradle: ./gradlew dockerBuildImage -Penv=prod
+    Server->>Gradle: ./gradlew dockerBuildLocal -Penv=prod
     activate Gradle
     Gradle->>Gradle: Jar 빌드 + docker-build/ 컨텍스트 구성
     Gradle->>Server: docker build (서버 로컬)
@@ -527,7 +538,7 @@ sequenceDiagram
     deactivate Server
 ```
 
-#### Strategy 3 — Registry Push & Pull (`./gradlew dockerPushImage`)
+#### Strategy 3 — Registry Push & Pull (`./gradlew dockerBuildRemote`)
 
 ```mermaid
 sequenceDiagram
@@ -537,7 +548,7 @@ sequenceDiagram
     participant Registry as 🗄️ Docker Registry
     participant Server as 🖥️ 운영 서버
 
-    Dev->>Gradle: ./gradlew dockerPushImage -Penv=prod -PdockerRegistry=...
+    Dev->>Gradle: ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=...
     activate Gradle
     Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)
     Gradle->>Gradle: DEPLOY-GUIDE.md 자동 생성
