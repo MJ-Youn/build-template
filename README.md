@@ -34,10 +34,12 @@
 ./init.sh
 ```
 
-### 💡 2단계: 빌드 및 배포 가이드 확인
+### 💡 2단계: 배포 및 빌드 가이드 확인 (`help.sh`)
+
+프로젝트 전용으로 확장된 `help.sh` 셸 스크립트를 통해 현재 설정된 환경별 빌드/배포 명령어 예시를 언제든 터미널에서 확인할 수 있습니다.
 
 ```bash
-./mvnw help
+./help.sh
 ```
 
 ### 3단계: 비즈니스 로직 개발
@@ -46,11 +48,25 @@
 
 ### 🤖 4단계 (선택): 자동화 스크립트로 원스탑 배포
 
-서버에서 반복적인 Legacy 배포를 자동화할 때는 `build_deploy.sh`를 활용하세요. Git pull → Gradle 빌드 → 설치까지 한 번에 처리합니다.
+서버에서 반복적인 Legacy 배포를 자동화할 때는 `build_deploy.sh`를 활용하세요. Git pull → Maven 빌드 → 설치까지 한 번에 처리합니다.
 
 ```bash
 ./build_deploy.sh -Penv=dev
 ```
+
+### 🚀 5단계 (선택): 타 프로젝트에 빌드/배포 템플릿 적용 (Apply Template)
+
+이 프로젝트에 구축된 강력한 빌드 및 배포 자동화 환경(스크립트, 프로필, 어셈블리 등)을 다른 기존 Maven 프로젝트로 손쉽게 이식할 수 있습니다.
+
+```bash
+./apply_build_deploy_template.sh <타겟_프로젝트_경로>
+# 예시: ./apply_build_deploy_template.sh ../ymtech-gitlab/nccat-web
+```
+
+위 스크립트를 실행하면:
+1. `scripts/`, `assembly/`, `build_deploy.sh`, `mvnw` 등의 핵심 스크립트가 타겟 프로젝트로 복사됩니다.
+2. 타겟 프로젝트의 기존 레거시 배포 폴더(`shell/`, `deploy/` 등)가 안전하게 정리됩니다.
+3. 타겟 프로젝트의 `pom.xml`에 환경 프로필(`dev`, `prod` 등) 및 `maven-assembly-plugin` 설정이 자동으로 주입됩니다.
 
 ---
 
