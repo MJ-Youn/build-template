@@ -789,14 +789,7 @@ EOF
 # @description Cron 작업 등록
 register_cron() {
     log_step "Cron 작업 등록..."
-    local SRC_CRON_FILE=""
-
-    if [ "$DEPLOY_MODE" = "docker" ]; then
-        SRC_CRON_FILE="$DEST_DIR/cron/crond"
-    else
-        SRC_CRON_FILE="$PKG_ROOT/bin/cron/crond"
-    fi
-
+    local SRC_CRON_FILE="$PKG_ROOT/bin/cron/crond"
     local TARGET_CRON_FILE="/etc/cron.d/$APP_NAME"
 
     if [ -d "/etc/cron.d" ] && [ -f "$SRC_CRON_FILE" ]; then
