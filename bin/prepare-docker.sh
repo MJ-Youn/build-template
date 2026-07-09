@@ -134,15 +134,6 @@ if [ -d "$CRON_DIR" ]; then
     cp -r "$CRON_DIR" "$DOCKER_DIST_DIR/bin/cron"
 fi
 
-# 5. .app-env.properties 복사
-ENV_PROPS="$PROJECT_ROOT/scripts/${ENV_VALUE}/.app-env-${ENV_VALUE}.properties"
-BASE_PROPS="$PROJECT_ROOT/scripts/.app-env.properties"
-if [ -f "$ENV_PROPS" ]; then
-    cp "$ENV_PROPS" "$DOCKER_DIST_DIR/.app-env.properties"
-elif [ -f "$BASE_PROPS" ]; then
-    cp "$BASE_PROPS" "$DOCKER_DIST_DIR/.app-env.properties"
-fi
-
 # --- [DEPLOY-GUIDE.md 생성] ---
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 cat > "$DOCKER_DIST_DIR/DEPLOY-GUIDE.md" << EOF
