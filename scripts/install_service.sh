@@ -149,6 +149,33 @@ check_legacy_prerequisites() {
     log_success "Java 설치 확인 완료."
 }
 
+# @description 로그 경로 입력 프롬프트
+prompt_log_path() {
+    local DEST_PROP=""
+    if [ "$DEPLOY_MODE" = "docker" ]; then
+        DEST_PROP="$DEST_DIR/.app-env.properties"
+    else
+        DEST_PROP="$DEST_DIR/bin/.app-env.properties"
+    fi
+
+    LOG_PATH=""
+    if [ -f "$DEST_PROP" ]; then
+        local LOG_PATH_Line=$(grep "^LOG_PATH=" "$DEST_PROP" 2>/dev/null)
+        if [ -n "$LOG_PATH_Line" ]; then
+            LOG_PATH=$(echo "$LOG_PATH_Line" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+        fi
+    fi
+
+    local DEFAULT_LOG_PATH="/log/$APP_NAME"
+    if [ -n "$LOG_PATH" ]; then
+        DEFAULT_LOG_PATH="$LOG_PATH"
+    fi
+
+    log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
+    read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
+    LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
+}
+
 # @description 설치 경로 결정 (기존 설치 감지 또는 사용자 입력)
 determine_install_dir() {
     log_step "설치 위치 설정"
@@ -195,6 +222,9 @@ determine_install_dir() {
     fi
 
     log_info "최종 설치 위치: $DEST_DIR"
+    
+    prompt_log_path
+    
     log_info "서비스 실행 유저: $REAL_USER"
 
     # 디렉토리 생성 및 권한 설정
@@ -274,24 +304,7 @@ configure_legacy_env() {
         log_info "새로운 환경 설정 파일 생성: $DEST_PROP_FILE"
     fi
 
-    # 현재 파일에서 LOG_PATH 읽기
-    LOG_PATH=""
-    if [ -f "$DEST_PROP_FILE" ]; then
-        LOG_PATH_Line=$(grep "^LOG_PATH=" "$DEST_PROP_FILE")
-        if [ -n "$LOG_PATH_Line" ]; then
-            LOG_PATH=$(echo "$LOG_PATH_Line" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
-        fi
-    fi
 
-    # LOG_PATH 입력 받기 (항상 확인)
-    DEFAULT_LOG_PATH="/log/$APP_NAME"
-    if [ -n "$LOG_PATH" ]; then
-        DEFAULT_LOG_PATH="$LOG_PATH"
-    fi
-
-    log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
-    read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
-    LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
 
     if grep -q "^LOG_PATH=" "$DEST_PROP_FILE"; then
         sed -i "/^LOG_PATH=/c\\LOG_PATH=\"$LOG_PATH\"" "$DEST_PROP_FILE"
@@ -490,6 +503,8 @@ determine_docker_install_dir() {
 
     log_info "설치 위치: $DEST_DIR"
 
+    prompt_log_path
+
     mkdir -p "$DEST_DIR"
     chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR"
 }
@@ -580,27 +595,13 @@ configure_docker_env() {
 
     # .app-env.properties 로드 및 생성
     local DEST_PROP="$DEST_DIR/.app-env.properties"
-    LOG_PATH=""
-
-    if [ -f "$DEST_PROP" ]; then
-        source "$DEST_PROP"
-    else
+    if [ ! -f "$DEST_PROP" ]; then
         echo "# Application Deployment Configuration" > "$DEST_PROP"
     fi
 
     # .app-env.properties 보안 권한 (640, $REAL_USER:$SERVICE_GROUP)
     chmod 640 "$DEST_PROP"
     chown "$REAL_USER:$SERVICE_GROUP" "$DEST_PROP"
-
-    # LOG_PATH 입력 받기 (항상 확인)
-    local DEFAULT_LOG_PATH="/log/$APP_NAME"
-    if [ -n "$LOG_PATH" ]; then
-        DEFAULT_LOG_PATH="$LOG_PATH"
-    fi
-
-    log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
-    read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
-    LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
 
     if grep -q "^LOG_PATH=" "$DEST_PROP"; then
         grep -v "^LOG_PATH=" "$DEST_PROP" > "$DEST_PROP.tmp"
@@ -824,14 +825,21 @@ create_tail_log_script() {
     local TARGET_TAIL_SCRIPT="$USER_BIN/$TAIL_SCRIPT_NAME"
 
     if [ "$DEPLOY_MODE" = "docker" ]; then
-        cat <<EOF > "$TARGET_TAIL_SCRIPT"
+        cat <<'EOF' > "$TARGET_TAIL_SCRIPT"
 #!/bin/bash
 # Docker 로그 확인 스크립트
+
+APP_NAME="APP_NAME_PLACEHOLDER"
+DEST_DIR="DEST_DIR_PLACEHOLDER"
+
+if [ -f "$DEST_DIR/.app-env.properties" ]; then
+    source "$DEST_DIR/.app-env.properties"
+fi
 LOG_FILE="$LOG_PATH/${APP_NAME}.log"
 
-if [ -f "\$LOG_FILE" ]; then
-    echo "로그 파일($LOG_PATH/${APP_NAME}.log)을 추적합니다..."
-    tail -F -n 1000 "\$LOG_FILE"
+if [ -f "$LOG_FILE" ]; then
+    echo "로그 파일($LOG_FILE)을 추적합니다..."
+    tail -F -n 1000 "$LOG_FILE"
 else
     echo "로그 파일이 아직 생성되지 않았거나 경로가 다릅니다."
     echo "Docker 컨테이너 로그를 확인합니다..."
@@ -839,17 +847,29 @@ else
 fi
 EOF
     else
-        cat <<EOF > "$TARGET_TAIL_SCRIPT"
+        cat <<'EOF' > "$TARGET_TAIL_SCRIPT"
 #!/bin/bash
+
+APP_NAME="APP_NAME_PLACEHOLDER"
+DEST_DIR="DEST_DIR_PLACEHOLDER"
+
+if [ -f "$DEST_DIR/bin/.app-env.properties" ]; then
+    source "$DEST_DIR/bin/.app-env.properties"
+fi
 LOG_FILE="$LOG_PATH/${APP_NAME}.log"
-if [ ! -f "\$LOG_FILE" ]; then
-    echo "로그 파일을 찾을 수 없습니다: \$LOG_FILE"
+
+if [ ! -f "$LOG_FILE" ]; then
+    echo "로그 파일을 찾을 수 없습니다: $LOG_FILE"
     echo "서비스가 실행 중인지 확인해주세요."
     exit 1
 fi
-tail -F -n 1000 "\$LOG_FILE"
+tail -F -n 1000 "$LOG_FILE"
 EOF
     fi
+
+    # Placeholder 치환
+    sed -i "s|APP_NAME_PLACEHOLDER|$APP_NAME|g" "$TARGET_TAIL_SCRIPT"
+    sed -i "s|DEST_DIR_PLACEHOLDER|$DEST_DIR|g" "$TARGET_TAIL_SCRIPT"
 
     chown $REAL_USER:$SERVICE_GROUP "$TARGET_TAIL_SCRIPT"
     chmod +x "$TARGET_TAIL_SCRIPT"
