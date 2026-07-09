@@ -5,13 +5,13 @@ services:
     ports:
       - "8080:8080"
     volumes:
-      - ${LOG_PATH:-./log}:/log # host path : container path
+      - ${LOG_PATH:-./log}:${CONTAINER_LOG_PATH:-/log} # host path : container path
       - ${DEST_DIR:-.}/config:/app/config
     environment:
       - TZ=Asia/Seoul
       - APP_UID=${APP_UID:-1000}
       - APP_GID=${APP_GID:-1000}
       - SPRING_PROFILES_ACTIVE=dev
-      - LOG_PATH=/log
+      - LOG_PATH=${CONTAINER_LOG_PATH:-/log} # container 안에서 service가 log 파일을 저장할 경로
       - APP_NAME=${APP_NAME:-app}
     restart: unless-stopped
