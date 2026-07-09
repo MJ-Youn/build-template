@@ -236,10 +236,7 @@ copy_legacy_files() {
         cp -rf "$SCRIPT_DIR/cron" "$DEST_DIR/bin/"
     fi
 
-    # 3. .app-env.properties
-    if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
-        cp -f "$SCRIPT_DIR/.app-env.properties" "$DEST_DIR/bin/"
-    fi
+
 
     # 4. Config
     cp -rf "$PKG_ROOT/config/"* "$DEST_DIR/config/"
@@ -286,22 +283,24 @@ configure_legacy_env() {
         fi
     fi
 
-    # LOG_PATH 설정 (없는 경우 사용자 입력)
-    if [ -z "$LOG_PATH" ]; then
-        DEFAULT_LOG_PATH="$DEST_DIR/log"
-        log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
-        read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
-        LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
-
-        if grep -q "^LOG_PATH=" "$DEST_PROP_FILE"; then
-            sed -i "/^LOG_PATH=/c\\LOG_PATH=\"$LOG_PATH\"" "$DEST_PROP_FILE"
-        else
-            echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP_FILE"
-        fi
-        chmod 640 "$DEST_PROP_FILE"
-        chown "$REAL_USER:$SERVICE_GROUP" "$DEST_PROP_FILE"
-        log_info "환경 설정 파일에 LOG_PATH 저장 완료."
+    # LOG_PATH 입력 받기 (항상 확인)
+    DEFAULT_LOG_PATH="/log/$APP_NAME"
+    if [ -n "$LOG_PATH" ]; then
+        DEFAULT_LOG_PATH="$LOG_PATH"
     fi
+
+    log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
+    read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
+    LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
+
+    if grep -q "^LOG_PATH=" "$DEST_PROP_FILE"; then
+        sed -i "/^LOG_PATH=/c\\LOG_PATH=\"$LOG_PATH\"" "$DEST_PROP_FILE"
+    else
+        echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP_FILE"
+    fi
+    chmod 640 "$DEST_PROP_FILE"
+    chown "$REAL_USER:$SERVICE_GROUP" "$DEST_PROP_FILE"
+    log_info "환경 설정 파일에 LOG_PATH 저장 완료."
 
     # PID_FILE 설정
     NEW_PID_FILE="$DEST_DIR/run/application.pid"
@@ -579,13 +578,11 @@ copy_docker_files() {
 configure_docker_env() {
     log_step "환경 설정 및 로그 경로 확인"
 
-    # .app-env.properties 복사 및 로드
-    local SRC_PROP="$SCRIPT_DIR/.app-env.properties"
+    # .app-env.properties 로드 및 생성
     local DEST_PROP="$DEST_DIR/.app-env.properties"
     LOG_PATH=""
 
-    if [ -f "$SRC_PROP" ]; then
-        cp "$SRC_PROP" "$DEST_PROP"
+    if [ -f "$DEST_PROP" ]; then
         source "$DEST_PROP"
     else
         echo "# Application Deployment Configuration" > "$DEST_PROP"
@@ -595,20 +592,22 @@ configure_docker_env() {
     chmod 640 "$DEST_PROP"
     chown "$REAL_USER:$SERVICE_GROUP" "$DEST_PROP"
 
-    # LOG_PATH 설정
-    if [ -z "$LOG_PATH" ]; then
-        local DEFAULT_LOG_PATH="$DEST_DIR/log"
-        log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
-        read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
-        LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
+    # LOG_PATH 입력 받기 (항상 확인)
+    local DEFAULT_LOG_PATH="/log/$APP_NAME"
+    if [ -n "$LOG_PATH" ]; then
+        DEFAULT_LOG_PATH="$LOG_PATH"
+    fi
 
-        if grep -q "^LOG_PATH=" "$DEST_PROP"; then
-            grep -v "^LOG_PATH=" "$DEST_PROP" > "$DEST_PROP.tmp"
-            echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP.tmp"
-            mv "$DEST_PROP.tmp" "$DEST_PROP"
-        else
-            echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP"
-        fi
+    log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
+    read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
+    LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
+
+    if grep -q "^LOG_PATH=" "$DEST_PROP"; then
+        grep -v "^LOG_PATH=" "$DEST_PROP" > "$DEST_PROP.tmp"
+        echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP.tmp"
+        mv "$DEST_PROP.tmp" "$DEST_PROP"
+    else
+        echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP"
     fi
 
     log_info "로그 경로: $LOG_PATH"

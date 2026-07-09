@@ -260,18 +260,7 @@ task prepareDockerContext {
             }
         }
         
-        // .app-env.properties 복사
-        def envPropsFile = file("scripts/${env}/.app-env-${env}.properties")
-        def basePropsFile = file("scripts/.app-env.properties")
-        def propsFile = envPropsFile.exists() ? envPropsFile : basePropsFile
-        
-        if (propsFile.exists()) {
-            copy {
-                from propsFile
-                into dockerDistDir
-                rename { '.app-env.properties' }
-            }
-        }
+
 
         // -----------------------------------------------------------------------
         // DEPLOY-GUIDE.md 자동 생성
@@ -306,7 +295,7 @@ task prepareDockerContext {
 | `bootstrap.sh` | 공통 로딩 유틸리티 |
 | `utils.sh` | 공통 유틸리티 스크립트 |
 | `config/` | 애플리케이션 설정 파일 (Host Mount용 — 수정 가능) |
-| `.app-env.properties` | 로그 경로 등 배포 환경 기본값 |
+
 | `DEPLOY-GUIDE.md` | 이 파일 |
 
 ---

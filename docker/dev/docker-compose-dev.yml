@@ -1,7 +1,7 @@
 services:
   app:
     image: ${DOCKER_IMAGE:-app:latest}
-    container_name: ${APP_NAME:-app}-app
+    container_name: ${APP_NAME:-app}
     ports:
       - "8080:8080"
     volumes:
