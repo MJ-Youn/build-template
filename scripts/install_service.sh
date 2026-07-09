@@ -284,8 +284,6 @@ copy_legacy_files() {
         cp -rf "$SCRIPT_DIR/cron" "$DEST_DIR/bin/"
     fi
 
-
-
     # 4. Config
     cp -rf "$PKG_ROOT/config/"* "$DEST_DIR/config/"
 
@@ -570,28 +568,19 @@ copy_docker_files() {
 
     cp "$COMPOSE_SRC" "$DEST_DIR/"
 
-    # uninstall 스크립트 복사
-    local UNINSTALL_SRC="$SCRIPT_DIR/uninstall_service.sh"
-    if [ -f "$UNINSTALL_SRC" ]; then
-        cp "$UNINSTALL_SRC" "$DEST_DIR/bin/"
-        chmod +x "$DEST_DIR/uninstall_service.sh"
-    fi
-
-    # bootstrap.sh 복사 (uninstall_service.sh가 source하여 사용)
-    local BOOTSTRAP_SRC="$SCRIPT_DIR/bootstrap.sh"
-    if [ -f "$BOOTSTRAP_SRC" ]; then
-        cp "$BOOTSTRAP_SRC" "$DEST_DIR/bin/"
-    fi
-
-    # utils.sh 복사
-    local UTILS_SRC="$SCRIPT_DIR/utils.sh"
-    if [ -f "$UTILS_SRC" ]; then
-        cp "$UTILS_SRC" "$DEST_DIR/bin/"
-    fi
+    # 2. Bin Scripts
+    # Legacy 실행에 필요한 스크립트만 명시적으로 복사
+    # (run_bash_tests.sh, bootstrap.sh 등 불필요한 파일 제외)
+    local LEGACY_SCRIPTS=("uninstall_service.sh" "utils.sh" "bootstrap.sh")
+    for script in "${LEGACY_SCRIPTS[@]}"; do
+        if [ -f "$SCRIPT_DIR/$script" ]; then
+            cp -f "$SCRIPT_DIR/$script" "$DEST_DIR/bin/"
+        fi
+    done
 
     # cron 디렉토리 복사
     if [ -d "$SCRIPT_DIR/cron" ]; then
-        cp -r "$SCRIPT_DIR/cron" "$DEST_DIR/bin/"
+        cp -rf "$SCRIPT_DIR/cron" "$DEST_DIR/bin/"
     fi
 
     # config 폴더 복사 (Host Mount용)
