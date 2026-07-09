@@ -20,7 +20,7 @@ COPY config/ /app/config/
 COPY bin/start.sh /app/bin/start.sh
 COPY bin/utils.sh /app/bin/utils.sh
 COPY bin/bootstrap.sh /app/bin/bootstrap.sh
-COPY bin/.app-env.properties /app/bin/.app-env.properties
+
 
 # 스크립트 실행 권한 부여 및 /app 소유권 변경
 RUN CLEAN_APP_NAME=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g') && \
