@@ -80,9 +80,9 @@ echo ""
 
 # -----------------------------------------------------------------------------
 # STEP 2. Gradle 빌드
-# ./gradlew package -Penv=<env> 실행
+# ./gradlew clean package -Penv=<env> 실행
 # -----------------------------------------------------------------------------
-echo -e "${CYAN}[2/3] 🔨 Gradle 빌드 시작 (./gradlew package -Penv=${ENV_VALUE})${NC}"
+echo -e "${CYAN}[2/3] 🔨 Gradle 빌드 시작 (./gradlew clean package -Penv=${ENV_VALUE})${NC}"
 
 GRADLEW="${SCRIPT_DIR}/gradlew"
 
@@ -97,7 +97,7 @@ if [ ! -x "${GRADLEW}" ]; then
     chmod +x "${GRADLEW}"
 fi
 
-"${GRADLEW}" -p "${SCRIPT_DIR}" package "-Penv=${ENV_VALUE}"
+"${GRADLEW}" -p "${SCRIPT_DIR}" clean package "-Penv=${ENV_VALUE}"
 echo -e "${GREEN}✅ Gradle 빌드 완료${NC}"
 echo ""
 

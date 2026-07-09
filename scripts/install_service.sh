@@ -569,6 +569,9 @@ copy_docker_files() {
         log_info "config 폴더 복사 완료 (Host Mount용)"
     fi
 
+    # 복사된 파일 소유권 설정 (현재 로그인 유저)
+    chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR"
+
     log_success "Docker 배포 파일 복사 완료."
 }
 
@@ -640,6 +643,7 @@ DEST_DIR=$DEST_DIR
 DOCKER_IMAGE=${APP_NAME}:latest
 EOF
 
+    chown "$REAL_USER:$SERVICE_GROUP" "$ENV_FILE"
     log_success "환경 및 볼륨(.env) 설정 업데이트 완료"
 
     # 빈 config 폴더 마운트로 인한 컨테이너 내부 config 초기화 방지
@@ -649,6 +653,7 @@ EOF
     if [ -z "$(ls -A "$CONFIG_DIR")" ]; then
         log_step "초기 Host Config 파일 생성 중..."
         docker run --rm -v "$CONFIG_DIR:/tmp_config" "${APP_NAME}:latest" sh -c "cp -r /app/config/* /tmp_config/ 2>/dev/null || true"
+        chown -R $REAL_USER:$SERVICE_GROUP "$CONFIG_DIR"
         log_success "Host Config 마운트 폴더 초기화 완료"
     fi
 }
