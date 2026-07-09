@@ -252,8 +252,8 @@ task prepareDockerContext {
             println "📂 배포용 config 폴더 복사 완료 (Host Mount용)"
         }
         
-        // 스크립트 복사 (install, utils, bootstrap)
-        ['scripts/install_service.sh', 'scripts/utils.sh', 'scripts/bootstrap.sh'].each { src ->
+        // 스크립트 복사 (install, uninstall, utils, bootstrap)
+        ['scripts/install_service.sh', 'scripts/uninstall_service.sh', 'scripts/utils.sh', 'scripts/bootstrap.sh'].each { src ->
             def f = file(src)
             if (f.exists()) {
                 copy {
@@ -557,7 +557,10 @@ task dockerBuildOffline {
         
         // Create Final Zip
         println "🗜️ 최종 배포용 Zip 생성 중: ${buildDir}/dist/${dockerDistZipName}"
-        ant.zip(destfile: "${buildDir}/dist/${dockerDistZipName}", basedir: dockerDistDir)
+        ant.zip(destfile: "${buildDir}/dist/${dockerDistZipName}") {
+            zipfileset(dir: dockerDistDir, excludes: "**/*.sh")
+            zipfileset(dir: dockerDistDir, includes: "**/*.sh", filemode: "755")
+        }
         
         // 패키징 후 임시 폴더 삭제
         delete dockerDistDir

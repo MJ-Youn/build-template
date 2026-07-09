@@ -285,15 +285,21 @@ remove_docker_image() {
         log_success "이미지 아카이브 삭제됨."
     fi
 
+    # Docker 이미지 이름 결정
+    local IMAGE_TAG="@dockerImage@"
+    if [[ "$IMAGE_TAG" == "@""dockerImage@" ]]; then
+        IMAGE_TAG="${APP_NAME}:latest"
+    fi
+
     # Docker 이미지 삭제 여부 확인
-    read -p "   ❓ Docker 이미지($APP_NAME:latest)를 삭제하시겠습니까? (y/N): " DEL_IMG
+    read -p "   ❓ Docker 이미지($IMAGE_TAG)를 삭제하시겠습니까? (y/N): " DEL_IMG
     DEL_IMG=${DEL_IMG:-N}
     if [[ "$DEL_IMG" =~ ^[Yy]$ ]]; then
-        if docker image inspect "$APP_NAME:latest" >/dev/null 2>&1; then
-            docker rmi "$APP_NAME:latest"
-            log_success "Docker 이미지 삭제 완료 ($APP_NAME:latest)"
+        if docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+            docker rmi "$IMAGE_TAG"
+            log_success "Docker 이미지 삭제 완료 ($IMAGE_TAG)"
         else
-            log_warning "이미지 '$APP_NAME:latest'를 찾을 수 없어 삭제를 건너뜁니다."
+            log_warning "이미지 '$IMAGE_TAG'를 찾을 수 없어 삭제를 건너뜁니다."
         fi
     fi
 }
