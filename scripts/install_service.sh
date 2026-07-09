@@ -203,8 +203,8 @@ determine_install_dir() {
     mkdir -p "$DEST_DIR/libs"
     mkdir -p "$DEST_DIR/run"
 
-    # 보안 강화: 실행 파일 디렉토리는 root 소유로 설정하여 서비스 유저의 변조 방지
-    chown root:root "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config" "$DEST_DIR/libs"
+    # 실행 파일 디렉토리 소유권 설정 (현재 로그인 유저)
+    chown $REAL_USER:$SERVICE_GROUP "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config" "$DEST_DIR/libs"
     chmod 755 "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config" "$DEST_DIR/libs"
 
     # 실행 시 생성되는 파일(PID 등)을 위한 디렉토리는 서비스 유저 권한 부여
@@ -250,13 +250,13 @@ copy_legacy_files() {
     chmod -R 644 "$DEST_DIR/config/"*
     find "$DEST_DIR/config" -type d -exec chmod 755 {} +
 
-    # 보안 강화: 배포된 파일들은 root 소유로 설정
-    chown -R root:root "$DEST_DIR/bin" "$DEST_DIR/libs" "$DEST_DIR/config"
+    # 배포된 파일 소유권 설정 (현재 로그인 유저)
+    chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR/bin" "$DEST_DIR/libs" "$DEST_DIR/config"
 
-    # .app-env.properties 보안 권한 (640, root:$SERVICE_GROUP)
+    # .app-env.properties 보안 권한 (640, $REAL_USER:$SERVICE_GROUP)
     if [ -f "$DEST_DIR/bin/.app-env.properties" ]; then
         chmod 640 "$DEST_DIR/bin/.app-env.properties"
-        chown "root:$SERVICE_GROUP" "$DEST_DIR/bin/.app-env.properties"
+        chown "$REAL_USER:$SERVICE_GROUP" "$DEST_DIR/bin/.app-env.properties"
     fi
 
     log_success "파일 복사 및 권한 설정 완료."
@@ -273,7 +273,7 @@ configure_legacy_env() {
         mkdir -p "$(dirname "$DEST_PROP_FILE")"
         echo "# Application Deployment Configuration" > "$DEST_PROP_FILE"
         chmod 640 "$DEST_PROP_FILE"
-        chown "root:$SERVICE_GROUP" "$DEST_PROP_FILE"
+        chown "$REAL_USER:$SERVICE_GROUP" "$DEST_PROP_FILE"
         log_info "새로운 환경 설정 파일 생성: $DEST_PROP_FILE"
     fi
 
@@ -299,7 +299,7 @@ configure_legacy_env() {
             echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP_FILE"
         fi
         chmod 640 "$DEST_PROP_FILE"
-        chown "root:$SERVICE_GROUP" "$DEST_PROP_FILE"
+        chown "$REAL_USER:$SERVICE_GROUP" "$DEST_PROP_FILE"
         log_info "환경 설정 파일에 LOG_PATH 저장 완료."
     fi
 
@@ -311,7 +311,7 @@ configure_legacy_env() {
         echo "PID_FILE=\"$NEW_PID_FILE\"" >> "$DEST_PROP_FILE"
     fi
     chmod 640 "$DEST_PROP_FILE"
-    chown "root:$SERVICE_GROUP" "$DEST_PROP_FILE"
+    chown "$REAL_USER:$SERVICE_GROUP" "$DEST_PROP_FILE"
     log_info "환경 설정 파일에 PID_FILE 저장 완료."
 
     log_info "로그 경로: $LOG_PATH"
@@ -588,9 +588,9 @@ configure_docker_env() {
         echo "# Application Deployment Configuration" > "$DEST_PROP"
     fi
 
-    # .app-env.properties 보안 권한 (640, root:$SERVICE_GROUP)
+    # .app-env.properties 보안 권한 (640, $REAL_USER:$SERVICE_GROUP)
     chmod 640 "$DEST_PROP"
-    chown "root:$SERVICE_GROUP" "$DEST_PROP"
+    chown "$REAL_USER:$SERVICE_GROUP" "$DEST_PROP"
 
     # LOG_PATH 설정
     if [ -z "$LOG_PATH" ]; then
