@@ -644,8 +644,12 @@ APP_GID=$REAL_GID
 
 APP_NAME=$APP_NAME
 
+# [호스트 환경] 로그 및 설치 디렉토리 (Legacy 모드 로그 경로 겸용)
 LOG_PATH=$LOG_PATH
 DEST_DIR=$DEST_DIR
+
+# [컨테이너 환경] 컨테이너 내부 서비스 로그 경로
+CONTAINER_LOG_PATH=/log
 
 DOCKER_IMAGE=@dockerImage@
 EOF
