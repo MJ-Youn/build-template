@@ -30,12 +30,18 @@ SERVICE_GROUP=$(id -gn "$REAL_USER")
 # 전역 변수 (함수 내에서 설정됨)
 DEST_DIR=""
 LOG_PATH=""
-DEPLOY_MODE=""  # "legacy" 또는 "docker"
+# @deployMode@은 Gradle 빌드 시 배포 방식(legacy/docker)으로 치환됨
+DEPLOY_MODE="@deployMode@"  # "legacy" 또는 "docker", 미치환 시 빈 값
 
 # --- [Functions] ---
 
 # @description 배포 방식 선택 (legacy / docker)
 select_deploy_mode() {
+    if [ "$DEPLOY_MODE" = "docker" ]; then
+        log_info "빌드 시 지정된 배포 방식($DEPLOY_MODE)으로 진행합니다."
+        return 0
+    fi
+
     log_step "배포 방식 선택"
     echo ""
     echo -e "   ${BOLD}배포 방식을 선택하세요:${NC}"

@@ -72,7 +72,7 @@ task 'package'(type: Zip) {
         
         from("scripts/$env") {
             into 'bin'
-            filter(ReplaceTokens, tokens: [appName: project.name])
+            filter(ReplaceTokens, tokens: [appName: project.name, deployMode: ''])
             rename { String filename ->
                 filename.replace("-${env}", "")
             }
@@ -101,7 +101,7 @@ task 'package'(type: Zip) {
 
     from('scripts') {
         into 'bin'
-        filter(ReplaceTokens, tokens: [appName: project.name])
+        filter(ReplaceTokens, tokens: [appName: project.name, deployMode: ''])
         exclude environments
         if (project.hasProperty('env')) {
             exclude project.property('env')
@@ -247,7 +247,7 @@ task prepareDockerContext {
                 copy {
                     from f
                     into dockerDistDir
-                    filter(ReplaceTokens, tokens: [appName: project.name])
+                    filter(ReplaceTokens, tokens: [appName: project.name, deployMode: 'docker'])
                 }
             }
         }
