@@ -573,25 +573,25 @@ copy_docker_files() {
     # uninstall 스크립트 복사
     local UNINSTALL_SRC="$SCRIPT_DIR/uninstall_service.sh"
     if [ -f "$UNINSTALL_SRC" ]; then
-        cp "$UNINSTALL_SRC" "$DEST_DIR/"
+        cp "$UNINSTALL_SRC" "$DEST_DIR/bin/"
         chmod +x "$DEST_DIR/uninstall_service.sh"
     fi
 
     # bootstrap.sh 복사 (uninstall_service.sh가 source하여 사용)
     local BOOTSTRAP_SRC="$SCRIPT_DIR/bootstrap.sh"
     if [ -f "$BOOTSTRAP_SRC" ]; then
-        cp "$BOOTSTRAP_SRC" "$DEST_DIR/"
+        cp "$BOOTSTRAP_SRC" "$DEST_DIR/bin/"
     fi
 
     # utils.sh 복사
     local UTILS_SRC="$SCRIPT_DIR/utils.sh"
     if [ -f "$UTILS_SRC" ]; then
-        cp "$UTILS_SRC" "$DEST_DIR/"
+        cp "$UTILS_SRC" "$DEST_DIR/bin/"
     fi
 
     # cron 디렉토리 복사
     if [ -d "$SCRIPT_DIR/cron" ]; then
-        cp -r "$SCRIPT_DIR/cron" "$DEST_DIR/"
+        cp -r "$SCRIPT_DIR/cron" "$DEST_DIR/bin/"
     fi
 
     # config 폴더 복사 (Host Mount용)
