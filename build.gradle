@@ -221,7 +221,7 @@ task prepareDockerContext {
         
         copy {
             from composeFile
-            into dockerDistDir
+            into "${dockerDistDir}/docker"
             rename { 'docker-compose.yml' }
             filter(ReplaceTokens, tokens: [
                 appName: project.name.toString(), 

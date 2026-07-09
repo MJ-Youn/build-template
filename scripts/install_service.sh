@@ -16,8 +16,11 @@ source "$SCRIPT_DIR/bootstrap.sh"
 # --- [Constants & Variables] ---
 # @appName@은 Gradle 빌드 시 실제 프로젝트 이름으로 치환됨
 APP_NAME="@appName@"
-# 배포 패키지 루트 (build/dist/XXX 압축 해제 위치)
-PKG_ROOT="$(dirname "$SCRIPT_DIR")"
+if [ "$(basename "$SCRIPT_DIR")" = "bin" ]; then
+    PKG_ROOT="$(dirname "$SCRIPT_DIR")"
+else
+    PKG_ROOT="$SCRIPT_DIR"
+fi
 
 # 기본 설치 위치 정의 (환경 변수 INSTALL_DIR 또는 첫 번째 인자로 재정의 가능)
 DEFAULT_INSTALL_DIR="${1:-${INSTALL_DIR:-/opt/$APP_NAME}}"
