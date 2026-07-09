@@ -101,7 +101,7 @@ task 'package'(type: Zip) {
 
     from('scripts') {
         into 'bin'
-        filter(ReplaceTokens, tokens: [appName: project.name, deployMode: ''])
+        filter(ReplaceTokens, tokens: [appName: project.name, deployMode: '', dockerImage: "${project.name}:${project.version}".toString()])
         exclude environments
         if (project.hasProperty('env')) {
             exclude project.property('env')
@@ -247,7 +247,7 @@ task prepareDockerContext {
                 copy {
                     from f
                     into dockerDistDir
-                    filter(ReplaceTokens, tokens: [appName: project.name, deployMode: 'docker'])
+                    filter(ReplaceTokens, tokens: [appName: project.name, deployMode: 'docker', dockerImage: imageName.toString()])
                 }
             }
         }
