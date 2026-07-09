@@ -89,13 +89,25 @@ task 'package'(type: Zip) {
     }
 
     // 2. 기본 파일 (Base Files)
-    // 이미 추가된 파일(환경별 파일)이 있다면 이 파일들은 무시됨
+    // 이미 추가된 파일(환경별 파일)이 있다면 이 파일들은 무시됨 (명시적으로 중복 파일 제외)
     from('config') {
         into 'config'
         // 환경별 폴더가 Zip 루트에 그대로 들어가는 것을 방지 (깔끔한 패키징)
         exclude environments
         if (project.hasProperty('env')) {
-            exclude project.property('env')
+            def env = project.property('env')
+            exclude env
+            
+            // 환경별 파일로 덮어쓰기 위해, 이름이 동일해질 기본 파일들을 명시적으로 제외
+            def envDir = file("config/${env}")
+            if (envDir.exists()) {
+                envDir.listFiles().each { File envFile ->
+                    if (envFile.isFile()) {
+                        def baseName = envFile.name.replace("-${env}", "")
+                        exclude baseName
+                    }
+                }
+            }
         }
     }
 
