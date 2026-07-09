@@ -4,7 +4,7 @@
 # Description: Docker 이미지를 tar로 추출하고 배포용 Zip으로 패키징합니다.
 #              Gradle 'dockerBuildOffline' 태스크(Strategy 1)를 대체합니다.
 #
-# 사용법: ./bin/docker-build-offline.sh [env]
+# 사용법: ./bin/docker-package.sh [env]
 #   env: 환경 (dev, prod 등, 기본값: dev)
 #
 # 전제 조건: 본 스크립트 실행 전 ./mvnw package -P${env} 필요
@@ -46,7 +46,7 @@ echo "📦 === Docker 배포 패키지 생성 시작 (Strategy 1) ==="
 
 # --- [Step 1] Docker 이미지 빌드 (레지스트리 없이) ---
 echo "🔨 [1/3] Docker 이미지 빌드 중..."
-"$SCRIPT_DIR/docker-build-local.sh" "$ENV_VALUE" "" "latest"
+"$SCRIPT_DIR/docker-build.sh" "$ENV_VALUE" "" "latest"
 
 # --- [Step 2] Docker 이미지 추출 (docker save) ---
 echo "💾 [2/3] Docker 이미지 추출 중 (docker save) → $DOCKER_DIST_DIR/$TAR_NAME"

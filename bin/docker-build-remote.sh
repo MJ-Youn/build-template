@@ -2,7 +2,7 @@
 # ==============================================================================
 # File: bin/docker-build-remote.sh
 # Description: Docker 이미지를 빌드하고 레지스트리에 Push합니다.
-#              Gradle 'dockerBuildRemote' 태스크(Strategy 3)를 대체합니다.
+#              Gradle 'dockerBuildRemote' 태스크(Strategy 2)를 대체합니다.
 #
 # 사용법: ./bin/docker-build-remote.sh <dockerRegistry> [env] [dockerImageTag]
 #   dockerRegistry: (필수) Docker 레지스트리 주소 (예: my-registry.com/repo)
@@ -50,7 +50,7 @@ DOCKER_DIST_DIR="$PROJECT_ROOT/target/docker-dist"
 # --- [Step 1] Docker 이미지 빌드 ---
 echo "☁️ === Docker 이미지 Push 시작 ==="
 echo "🔨 [1/2] Docker 이미지 빌드 중..."
-"$SCRIPT_DIR/docker-build-local.sh" "$ENV_VALUE" "$DOCKER_REGISTRY" "$DOCKER_TAG"
+"$SCRIPT_DIR/docker-build.sh" "$ENV_VALUE" "$DOCKER_REGISTRY" "$DOCKER_TAG"
 
 # --- [Step 2] Docker Push ---
 echo ""
@@ -80,7 +80,7 @@ echo "║      docker pull ${FULL_IMAGE_NAME}"
 echo "║"
 echo "║  [4-a] 자동 설치 (Systemd 서비스 등록 포함 — 권장)"
 echo "║      cd /home/user/docker-dist"
-echo "║      sudo ./install_service.sh"
+echo "║      sudo ./bin/install_service.sh"
 echo "║"
 echo "║  [4-b] 수동 실행 (docker compose 직접)"
 echo "║      cd /home/user/docker-dist"

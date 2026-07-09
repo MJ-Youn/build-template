@@ -35,10 +35,11 @@ if [ -f "$UTILS_PATH" ]; then
         assert_defined "log_error"
         assert_defined "is_safe_path"
         assert_defined "add_path_to_profile"
+        assert_defined "wait_for_condition"
         exit $((FAILED > 0))
     )
     if [ $? -eq 0 ]; then
-        PASSED=$((PASSED + 8))
+        PASSED=$((PASSED + 9))
     else
         FAILED=$((FAILED + 1))
     fi
@@ -67,6 +68,7 @@ echo "--- Running tests for bootstrap.sh (fallback mode) ---"
     declare -f log_error > /dev/null || SUCCESS=1
     declare -f is_safe_path > /dev/null || SUCCESS=1
     declare -f add_path_to_profile > /dev/null || SUCCESS=1
+    declare -f wait_for_condition > /dev/null || SUCCESS=1
 
     # Restore utils.sh
     if [ -f "${UTILS_PATH}.bak" ]; then
@@ -77,7 +79,7 @@ echo "--- Running tests for bootstrap.sh (fallback mode) ---"
 )
 if [ $? -eq 0 ]; then
     echo -e "   [PASS] All fallback functions defined"
-    PASSED=$((PASSED + 8))
+    PASSED=$((PASSED + 9))
 else
     echo -e "   [FAIL] Some fallback functions NOT defined"
     FAILED=$((FAILED + 1))

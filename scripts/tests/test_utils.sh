@@ -52,12 +52,19 @@ assert_unsafe "/var/log"
 assert_unsafe "/root"
 assert_unsafe "/tmp"
 
-# 3. Normalization tests (should resolve to sensitive paths)
+# 3. Sensitive system paths (Sub-directories)
+assert_unsafe "/bin/sh"
+assert_unsafe "/etc/passwd"
+assert_unsafe "/usr/bin/ls"
+assert_unsafe "/root/.ssh"
+
+# 4. Normalization tests (should resolve to sensitive paths)
 assert_unsafe "/etc/../etc"
 assert_unsafe "/usr/bin/."
 assert_unsafe "//etc"
+assert_unsafe "/etc/passwd/../shadow"
 
-# 4. Safe paths (Absolute paths not in sensitive list)
+# 5. Safe paths (Absolute paths not in sensitive list)
 assert_safe "/opt/my-app"
 assert_safe "/home/user/my-project"
 assert_safe "/tmp/safe-to-delete-dir"
@@ -218,6 +225,46 @@ if detect_docker_compose_cmd; then
     fi
 else
     echo -e "   [FAIL] Failed to detect docker-compose standalone"
+    FAILED=$((FAILED + 1))
+fi
+
+echo -e "\n--- Running tests for wait_for_condition ---"
+
+# Test 1: Immediate success
+if wait_for_condition "true" 1 0.1; then
+    echo -e "   [PASS] Immediate success handled"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "   [FAIL] Immediate success failed"
+    FAILED=$((FAILED + 1))
+fi
+
+# Test 2: Success after delay
+TEMP_FILE=$(mktemp)
+rm "$TEMP_FILE"
+(sleep 0.5 && touch "$TEMP_FILE") &
+if wait_for_condition "[ -f $TEMP_FILE ]" 2 0.1; then
+    echo -e "   [PASS] Success after delay handled"
+    PASSED=$((PASSED + 1))
+else
+    echo -e "   [FAIL] Success after delay failed"
+    FAILED=$((FAILED + 1))
+fi
+rm -f "$TEMP_FILE"
+
+# Test 3: Timeout
+start_time=$SECONDS
+if ! wait_for_condition "false" 1 0.1; then
+    duration=$((SECONDS - start_time))
+    if (( duration >= 1 )); then
+        echo -e "   [PASS] Timeout handled correctly after ${duration}s"
+        PASSED=$((PASSED + 1))
+    else
+        echo -e "   [FAIL] Timeout returned too early (${duration}s)"
+        FAILED=$((FAILED + 1))
+    fi
+else
+    echo -e "   [FAIL] Timeout should have occurred"
     FAILED=$((FAILED + 1))
 fi
 

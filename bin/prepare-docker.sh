@@ -110,11 +110,12 @@ echo "   📄 사용된 docker-compose: $COMPOSE_SRC"
 sed "s/@appName@/$APP_NAME/g" "$COMPOSE_SRC" > "$DOCKER_DIST_DIR/docker-compose.yml"
 
 # 2. 스크립트 복사 (install_service.sh, uninstall_service.sh, bootstrap.sh, utils.sh)
+mkdir -p "$DOCKER_DIST_DIR/bin"
 for SRC_FILE in "scripts/install_service.sh" "scripts/uninstall_service.sh" "scripts/bootstrap.sh" "scripts/utils.sh"; do
     FULL_SRC="$PROJECT_ROOT/$SRC_FILE"
     if [ -f "$FULL_SRC" ]; then
-        sed "s/@appName@/$APP_NAME/g" "$FULL_SRC" > "$DOCKER_DIST_DIR/$(basename "$FULL_SRC")"
-        chmod +x "$DOCKER_DIST_DIR/$(basename "$FULL_SRC")"
+        sed "s/@appName@/$APP_NAME/g" "$FULL_SRC" > "$DOCKER_DIST_DIR/bin/$(basename "$FULL_SRC")"
+        chmod +x "$DOCKER_DIST_DIR/bin/$(basename "$FULL_SRC")"
     fi
 done
 
@@ -128,7 +129,7 @@ fi
 # 4. cron 폴더 복사
 CRON_DIR="$PROJECT_ROOT/scripts/cron"
 if [ -d "$CRON_DIR" ]; then
-    cp -r "$CRON_DIR" "$DOCKER_DIST_DIR/cron"
+    cp -r "$CRON_DIR" "$DOCKER_DIST_DIR/bin/cron"
 fi
 
 # 5. .app-env.properties 복사
@@ -143,9 +144,9 @@ fi
 # --- [DEPLOY-GUIDE.md 생성] ---
 TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S')
 cat > "$DOCKER_DIST_DIR/DEPLOY-GUIDE.md" << EOF
-# 🐳 ${APP_NAME} — Docker 배포 가이드 (Strategy 3: Registry)
+# 🐳 ${APP_NAME} — Docker 배포 가이드 (Strategy 2: Registry)
 
-> **이 파일은 \`./mvnw package -P${ENV_VALUE} && ./bin/docker-push.sh\` 빌드 시 자동 생성되었습니다.**
+> **이 파일은 \`./mvnw package -P${ENV_VALUE} && ./bin/docker-build-remote.sh\` 빌드 시 자동 생성되었습니다.**
 > 서버 담당자는 이 파일의 안내에 따라 서비스를 배포·실행하세요.
 
 - **빌드 환경**: \`${ENV_VALUE}\`
@@ -191,7 +192,7 @@ docker pull ${FULL_IMAGE_NAME}
 
 \`\`\`bash
 cd /home/user/docker-dist
-sudo ./install_service.sh
+sudo ./bin/install_service.sh
 \`\`\`
 
 ### 4-b. 수동 실행 (docker compose 직접)

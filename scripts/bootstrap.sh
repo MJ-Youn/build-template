@@ -38,6 +38,28 @@ else
 
     # 기본 유틸리티 함수 폴백
     add_path_to_profile() { return 1; }
-    is_safe_path() { return 0; }
+    is_safe_path() {
+        local path=$1
+        if [ -z "$path" ]; then return 1; fi
+        local normalized_path
+        normalized_path=$(readlink -f "$path" 2>/dev/null || echo "$path")
+        if [[ ! "$normalized_path" =~ ^/ ]] || [[ "$normalized_path" == "/" ]]; then return 1; fi
+        case "$normalized_path" in
+            "/bin" | "/boot" | "/dev" | "/etc" | "/home" | "/lib" | "/lib64" | "/media" | "/mnt" | "/opt" | "/proc" | "/root" | "/run" | "/sbin" | "/srv" | "/sys" | "/tmp" | "/usr" | "/var" | "/usr/bin" | "/usr/sbin" | "/usr/lib" | "/var/log" | "/usr/local/bin" | "/usr/local/sbin" | "/usr/local/lib" | "/log") return 1 ;;
+            "/bin/"* | "/boot/"* | "/dev/"* | "/etc/"* | "/lib/"* | "/lib64/"* | "/proc/"* | "/root/"* | "/run/"* | "/sbin/"* | "/sys/"* | "/usr/bin/"* | "/usr/sbin/"* | "/usr/lib/"* | "/usr/local/bin/"* | "/usr/local/sbin/"* | "/usr/local/lib/"*) return 1 ;;
+        esac
+        return 0
+    }
     detect_docker_compose_cmd() { return 1; }
+    wait_for_condition() {
+        local condition_cmd="$1"
+        local timeout="${2:-5}"
+        local interval="${3:-0.2}"
+        local start_time=$SECONDS
+        while true; do
+            if eval "$condition_cmd" >/dev/null 2>&1; then return 0; fi
+            if (( SECONDS - start_time >= timeout )); then return 1; fi
+            sleep "$interval"
+        done
+    }
 fi

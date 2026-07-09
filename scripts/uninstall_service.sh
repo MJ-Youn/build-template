@@ -253,11 +253,11 @@ remove_logs() {
                 log_warning "'$LOG_PATH' 는 시스템 공유 디렉토리입니다."
                 log_info "디렉토리 전체 삭제 대신 '$APP_NAME' 관련 파일만 삭제합니다."
                 local DELETED_COUNT=0
+                # Using -delete is much faster than rm in a loop (no process fork for each file)
                 while IFS= read -r -d '' f; do
                     log_info "삭제: $f"
-                    rm -f "$f"
                     DELETED_COUNT=$((DELETED_COUNT + 1))
-                done < <(find "$LOG_PATH" -maxdepth 1 -name "${APP_NAME}*" -print0 2>/dev/null)
+                done < <(find "$LOG_PATH" -maxdepth 1 -name "${APP_NAME}*" -delete -print0 2>/dev/null)
 
                 if [ "$DELETED_COUNT" -gt 0 ]; then
                     log_success "$DELETED_COUNT 개의 로그 파일이 삭제되었습니다."
@@ -285,15 +285,21 @@ remove_docker_image() {
         log_success "이미지 아카이브 삭제됨."
     fi
 
+    # Docker 이미지 이름 결정
+    local IMAGE_TAG="@dockerImage@"
+    if [[ "$IMAGE_TAG" == "@""dockerImage@" ]]; then
+        IMAGE_TAG="${APP_NAME}:latest"
+    fi
+
     # Docker 이미지 삭제 여부 확인
-    read -p "   ❓ Docker 이미지($APP_NAME:latest)를 삭제하시겠습니까? (y/N): " DEL_IMG
+    read -p "   ❓ Docker 이미지($IMAGE_TAG)를 삭제하시겠습니까? (y/N): " DEL_IMG
     DEL_IMG=${DEL_IMG:-N}
     if [[ "$DEL_IMG" =~ ^[Yy]$ ]]; then
-        if docker image inspect "$APP_NAME:latest" >/dev/null 2>&1; then
-            docker rmi "$APP_NAME:latest"
-            log_success "Docker 이미지 삭제 완료 ($APP_NAME:latest)"
+        if docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+            docker rmi "$IMAGE_TAG"
+            log_success "Docker 이미지 삭제 완료 ($IMAGE_TAG)"
         else
-            log_warning "이미지 '$APP_NAME:latest'를 찾을 수 없어 삭제를 건너뜁니다."
+            log_warning "이미지 '$IMAGE_TAG'를 찾을 수 없어 삭제를 건너뜁니다."
         fi
     fi
 }

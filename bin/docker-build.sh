@@ -1,8 +1,8 @@
 #!/bin/bash
 # ==============================================================================
-# File: bin/docker-build-local.sh
+# File: bin/docker-build.sh
 # Description: Docker 이미지를 로컬 데몬에 빌드합니다.
-#              Gradle 'dockerBuildLocal' 태스크(Strategy 2)를 대체합니다.
+#              Gradle 'dockerBuild' 태스크를 대체합니다.
 #
 # 사용법: ./bin/docker-build-local.sh [env] [dockerRegistry] [dockerImageTag]
 #   env           : 환경 (dev, prod 등, 기본값: dev)
@@ -67,8 +67,3 @@ rm -rf "$DOCKER_BUILD_DIR"
 
 echo ""
 echo "✨ === Docker 이미지 빌드 성공: $FULL_IMAGE_NAME ==="
-echo "   📦 배포 파일 경로: $PROJECT_ROOT/target/docker-dist"
-
-if [ -z "$DOCKER_REGISTRY" ]; then
-    echo "   💡 실행 방법 (Strategy 2): cd target/docker-dist && docker compose up -d"
-fi

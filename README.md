@@ -34,12 +34,12 @@
 ./init.sh
 ```
 
-### 💡 2단계: 배포 및 빌드 가이드 확인 (`help.sh`)
+### 💡 2단계: 배포 및 빌드 가이드 확인 (`help`)
 
-프로젝트 전용으로 확장된 `help.sh` 셸 스크립트를 통해 현재 설정된 환경별 빌드/배포 명령어 예시를 언제든 터미널에서 확인할 수 있습니다.
+프로젝트 전용으로 확장된 `help` 태스크를 통해 현재 설정된 환경별 빌드/배포 명령어 예시를 언제든 터미널에서 확인할 수 있습니다.
 
 ```bash
-./help.sh
+./mvnw help
 ```
 
 ### 3단계: 비즈니스 로직 개발
@@ -54,20 +54,6 @@
 ./build_deploy.sh -Penv=dev
 ```
 
-### 🚀 5단계 (선택): 타 프로젝트에 빌드/배포 템플릿 적용 (Apply Template)
-
-이 프로젝트에 구축된 강력한 빌드 및 배포 자동화 환경(스크립트, 프로필, 어셈블리 등)을 다른 기존 Maven 프로젝트로 손쉽게 이식할 수 있습니다.
-
-```bash
-./apply_build_deploy_template.sh <타겟_프로젝트_경로>
-# 예시: ./apply_build_deploy_template.sh ../ymtech-gitlab/nccat-web
-```
-
-위 스크립트를 실행하면:
-1. `scripts/`, `assembly/`, `build_deploy.sh`, `mvnw` 등의 핵심 스크립트가 타겟 프로젝트로 복사됩니다.
-2. 타겟 프로젝트의 기존 레거시 배포 폴더(`shell/`, `deploy/` 등)가 안전하게 정리됩니다.
-3. 타겟 프로젝트의 `pom.xml`에 환경 프로필(`dev`, `prod` 등) 및 `maven-assembly-plugin` 설정이 자동으로 주입됩니다.
-
 ---
 
 ## 🤖 자동화 배포 스크립트 (build_deploy.sh)
@@ -78,7 +64,7 @@
 
 ```
 [1/3] 📥 Git Pull        → 최신 소스 코드 수신
-[2/3] 🔨 Maven Package   → 환경별 배포 패키지(ZIP) 빌드
+[2/3] 🔨 Maven Package  → 환경별 배포 패키지(ZIP) 빌드
 [3/3] 📦 AUTO 압축 해제   → bin/install_service.sh 자동 실행
 ```
 
@@ -98,14 +84,14 @@
 | 항목                     | 설명                                                           |
 | ------------------------ | -------------------------------------------------------------- |
 | Git 저장소               | `.git` 폴더가 존재하면 자동으로 `git pull` 실행, 없으면 건너뜀 |
-| JDK                      | `./mvnw` 실행 가능 환경 필요                                   |
+| JDK                      | `./mvnw` 실행 가능 환경 필요                                |
 | `unzip`                  | 패키지 압축 해제에 필요                                        |
 | `bin/install_service.sh` | 빌드 패키지 내 포함된 설치 스크립트                            |
 
 ### 📋 상세 동작
 
 1. **Git Pull**: 현재 디렉토리에 `.git` 폴더가 있으면 `git pull`을 실행하여 최신 코드를 반영합니다.
-2. **Maven 빌드**: `./mvnw package -P<환경명>` 을 실행하여 배포 패키지를 생성합니다.
+2. **Maven 빌드**: `./mvnw package -Penv=<환경명>` 을 실행하여 배포 패키지를 생성합니다.
     - 결과물: `target/dist/{APP_NAME}-{version}-{env}.dist.zip`
 3. **압축 해제 및 설치**: 생성된 ZIP 파일을 자동으로 찾아 압축을 해제하고, 내부의 `bin/install_service.sh`를 실행합니다.
     - 압축 해제 경로: `target/dist/{ZIP파일명}/`
@@ -133,7 +119,7 @@
 
 ```bash
 # 운영(prod) 환경 배포용 패키지 생성
-./mvnw package -Pprod && ./bin/docker-package.sh prod
+./mvnw clean package -Pprod && ./bin/docker-package.sh prod
 ```
 
 - **결과물**: `target/dist/{APP_NAME}-docker-prod.zip`
@@ -149,7 +135,7 @@
 
 ```bash
 # 1. 파일 전송 (scp 등)
-scp build/dist/{APP_NAME}-docker-prod.zip user@server:/home/user/
+scp target/dist/{APP_NAME}-docker-prod.zip user@server:/home/user/
 
 # 2. 서버 접속 후 압축 해제 및 설치
 unzip {APP_NAME}-docker-prod.zip -d deploy
@@ -163,37 +149,7 @@ sudo ./install_service.sh
     - Docker Compose 실행 (`docker-compose up -d`)
     - Linux 서비스(Systemd) 등록 (재부팅 시 자동 실행)
 
-### 🐳 Docker 배포 2: 서버 빌드 (Source Transfer)
-
-**"소스 전송 -> 서버 빌드 -> 실행"** 전략을 사용합니다.
-빌드 결과물(Image)을 전송하는 과정이 생략되어 네트워크 대역폭을 절약할 수 있으며, 수정 사항을 빠르게 반영할 수 있습니다.
-
-**1. 소스 전송 (Development PC -> Server)**
-
-Github 등을 통해 소스 코드를 서버로 내려받습니다.
-
-```bash
-git clone https://github.com/my-repo/my-project.git
-cd my-project
-```
-
-**2. 빌드 및 실행 (Server)**
-
-```bash
-# 1. Maven 빌드 후 Docker 이미지 빌드
-./mvnw package -Pprod
-./bin/docker-build.sh prod
-
-# 2. 생성된 배포 디렉토리로 이동
-cd target/docker-dist
-
-# 3. 환경 변수 초기화 및 컨테이너 실행
-sudo ./install_service.sh
-```
-
-> 💡 **Tip**: 반복 배포 시 `git pull && ./mvnw package -Pprod && ./bin/docker-build.sh prod` 명령으로 빠르게 최신화할 수 있습니다. Legacy(일반 서버) 배포 환경이라면 `build_deploy.sh -Penv=prod`를 사용하면 Git pull → 빌드 → 설치까지 한 번에 자동화됩니다.
-
-### 🐳 Docker 배포 3: 레지스트리 (Push & Pull)
+### 🐳 Docker 배포 2: 레지스트리 (Push & Pull)
 
 **"Local/CI 빌드 -> Registry Push -> Server Pull -> 실행"** 전략을 사용합니다.
 Docker Hub, ECR, GCR 등 원격 레지스트리를 활용하는 표준적인 방식입니다.
@@ -202,16 +158,15 @@ Docker Hub, ECR, GCR 등 원격 레지스트리를 활용하는 표준적인 방
 
 ```bash
 # 레지스트리 주소를 지정하여 빌드 및 Push
-./mvnw package -Pprod
-./bin/docker-push.sh my-registry.com/repo prod
+./mvnw dockerBuildRemote -Penv=prod -PdockerRegistry=my-registry.com/repo
 
-# (선택) 태그 지정 가능 (기본값: pom.xml의 version)
-# ./bin/docker-push.sh my-registry.com/repo prod v1.0.0
+# (선택) 태그 지정 가능 (기본값: latest)
+# ./mvnw dockerBuildRemote -Penv=prod -PdockerRegistry=... -PdockerImageTag=v1.0.0
 ```
 
 - **결과물**:
-    - Docker Registry에 이미지 업로드 (`my-registry.com/repo/{APP_NAME}:{version}`)
-    - `target/docker-dist`: 실행에 필요한 파일들 (`docker-compose.yml`, `config`, 스크립트, `DEPLOY-GUIDE.md` 등)
+    - Docker Registry에 이미지 업로드 (`my-registry.com/repo/{APP_NAME}:latest`)
+    - `build/docker-dist`: 실행에 필요한 파일들 (`docker-compose.yml`, `config`, 스크립트 등)
 
 **2. 배포 (Server)**
 
@@ -235,7 +190,7 @@ Docker 없이 Java(JDK)만 설치된 서버에 배포하는 방식입니다.
 **1. 빌드 (Development PC)**
 
 ```bash
-./mvnw package -Pprod
+./mvnw clean package -Pprod
 ```
 
 - **결과물**: `target/dist/{APP_NAME}-{version}-prod.dist.zip`
@@ -249,7 +204,7 @@ cd {APP_NAME}
 sudo ./bin/install_service.sh
 ```
 
-**2-b. 배포 (Server) — 자동화 스크립트 사용 (권장)**
+**3. 배포 (Server) — 자동화 스크립트 사용 (권장)**
 
 서버에 소스 코드가 이미 있는 경우, `build_deploy.sh`로 Git pull부터 설치까지 한 번에 처리할 수 있습니다.
 
@@ -265,9 +220,7 @@ Docker 배포를 넘어, Kubernetes 환경을 위한 매니페스트(`yaml`)도 
 
 ```bash
 # K8s 배포 패키지 생성 (Docker 빌드도 포함됨)
-./mvnw package -Pprod
-./bin/docker-build.sh prod
-# 이후 target/docker-dist/k8s/ 매니페스트를 서버에 전송하여 kubectl apply
+./mvnw k8sBuild -Penv=prod
 ```
 
 - **결과물**: `target/dist/{APP_NAME}-k8s-prod.zip`
@@ -313,7 +266,7 @@ netstat -anlp | grep :8080
 
 ```bash
 # 🐳 Docker 배포 시
-docker logs -f my-service-app
+docker logs -f my-service
 
 # 🖥️ 일반 배포 시 (편의 스크립트)
 tail-log-my-service.sh
@@ -347,74 +300,56 @@ curl -v http://localhost:8080/
 
 1. `scripts/prod/.app-env.properties` 생성
 2. 내용 작성: `LOG_PATH="/var/log/my-service"`
-3. `./mvnw package -Pprod` 실행 시 자동으로 적용됨.
+3. `./mvnw clean package -Pprod` 실행 시 자동으로 적용됨.
 
 ---
 
-## 🧜‍♀️ 개발 워크플로우 (Workflow)
+## 🧜‍♀️ 배포 워크플로우 (Workflow)
 
 ```mermaid
 flowchart TD
     Start["🚀 1. 프로젝트 생성"] --> Dev["💻 2. 개발 및 커스터마이징"]
     Dev --> BuildSelect{"🛠️ 3. 빌드/배포 방식 선택"}
 
-    %% 자동화 스크립트 (build_deploy.sh)
-    subgraph AutoScript ["🤖 build_deploy.sh (자동화)"]
-        direction LR
-        AS1["📥 git pull"] --> AS2["🔨 mvnw package"]
-        AS2 --> AS3["📦 unzip + install_service.sh"]
-    end
-
-    BuildSelect -->|자동화| AutoScript
-    AutoScript --> LegacyDeploy2["⚙️ 서비스 등록/실행"]
-
-    %% 서브그래프: Legacy
-    subgraph Legacy ["🖥️ Legacy Path (Jar)"]
+    %% 서브그래프: package 태스크 (Legacy + Docker 겸용)
+    subgraph PackagePath ["📦 package 태스크 (Legacy + Docker 겸용)"]
         direction TB
-        LegacyBuild["☕ Maven 패키징<br/>(Jar + Scripts)"]
+        LegacyBuild["☕ Maven 패키징<br/>(Jar + Scripts + Dockerfile)"]
         LegacyBuild --> LegacyTrans["📂 파일 전송/압축해제"]
-        LegacyTrans --> LegacyDeploy["⚙️ 서비스 등록/실행<br/>(Systemd/SysVinit)"]
+        LegacyTrans --> InstallSelect{"⚙️ 배포 방식 선택<br/>(install_service.sh)"}
+        InstallSelect -->|"1 Legacy (Java)"| LegacyRun["☕ Java 직접 실행<br/>(Systemd/SysVinit 등록)"]
+        InstallSelect -->|"2 Docker"| PkgDocker["🐳 배포 패키지 내<br/>Dockerfile로 이미지 빌드<br/>& Compose 실행"]
     end
 
-    %% 서브그래프: Docker Strategies
-    subgraph Docker ["🐳 Docker Path"]
+    %% 서브그래프: Docker 전용 전략
+    subgraph DockerPath ["🐳 Docker Path (전용 태스크)"]
         direction TB
         DockerDecide{"전략 선택"}
 
         %% Strategy 1: Local Image
-        subgraph DockerOpt1 ["① 로컬 빌드 + 전송"]
-            D1_Build["🔨 로컬 빌드<br/>(docker-package.sh)"]
+        subgraph DockerOpt1 ["① 오프라인 빌드 (Offline)"]
+            D1_Build["🔨 docker-package.sh<br/>(이미지 빌드)"]
             D1_Save["💾 Docker Image Save<br/>(.tar 파일)"]
-            D1_Trans["📂 파일 전송<br/>(Local -> Server)"]
-            D1_Load["📦 Image Load<br/>(docker load)"]
+            D1_Trans["📂 파일 전송<br/>(Local → Server)"]
+            D1_Load["📦 스마트 인스톨<br/>(자동 docker load)"]
 
             D1_Build --> D1_Save --> D1_Trans --> D1_Load
         end
 
-        %% Strategy 2: Source Transfer
-        subgraph DockerOpt2 ["② 소스 전송 + 서버 빌드"]
-            D2_Trans["📂 소스/Dockerfile 전송"]
-            D2_Build["🔨 서버 빌드<br/>(docker build)"]
+        %% Strategy 2: Repository
+        subgraph DockerOpt2 ["② 레지스트리 (Registry)"]
+            D2_Build["🔨 로컬 빌드<br/>(docker-build-remote.sh)"]
+            D2_Push["☁️ Push to Registry<br/>(on Local PC)"]
+            D2_Pull["⬇️ Pull from Registry<br/>(on Server)"]
 
-            D2_Trans --> D2_Build
-        end
-
-        %% Strategy 3: Repository
-        subgraph DockerOpt3 ["③ Repository (Hub/Private)"]
-            D3_Build["🔨 로컬 빌드"]
-            D3_Push["☁️ Push to Registry<br/>(on Local PC)"]
-            D3_Pull["⬇️ Pull form Registry<br/>(on Server)"]
-
-            D3_Build --> D3_Push --> D3_Pull
+            D2_Build --> D2_Push --> D2_Pull
         end
 
         DockerDecide --> DockerOpt1
         DockerDecide --> DockerOpt2
-        DockerDecide --> DockerOpt3
 
         D1_Load --> DockerService["⚙️ 서비스 등록/실행<br/>(Systemd/SysVinit)"]
-        D2_Build --> DockerService
-        D3_Pull --> DockerService
+        D2_Pull --> DockerService
     end
 
     %% 서브그래프: K8s
@@ -425,12 +360,12 @@ flowchart TD
     end
 
     %% 메인 연결
-    BuildSelect -->|Legacy| LegacyBuild
-    BuildSelect -->|Docker| DockerDecide
-    BuildSelect -->|K8s| K8sBuild
+    BuildSelect -->|"package"| LegacyBuild
+    BuildSelect -->|"Docker 전용 태스크"| DockerDecide
+    BuildSelect -->|"k8sBuild"| K8sBuild
 
-    LegacyDeploy --> Monitor["📈 통합 모니터링"]
-    LegacyDeploy2 --> Monitor
+    LegacyRun --> Monitor["📈 통합 모니터링"]
+    PkgDocker --> Monitor
     DockerService --> Monitor
     K8sDeploy --> Monitor
 
@@ -455,72 +390,143 @@ flowchart TD
     classDef remote_env fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000;
 
     class Start,Dev start;
-    class BuildSelect,DockerDecide decision;
+    class BuildSelect,DockerDecide,InstallSelect, decision;
     class Monitor endNode;
 
     %% Nodes & Legend Styling (Local vs Remote)
-    class LegacyBuild,LegacyTrans,K8sBuild,D1_Build,D1_Save,D1_Trans,D2_Trans,D3_Build,D3_Push,L1 local_env;
-    class LegacyDeploy,LegacyDeploy2,K8sDeploy,D1_Load,D2_Build,D3_Pull,DockerService,L2 remote_env;
+    class LegacyBuild,K8sBuild,D1_Build,D1_Save,D1_Trans,D2_Build,D2_Push,L1 local_env;
+    class LegacyTrans,LegacyRun,PkgDocker,K8sDeploy,D1_Load,D2_Pull,DockerService,L2 remote_env;
     class AS1,AS2,AS3 remote_env;
 ```
 
-### 🐳 Docker 배포 (3가지 전략)
+## 🧜‍♀️ 배포 시퀀스 (Sequence Diagram)
 
-세 가지 Docker 배포 전략은 주로 **어디서 빌드하고 어떻게 서버에 배포할 것인가(네트워크 및 인프라 환경)**에 따라 나뉩니다. 다음 표를 참고하여 환경에 맞는 태스크를 선택하세요.
-
-| 구분 | Strategy 1: `dockerBuildOffline` | Strategy 2: `dockerBuildLocal` | Strategy 3: `dockerBuildRemote` |
-|:---:|:---|:---|:---|
-| **핵심 목적** | 외부 서버 전송을 위한 **단일 Zip 패키지 생성** | 서버 자체에서 **이미지를 만들고 즉시 실행 준비** | 원격 저장소를 활용한 **표준 파이프라인 구성** |
-| **타겟 환경** | 인터넷/레지스트리 접근이 불가한 **폐쇄망 환경** | 배포 서버 안에서 소스를 직접 빌드하는 **로컬 실행 환경** | AWS ECR, Docker Hub 등 **원격 레지스트리 환경** |
-| **작업 내용** | 이미지 빌드 + `.tar` 추출 + Zip 파일로 압축 | 이미지 빌드 + 실행 폴더(`docker-dist/`) 구성 | 이미지 빌드 + 원격 레지스트리로 `docker push` |
-| **주요 산출물** | `target/dist/...-docker-prod.zip` | Docker Image + `target/docker-dist/` 폴더 | Remote Registry에 업로드된 Docker Image |
-| **전송 방식** | 수동 전송 필요 (Zip 파일을 서버로 직접 복사) | 불필요 (바로 그 자리에서 실행 가능) | 자동 풀 (운영 서버에서 `docker pull`로 수신) |
-| **실행 예시** | `./bin/docker-build-offline.sh prod` | `./bin/docker-build-local.sh prod` | `./bin/docker-build-remote.sh my.reg.com/repo prod` |
-
-## 🧜‍♀️ 개발 시퀀스 (Sequence Diagram)
+### 📦 Legacy 배포 (`./mvnw package`)
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Dev as 🧑‍💻 개발자
-    participant Maven as 🔷 Maven (Build)
+    participant Maven as 🐘 Maven
     participant Server as 🖥️ 운영 서버
+
+    Dev->>Maven: ./mvnw clean package -Pprod
+    activate Maven
+    Maven->>Maven: Jar 빌드 + Scripts + Dockerfile 패키징
+    Maven-->>Dev: {APP_NAME}-{version}-prod.dist.zip 생성
+    deactivate Maven
+
+    Dev->>Server: scp + unzip
+    activate Server
+    Dev->>Server: sudo ./bin/install_service.sh
+
+    Note over Server: 배포 방식 선택 (대화형)
+
+    alt 1) Legacy — Java 직접 실행
+        Server->>Server: JDK로 JAR 실행
+        Server->>Server: Systemd/SysVinit 서비스 등록
+    else 2) Docker — 패키지 내 Dockerfile 빌드
+        Server->>Server: docker build
+        Server->>Server: docker compose up -d
+        Server->>Server: Systemd/SysVinit 서비스 등록
+    end
+
+    Server-->>Dev: 서비스 시작 완료
+    deactivate Server
+```
+
+### 🐳 Docker 배포 (2가지 전용 전략 + 1 통합 배포)
+
+Docker 전용 태스크는 주로 **어디서 빌드하고 어떻게 서버에 배포할 것인가(네트워크 및 인프라 환경)**에 따라 나뉩니다. 다음 표를 참고하여 환경에 맞는 방식을 선택하세요.
+
+| 구분 | Strategy 1: `packageDocker` | Strategy 2: `dockerBuildRemote` | (참고) 통합 배포: `package` |
+|:---:|:---|:---|:---|
+| **핵심 목적** | 외부 서버 전송을 위한 **단일 Zip 패키지 생성** | 원격 저장소를 활용한 **표준 파이프라인 구성** | 배포 서버에서 런타임에 직접 실행 방식 선택 |
+| **타겟 환경** | 인터넷/레지스트리 접근이 불가한 **폐쇄망 환경** | AWS ECR, Docker Hub 등 **원격 레지스트리 환경** | 서버에서 소스를 클론받아 바로 띄우는 환경 |
+| **작업 내용** | 이미지 빌드 + `.tar` 추출 + Zip 파일 압축 | 이미지 빌드 + 원격 레지스트리로 `docker push` | Jar 빌드 + Dockerfile + 스크립트 압축 |
+| **주요 산출물** | `target/dist/...-docker-prod.zip` | Remote Registry에 업로드된 Docker Image | `target/dist/...-prod.dist.zip` |
+| **전송 방식** | 수동 전송 필요 (Zip 파일을 복사) | 자동 풀 (운영 서버에서 `docker pull`로 수신) | 소스 pull 또는 Zip 복사 |
+| **실행 예시** | `./mvnw clean package -Pprod && ./bin/docker-package.sh prod` | `./mvnw dockerBuildRemote -Penv=prod -PdockerRegistry=...` | `./mvnw clean package -Pprod` |
+
+#### Strategy 1 — 오프라인 빌드 (Offline Image) (`./bin/docker-package.sh`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as 🧑‍💻 개발자
+    participant Maven as 🐘 Maven
+    participant Server as 🖥️ 운영 서버
+
+    Dev->>Maven: ./mvnw clean package -Pprod && ./bin/docker-package.sh prod
+    activate Maven
+    Maven->>Maven: Docker 이미지 빌드 (linux/amd64)
+    Maven->>Maven: docker save → image.tar 추출
+    Maven->>Maven: tar + 배포 스크립트 → docker.zip 패키징
+    Maven-->>Dev: {APP_NAME}-docker-prod.zip 생성
+    deactivate Maven
+
+    Dev->>Server: scp + unzip
+    activate Server
+    Dev->>Server: sudo ./install_service.sh
+    Server->>Server: docker load (image.tar)
+    Server->>Server: docker compose up -d
+    Server->>Server: Systemd/SysVinit 서비스 등록
+    Server-->>Dev: 컨테이너 실행 완료
+    deactivate Server
+```
+
+#### Strategy 2 — Registry Push & Pull (`./bin/docker-build-remote.sh`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as 🧑‍💻 개발자
+    participant Maven as 🐘 Maven
+    participant Registry as 🗄️ Docker Registry
+    participant Server as 🖥️ 운영 서버
+
+    Dev->>Maven: ./mvnw dockerBuildRemote -Penv=prod -PdockerRegistry=...
+    activate Maven
+    Maven->>Maven: Docker 이미지 빌드 (linux/amd64)
+    Maven->>Maven: DEPLOY-GUIDE.md 자동 생성
+    Maven->>Registry: docker push {image}:{tag}
+    Maven-->>Dev: Push 완료 + docker-dist/ 폴더 준비
+    deactivate Maven
+
+    Dev->>Server: scp docker-dist/ 폴더 전송
+    activate Server
+    Server->>Registry: docker pull {image}:{tag}
+    Dev->>Server: sudo ./install_service.sh
+    Server->>Server: docker compose up -d
+    Server->>Server: Systemd/SysVinit 서비스 등록
+    Server-->>Dev: 컨테이너 실행 완료
+    deactivate Server
+```
+
+### ☸️ Kubernetes 배포 (`./mvnw k8sBuild`)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as 🧑‍💻 개발자
+    participant Maven as 🐘 Maven
+    participant Registry as 🗄️ Docker Registry
     participant K8s as ☸️ K8s 클러스터
 
-    Dev->>Maven: 1. 빌드 명령 실행 (./mvnw ...)
+    Dev->>Maven: ./mvnw k8sBuild -Penv=prod -PdockerRegistry=...
     activate Maven
+    Maven->>Maven: Docker 이미지 빌드
+    Maven->>Registry: docker push
+    Maven->>Maven: K8s 매니페스트 YAML 생성
+    Maven-->>Dev: {APP_NAME}-k8s-prod.zip 생성
+    deactivate Maven
 
-    alt 🐳 Legacy 배포 (./mvnw package)
-        Maven->>Maven: Jar 빌드 + 스크립트 패키징
-        Maven-->>Dev: {APP_NAME}.dist.zip 생성
-        deactivate Maven
-        Dev->>Server: 2. Zip 파일 전송 & 압축 해제
-        activate Server
-        Dev->>Server: 3. install_service.sh 실행
-        Server->>Server: Systemd/SysVinit 서비스 등록
-        Server-->>Dev: 서비스 시작 완료
-        deactivate Server
-
-    else 🖥️ Docker 배포 (docker-build-offline.sh)
-        activate Maven
-        Maven->>Maven: Docker 빌드 (Image) + 스크립트 패키징
-        Maven-->>Dev: {APP_NAME}-docker.zip 생성
-        deactivate Maven
-        Dev->>Server: 2. Zip 파일 전송 & 압축 해제
-        activate Server
-        Dev->>Server: 3. install_service.sh 실행
-        Server->>Server: Docker Image 로드 & Compose Up
-        Server-->>Dev: 컨테이너 실행 완료
-        deactivate Server
-
-    else ☸️ K8s 배포
-        activate Maven
-        Maven->>Maven: K8s 매니페스트 생성 (YAML)
-        Maven-->>Dev: {APP_NAME}-k8s.zip 생성
-        deactivate Maven
-        Dev->>K8s: 2. kubectl apply -f ...
-        activate K8s
-        K8s-->>Dev: Pod/Service 배포 완료
-        deactivate K8s
-    end
+    Dev->>K8s: unzip → kubectl apply -f configmap.yaml
+    activate K8s
+    Dev->>K8s: kubectl apply -f deployment.yaml
+    Dev->>K8s: kubectl apply -f service.yaml
+    K8s->>Registry: 이미지 Pull
+    K8s-->>Dev: Pod/Service 배포 완료
+    deactivate K8s
 ```
+
