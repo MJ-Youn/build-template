@@ -461,11 +461,8 @@ install_docker_mode() {
     # 환경 설정 (LOG_PATH 등)
     configure_docker_env
 
-    # 생성된 환경변수를 빌드 컨텍스트에 포함하여 Docker 빌드 시 추가될 수 있도록 함
-    cp "$DEST_DIR/.app-env.properties" "$PKG_ROOT/bin/" 2>/dev/null || touch "$PKG_ROOT/bin/.app-env.properties"
-
-    # Docker 이미지 빌드 (dist 파일 기반)
-    build_docker_image_from_dist
+    # Docker 이미지 준비 (Load 또는 Build)
+    load_or_build_docker_image
 
     # docker-compose.yml 환경변수(.env) 설정
     configure_compose
@@ -518,33 +515,36 @@ determine_docker_install_dir() {
     chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR"
 }
 
-# @description dist 패키지 파일로 Docker 이미지를 빌드
-# dist.zip 압축 해제 경로(PKG_ROOT)를 빌드 컨텍스트로 활용
-# PKG_ROOT/docker/Dockerfile을 사용하여 이미지 생성
-build_docker_image_from_dist() {
-    log_step "Docker 이미지 빌드 중 (배포 파일 기반)..."
+# @description dist 패키지 파일로 Docker 이미지를 준비 (Load 또는 Build)
+# PKG_ROOT 내에 .tar 파일이 있으면 docker load, Dockerfile이 있으면 docker build
+load_or_build_docker_image() {
+    local TAR_FILE="$PKG_ROOT/${APP_NAME}.tar"
+    local DOCKERFILE_PATH="$PKG_ROOT/docker/Dockerfile"
+    local IMAGE_TAG="@dockerImage@"
 
-    DOCKERFILE_PATH="$PKG_ROOT/docker/Dockerfile"
+    if [ -f "$TAR_FILE" ]; then
+        log_step "Docker 이미지 로드 중 ($TAR_FILE)..."
+        docker load -i "$TAR_FILE"
+        if [ $? -ne 0 ]; then
+            log_error "Docker 이미지 로드 실패"
+            exit 1
+        fi
+        log_success "Docker 이미지 로드 완료."
+    elif [ -f "$DOCKERFILE_PATH" ]; then
+        log_step "Docker 이미지 빌드 중 (Dockerfile 기반)..."
+        log_info "빌드 컨텍스트: $PKG_ROOT"
+        log_info "Dockerfile: $DOCKERFILE_PATH"
+        log_info "이미지 태그: $IMAGE_TAG"
 
-    if [ ! -f "$DOCKERFILE_PATH" ]; then
-        log_error "Dockerfile을 찾을 수 없습니다: $DOCKERFILE_PATH"
-        exit 1
+        docker build --build-arg APP_NAME="$APP_NAME" -t "$IMAGE_TAG" -f "$DOCKERFILE_PATH" "$PKG_ROOT"
+        if [ $? -ne 0 ]; then
+            log_error "Docker 이미지 빌드 실패"
+            exit 1
+        fi
+        log_success "Docker 이미지 빌드 완료: $IMAGE_TAG"
+    else
+        log_info "Docker 이미지 로드/빌드를 건너뜁니다. (원격 레지스트리 사용 예상)"
     fi
-
-    local IMAGE_TAG="${APP_NAME}:latest"
-
-    log_info "빌드 컨텍스트: $PKG_ROOT"
-    log_info "Dockerfile: $DOCKERFILE_PATH"
-    log_info "이미지 태그: $IMAGE_TAG"
-
-    docker build --build-arg APP_NAME="$APP_NAME" -t "$IMAGE_TAG" -f "$DOCKERFILE_PATH" "$PKG_ROOT"
-
-    if [ $? -ne 0 ]; then
-        log_error "Docker 이미지 빌드 실패"
-        exit 1
-    fi
-
-    log_success "Docker 이미지 빌드 완료: $IMAGE_TAG"
 }
 
 # @description Docker 관련 파일 복사 (docker-compose, uninstall 스크립트 등)
@@ -649,7 +649,7 @@ configure_compose() {
 APP_NAME=$APP_NAME
 LOG_PATH=$LOG_PATH
 DEST_DIR=$DEST_DIR
-DOCKER_IMAGE=${APP_NAME}:latest
+DOCKER_IMAGE=@dockerImage@
 EOF
 
     chown "$REAL_USER:$SERVICE_GROUP" "$ENV_FILE"
