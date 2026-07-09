@@ -252,12 +252,8 @@ determine_install_dir() {
     mkdir -p "$DEST_DIR/run"
 
     # 실행 파일 디렉토리 소유권 설정 (현재 로그인 유저)
-    chown $REAL_USER:$SERVICE_GROUP "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config" "$DEST_DIR/libs"
-    chmod 755 "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config" "$DEST_DIR/libs"
-
-    # 실행 시 생성되는 파일(PID 등)을 위한 디렉토리는 서비스 유저 권한 부여
-    chown $REAL_USER:$SERVICE_GROUP "$DEST_DIR/run"
-    chmod 755 "$DEST_DIR/run"
+    chown $REAL_USER:$SERVICE_GROUP "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config" "$DEST_DIR/libs" "$DEST_DIR/run"
+    chmod 755 "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config" "$DEST_DIR/libs" "$DEST_DIR/run"
 
     log_success "설치 디렉토리 준비 완료."
 }
@@ -518,8 +514,16 @@ determine_docker_install_dir() {
 
     prompt_log_path
 
-    mkdir -p "$DEST_DIR"
+    mkdir -p "$DEST_DIR/bin"
+    mkdir -p "$DEST_DIR/config"
+
+    # 실행 파일 디렉토리 소유권 설정 (현재 로그인 유저)
+    chown $REAL_USER:$SERVICE_GROUP "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config"
+    chmod 755 "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config"
+
     chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR"
+    
+    log_success "설치 디렉토리 준비 완료."
 }
 
 # @description dist 패키지 파일로 Docker 이미지를 준비 (Load 또는 Build)
