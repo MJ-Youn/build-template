@@ -5,7 +5,7 @@ services:
     ports:
       - "19999:19999" # host port:service port
     volumes:
-      - ${LOG_PATH:-./log}:/log # host path : container path
+      - ${LOG_PATH:-./log}:${LOG_PATH:-/log} # host path : container path
       - ${DEST_DIR:-.}/config:/app/config
     environment:
       - SPRING_PROFILES_ACTIVE=prod

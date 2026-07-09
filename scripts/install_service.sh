@@ -719,8 +719,8 @@ EOF
         sleep 2
         local CONTAINER_STATUS
         local CONTAINER_ID
-        CONTAINER_STATUS=$(docker ps -f "name=${APP_NAME}-app" --format "{{.Status}}")
-        CONTAINER_ID=$(docker ps -f "name=${APP_NAME}-app" --format "{{.ID}}")
+        CONTAINER_STATUS=$(docker ps -f "name=${APP_NAME}" --format "{{.Status}}")
+        CONTAINER_ID=$(docker ps -f "name=${APP_NAME}" --format "{{.ID}}")
 
         echo -e "${BOLD}${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${BOLD}${BLUE}║                  🐳 DOCKER SERVICE STARTED                     ║${NC}"
@@ -753,7 +753,7 @@ case "\$1" in
         \$0 start
         ;;
     status)
-        docker ps -f "name=${APP_NAME}-app"
+        docker ps -f "name=${APP_NAME}"
         ;;
     *)
         echo "사용법: \$0 {start|stop|restart|status}"
@@ -843,7 +843,7 @@ if [ -f "$LOG_FILE" ]; then
 else
     echo "로그 파일이 아직 생성되지 않았거나 경로가 다릅니다."
     echo "Docker 컨테이너 로그를 확인합니다..."
-    docker logs -f --tail 1000 ${APP_NAME}-app
+    docker logs -f --tail 1000 ${APP_NAME}
 fi
 EOF
     else

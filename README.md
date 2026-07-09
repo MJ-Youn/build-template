@@ -296,7 +296,7 @@ netstat -anlp | grep :8080
 
 ```bash
 # 🐳 Docker 배포 시
-docker logs -f my-service-app
+docker logs -f my-service
 
 # 🖥️ 일반 배포 시 (편의 스크립트)
 tail-log-my-service.sh

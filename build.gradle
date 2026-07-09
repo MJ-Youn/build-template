@@ -363,7 +363,7 @@ docker compose up -d
 docker ps | grep ${guideAppName}
 
 # 실시간 로그 확인
-docker logs -f --tail 200 ${guideAppName}-app
+docker logs -f --tail 200 ${guideAppName}
 
 # 서비스 재시작 (Systemd인 경우)
 sudo systemctl restart ${guideAppName}
