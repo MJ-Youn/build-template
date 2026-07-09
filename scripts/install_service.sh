@@ -33,15 +33,24 @@ SERVICE_GROUP=$(id -gn "$REAL_USER")
 # 전역 변수 (함수 내에서 설정됨)
 DEST_DIR=""
 LOG_PATH=""
-# @deployMode@은 Gradle 빌드 시 배포 방식(legacy/docker)으로 치환됨
-DEPLOY_MODE="@deployMode@"  # "legacy" 또는 "docker", 미치환 시 빈 값
+# 초기화 (런타임에 결정됨)
+DEPLOY_MODE=""
 
 # --- [Functions] ---
 
 # @description 배포 방식 선택 (legacy / docker)
 select_deploy_mode() {
+    # 1. 자동 감지: PKG_ROOT 내에 .tar 파일이 존재하면 Docker Offline 모드로 자동 지정
+    local TAR_FILES=("$PKG_ROOT"/*.tar)
+    if [ -e "${TAR_FILES[0]}" ]; then
+        DEPLOY_MODE="docker"
+        log_info "로컬 Docker 아카이브(.tar)가 감지되어 Docker Offline 모드로 자동 진행합니다."
+        return 0
+    fi
+
+    # 2. 이미 지정된 경우
     if [ "$DEPLOY_MODE" = "docker" ]; then
-        log_info "빌드 시 지정된 배포 방식($DEPLOY_MODE)으로 진행합니다."
+        log_info "지정된 배포 방식($DEPLOY_MODE)으로 진행합니다."
         return 0
     fi
 
