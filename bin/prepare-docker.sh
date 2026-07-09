@@ -114,7 +114,9 @@ mkdir -p "$DOCKER_DIST_DIR/bin"
 for SRC_FILE in "scripts/install_service.sh" "scripts/uninstall_service.sh" "scripts/bootstrap.sh" "scripts/utils.sh"; do
     FULL_SRC="$PROJECT_ROOT/$SRC_FILE"
     if [ -f "$FULL_SRC" ]; then
-        sed "s/@appName@/$APP_NAME/g" "$FULL_SRC" > "$DOCKER_DIST_DIR/bin/$(basename "$FULL_SRC")"
+        sed -e "s|@appName@|$APP_NAME|g" \
+            -e "s|@dockerImage@|$FULL_IMAGE_NAME|g" \
+            "$FULL_SRC" > "$DOCKER_DIST_DIR/bin/$(basename "$FULL_SRC")"
         chmod +x "$DOCKER_DIST_DIR/bin/$(basename "$FULL_SRC")"
     fi
 done
