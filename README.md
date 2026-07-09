@@ -16,7 +16,7 @@
     - 기본 설정(`scripts/`, `config/`) 위에 환경별 파일(`scripts/prod/`, `config/prod/`)을 덮어쓰는 구조.
     - 소스 코드 변경 없이 파일 추가만으로 환경별 커스터마이징 가능.
 3.  **🪵 동적 로그 경로 설정**:
-    - 빌드 시점(`scripts/.app-env.properties`) 또는 배포 시점(사용자 입력)에 로그 경로 설정 가능.
+    - 빌드 시점(`scripts/.env`) 또는 배포 시점(사용자 입력)에 로그 경로 설정 가능.
 4.  **🐧 Linux 서비스 자동 등록**:
     - `Systemd`, `SysVinit` 자동 감지 및 서비스 등록/시작.
 
@@ -293,12 +293,12 @@ curl -v http://localhost:8080/
 
 | 경로                               | 역할                              | 우선순위                            |
 | ---------------------------------- | --------------------------------- | ----------------------------------- |
-| `scripts/prod/.app-env.properties` | **운영 환경 전용** (로그 경로 등) | 🥇 1순위 (Zip에 이 파일이 덮어써짐) |
-| `scripts/.app-env.properties`      | **공통 기본값**                   | 🥈 2순위                            |
+| `scripts/prod/.env` | **운영 환경 전용** (로그 경로 등) | 🥇 1순위 (Zip에 이 파일이 덮어써짐) |
+| `scripts/.env`      | **공통 기본값**                   | 🥈 2순위                            |
 
 **예시: 운영 서버 로그 경로 변경**
 
-1. `scripts/prod/.app-env.properties` 생성
+1. `scripts/prod/.env` 생성
 2. 내용 작성: `LOG_PATH="/var/log/my-service"`
 3. `./mvnw clean package -Pprod` 실행 시 자동으로 적용됨.
 
