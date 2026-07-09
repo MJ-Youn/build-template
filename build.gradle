@@ -183,6 +183,7 @@ task prepareDockerContext {
         println "✅ Docker 컨텍스트 준비 완료: ${dockerContext.absolutePath}"
     }
 }
+
 task dockerBuild {
     dependsOn 'prepareDockerContext'
     group = 'build'
@@ -205,6 +206,7 @@ task dockerBuild {
         println "✨ === Docker 이미지 빌드 성공: ${imageName} ==="
     }
 }
+
 task dockerBuildRemote {
     dependsOn dockerBuild
     group = 'build'
@@ -300,13 +302,21 @@ task packageDocker {
         
         println "📂 설정 및 스크립트 파일 복사 중..."
         def composeSrc = file("${dockerContext}/docker/docker-compose.yml")
-        if (composeSrc.exists()) { copy { from composeSrc; into dockerDistDir } }
+        if (composeSrc.exists()) { 
+            copy { from composeSrc; into "${dockerDistDir}/docker" } 
+        }
         def configDir = file("${dockerContext}/config")
-        if (configDir.exists()) { copy { from configDir; into "${dockerDistDir}/config" } }
+        if (configDir.exists()) { 
+            copy { from configDir; into "${dockerDistDir}/config" } 
+        }
         def binDir = file("${dockerContext}/bin")
-        if (binDir.exists()) { copy { from binDir; into dockerDistDir } }
+        if (binDir.exists()) { 
+            copy { from binDir; into "${dockerDistDir}/bin" } 
+        }
         def cronDir = file("${dockerContext}/bin/cron")
-        if (cronDir.exists()) { copy { from cronDir; into "${dockerDistDir}/cron" } }
+        if (cronDir.exists()) { 
+            copy { from cronDir; into "${dockerDistDir}/cron" } 
+        }
         
         println "🗜️ 최종 배포용 Zip 생성 중: ${buildDir}/dist/${dockerDistZipName}"
         ant.zip(destfile: "${buildDir}/dist/${dockerDistZipName}") {
