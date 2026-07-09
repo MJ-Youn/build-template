@@ -16,9 +16,9 @@ source "$SCRIPT_DIR/bootstrap.sh"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 CONFIG_LOC="$PROJECT_ROOT/config/"
 
-# .app-env.properties 로드 (LOG_PATH, PID_FILE 등)
-if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
-    source "$SCRIPT_DIR/.app-env.properties"
+# .env 로드 (LOG_PATH, PID_FILE 등)
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    source "$SCRIPT_DIR/.env"
 fi
 LOG_PATH="${LOG_PATH:-$PROJECT_ROOT/log}"
 PID_FILE="${PID_FILE:-$SCRIPT_DIR/application.pid}"

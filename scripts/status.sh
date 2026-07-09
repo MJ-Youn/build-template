@@ -16,8 +16,8 @@ source "$SCRIPT_DIR/bootstrap.sh"
 APP_NAME="@appName@"
 
 # 환경 변수 파일 로드 (로그 경로 등 확인용)
-if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
-    source "$SCRIPT_DIR/.app-env.properties"
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    source "$SCRIPT_DIR/.env"
 fi
 
 PID_FILE="${PID_FILE:-$SCRIPT_DIR/application.pid}"

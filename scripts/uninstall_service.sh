@@ -26,13 +26,13 @@ else
 fi
 
 # 환경 변수 파일 (로그 경로 등 확인용)
-# Legacy: bin/.app-env.properties / Docker: .app-env.properties (INSTALL_DIR 바로 아래)
-if [ -f "$INSTALL_DIR/.app-env.properties" ]; then
-    PROP_FILE="$INSTALL_DIR/.app-env.properties"
-elif [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
-    PROP_FILE="$SCRIPT_DIR/.app-env.properties"
+# Legacy: bin/.env / Docker: .env (INSTALL_DIR 바로 아래)
+if [ -f "$INSTALL_DIR/.env" ]; then
+    PROP_FILE="$INSTALL_DIR/.env"
+elif [ -f "$SCRIPT_DIR/.env" ]; then
+    PROP_FILE="$SCRIPT_DIR/.env"
 else
-    PROP_FILE="$SCRIPT_DIR/.app-env.properties"
+    PROP_FILE="$SCRIPT_DIR/.env"
 fi
 
 # 실행 유저 확인
@@ -225,7 +225,7 @@ remove_cron() {
 remove_logs() {
     log_step "로그 데이터 처리"
 
-    # 로그 경로 파악 (.app-env.properties 읽기)
+    # 로그 경로 파악 (.env 읽기)
     local LOG_PATH=""
     if [ -f "$PROP_FILE" ]; then
         local LOG_PATH_Line

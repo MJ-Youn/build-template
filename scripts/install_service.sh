@@ -134,7 +134,7 @@ cleanup_docker_artifacts() {
         "$DEST_DIR/bootstrap.sh"
         "$DEST_DIR/utils.sh"
         "$DEST_DIR/uninstall_service.sh"
-        "$DEST_DIR/.app-env.properties"
+        "$DEST_DIR/.env"
     )
 
     local CLEANED=0
@@ -171,9 +171,9 @@ check_legacy_prerequisites() {
 prompt_log_path() {
     local DEST_PROP=""
     if [ "$DEPLOY_MODE" = "docker" ]; then
-        DEST_PROP="$DEST_DIR/.app-env.properties"
+        DEST_PROP="$DEST_DIR/.env"
     else
-        DEST_PROP="$DEST_DIR/bin/.app-env.properties"
+        DEST_PROP="$DEST_DIR/bin/.env"
     fi
 
     LOG_PATH=""
@@ -292,10 +292,10 @@ copy_legacy_files() {
     # 배포된 파일 소유권 설정 (현재 로그인 유저)
     chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR/bin" "$DEST_DIR/libs" "$DEST_DIR/config"
 
-    # .app-env.properties 보안 권한 (640, $REAL_USER:$SERVICE_GROUP)
-    if [ -f "$DEST_DIR/bin/.app-env.properties" ]; then
-        chmod 640 "$DEST_DIR/bin/.app-env.properties"
-        chown "$REAL_USER:$SERVICE_GROUP" "$DEST_DIR/bin/.app-env.properties"
+    # .env 보안 권한 (640, $REAL_USER:$SERVICE_GROUP)
+    if [ -f "$DEST_DIR/bin/.env" ]; then
+        chmod 640 "$DEST_DIR/bin/.env"
+        chown "$REAL_USER:$SERVICE_GROUP" "$DEST_DIR/bin/.env"
     fi
 
     log_success "파일 복사 및 권한 설정 완료."
@@ -306,7 +306,7 @@ copy_legacy_files() {
 configure_legacy_env() {
     log_step "환경 설정 및 로그 경로 확인"
 
-    DEST_PROP_FILE="$DEST_DIR/bin/.app-env.properties"
+    DEST_PROP_FILE="$DEST_DIR/bin/.env"
 
     if [ ! -f "$DEST_PROP_FILE" ]; then
         mkdir -p "$(dirname "$DEST_PROP_FILE")"
@@ -610,24 +610,6 @@ copy_docker_files() {
 configure_docker_env() {
     log_step "환경 설정 및 로그 경로 확인"
 
-    # .app-env.properties 로드 및 생성
-    local DEST_PROP="$DEST_DIR/.app-env.properties"
-    if [ ! -f "$DEST_PROP" ]; then
-        echo "# Application Deployment Configuration" > "$DEST_PROP"
-    fi
-
-    # .app-env.properties 보안 권한 (640, $REAL_USER:$SERVICE_GROUP)
-    chmod 640 "$DEST_PROP"
-    chown "$REAL_USER:$SERVICE_GROUP" "$DEST_PROP"
-
-    if grep -q "^LOG_PATH=" "$DEST_PROP"; then
-        grep -v "^LOG_PATH=" "$DEST_PROP" > "$DEST_PROP.tmp"
-        echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP.tmp"
-        mv "$DEST_PROP.tmp" "$DEST_PROP"
-    else
-        echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP"
-    fi
-
     log_info "로그 경로: $LOG_PATH"
 
     mkdir -p "$LOG_PATH"
@@ -850,8 +832,8 @@ create_tail_log_script() {
 APP_NAME="APP_NAME_PLACEHOLDER"
 DEST_DIR="DEST_DIR_PLACEHOLDER"
 
-if [ -f "$DEST_DIR/.app-env.properties" ]; then
-    source "$DEST_DIR/.app-env.properties"
+if [ -f "$DEST_DIR/.env" ]; then
+    source "$DEST_DIR/.env"
 fi
 LOG_FILE="$LOG_PATH/${APP_NAME}.log"
 
@@ -871,8 +853,8 @@ EOF
 APP_NAME="APP_NAME_PLACEHOLDER"
 DEST_DIR="DEST_DIR_PLACEHOLDER"
 
-if [ -f "$DEST_DIR/bin/.app-env.properties" ]; then
-    source "$DEST_DIR/bin/.app-env.properties"
+if [ -f "$DEST_DIR/bin/.env" ]; then
+    source "$DEST_DIR/bin/.env"
 fi
 LOG_FILE="$LOG_PATH/${APP_NAME}.log"
 
