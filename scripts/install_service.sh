@@ -558,6 +558,7 @@ load_or_build_docker_image() {
 copy_docker_files() {
     log_step "Docker 배포 파일 복사 중..."
 
+    # 1. docker 파일 복제
     local DOCKER_DIR="$PKG_ROOT/docker"
     local COMPOSE_SRC="$DOCKER_DIR/docker-compose.yml"
 
@@ -574,7 +575,7 @@ copy_docker_files() {
     local LEGACY_SCRIPTS=("uninstall_service.sh" "utils.sh" "bootstrap.sh")
     for script in "${LEGACY_SCRIPTS[@]}"; do
         if [ -f "$SCRIPT_DIR/$script" ]; then
-            cp -f "$SCRIPT_DIR/$script" "$DEST_DIR/bin/"
+            cp -rf "$SCRIPT_DIR/$script" "$DEST_DIR/bin/"
         fi
     done
 
@@ -590,10 +591,15 @@ copy_docker_files() {
         log_info "config 폴더 복사 완료 (Host Mount용)"
     fi
 
-    # 복사된 파일 소유권 설정 (현재 로그인 유저)
-    chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR"
+    # 권한 설정
+    chmod 755 "$DEST_DIR/bin/"*.sh
+    chmod -R 644 "$DEST_DIR/config/"*
+    find "$DEST_DIR/config" -type d -exec chmod 755 {} +
 
-    log_success "Docker 배포 파일 복사 완료."
+    # 배포된 파일 소유권 설정 (현재 로그인 유저)
+    chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR/bin" "$DEST_DIR/config"
+
+    log_success "파일 복사 및 권한 설정 완료."
 }
 
 # @description 환경 변수 설정 (Docker 모드 - LOG_PATH 등)
