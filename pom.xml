@@ -29,8 +29,6 @@
         <dockerImageTag>${project.version}</dockerImageTag>
         <!-- 패키지 결과물 경로 -->
         <dist.dir>${project.build.directory}/dist</dist.dir>
-        <docker.dist.dir>${project.build.directory}/docker-dist</docker.dist.dir>
-        <docker.build.dir>${project.build.directory}/docker-build</docker.build.dir>
     </properties>
 
     <!-- ========== 의존성 ========== -->
