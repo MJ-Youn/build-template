@@ -63,7 +63,42 @@ JAVA_OPTS=(
 )
 
 # Docker 환경 감지 및 실행 분기
-if [ -f /.dockerenv ] || [ "$$" -eq 1 ]; then
+IS_DOCKER=false
+
+# 1. 파일 시스템 증거 (조작 불가)
+HAS_MOUNT_EVIDENCE=false
+# /proc/1/mountinfo에 컨테이너 특유의 파일 시스템(overlay 등) 흔적이 있는지 확인
+if grep -qE '(docker|overlay|containerd)' /proc/1/mountinfo 2>/dev/null; then
+    HAS_MOUNT_EVIDENCE=true
+fi
+
+# 2. 프로세스 증거 (조작 불가)
+HAS_PID_EVIDENCE=false
+if [ -f /proc/1/comm ]; then
+    PID1_COMM=$(cat /proc/1/comm 2>/dev/null)
+    # PID 1이 호스트 OS의 기본 init 프로세스(systemd, init)가 아니라면 증거로 채택
+    if [[ "$PID1_COMM" != "systemd" && "$PID1_COMM" != "init" ]]; then
+        HAS_PID_EVIDENCE=true
+    fi
+fi
+
+# 3. 스크립트 단독 실행 증거 (컨테이너 Entrypoint에서 직접 실행된 경우)
+# 이 경우는 PID 1 자체가 이 스크립트이므로 강력한 컨테이너 증거가 됨
+IS_DIRECT_ENTRYPOINT=false
+if [ "$$" -eq 1 ]; then
+    IS_DIRECT_ENTRYPOINT=true
+fi
+
+# ⚖️ 최종 판별 (AND 로직 적용)
+# A. 마운트 증거와 PID 1 증거가 '모두' 참이거나 (일반적인 Docker 환경)
+# B. 스크립트 자체가 PID 1로 직접 실행된 경우 (알파인 등에서 직접 쉘 호출)
+if [ "$HAS_MOUNT_EVIDENCE" = true ] && [ "$HAS_PID_EVIDENCE" = true ]; then
+    IS_DOCKER=true
+elif [ "$IS_DIRECT_ENTRYPOINT" = true ]; then
+    IS_DOCKER=true
+fi
+
+if [ "$IS_DOCKER" = true ]; then
     log_info "Docker 환경 감지: 포그라운드 모드로 실행합니다."
     
     # 실행 정보 출력 (Docker)
