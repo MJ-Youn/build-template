@@ -13,5 +13,6 @@ services:
       - APP_GID=${APP_GID:-1000}
       - SPRING_PROFILES_ACTIVE=dev
       - LOG_PATH=${CONTAINER_LOG_PATH:-/log} # container 안에서 service가 log 파일을 저장할 경로
+      - CHOWN_DIRS=${CONTAINER_LOG_PATH:-/log} /app/config /app/db # 자동 생성 및 권한 변경할 디렉토리 목록
       - APP_NAME=${APP_NAME:-app}
     restart: unless-stopped

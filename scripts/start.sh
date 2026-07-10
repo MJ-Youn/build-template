@@ -125,9 +125,20 @@ if [ "$IS_DOCKER" = true ]; then
     # 디렉토리 권한 설정 (Docker 볼륨 마운트 시 root 소유권 문제 해결)
     if id "${APP_USER}" &>/dev/null; then
         log_info "${APP_USER} 권한으로 애플리케이션을 실행합니다."
-        mkdir -p "$LOG_PATH"
-        chown -R "${APP_USER}:${APP_USER}" "$LOG_PATH"
-        chown -R "${APP_USER}:${APP_USER}" "$PROJECT_ROOT/config" 2>/dev/null || true
+        
+        # CHOWN_DIRS 환경변수가 있으면 해당 디렉토리들을 순회하며 권한 변경
+        if [ -n "$CHOWN_DIRS" ]; then
+            log_info "동적 디렉토리 권한 변경 처리 (CHOWN_DIRS: $CHOWN_DIRS)"
+            for DIR in $CHOWN_DIRS; do
+                mkdir -p "$DIR" 2>/dev/null || true
+                chown -R "${APP_USER}:${APP_USER}" "$DIR" 2>/dev/null || true
+            done
+        else
+            # 하위 호환성을 위해 기존 로직 유지
+            mkdir -p "$LOG_PATH"
+            chown -R "${APP_USER}:${APP_USER}" "$LOG_PATH"
+            chown -R "${APP_USER}:${APP_USER}" "$PROJECT_ROOT/config" 2>/dev/null || true
+        fi
         
         # exec로 프로세스 대체 (PID 1 유지) 및 su-exec로 권한 강등
         exec su-exec "${APP_USER}" java -jar "${JAVA_OPTS[@]}" "$JAR_FILE"
