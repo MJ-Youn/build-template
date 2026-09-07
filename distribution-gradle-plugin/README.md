@@ -66,13 +66,16 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.2.0' // 또는 프로젝트 버전
     // ⭐️ 배포 플러그인 추가
-    id 'io.github.mj-youn.distribution' version '1.1.2'
+    id 'io.github.mj-youn.distribution' version '1.1.3'
 }
 
-// (선택 사항) 앱 이름 커스텀 및 사용자 정의 토큰 지정
+// (선택 사항) 앱 이름 커스텀 및 사용자 정의 토큰/추가 디렉토리 지정
+// 💡 appName 미지정 시 rootProject.name이 기본 적용됩니다.
+//    프로젝트 이름이 길거나 대문자가 포함된 경우(예: LGUplus-HDRMS-WEB) 소문자 서비스명(예: hdrms)으로 지정을 권장합니다.
 distribution {
     appName = 'my-custom-service'
     token 'customKey', 'customValue'
+    extraDirs = ['flags', 'data'] // (선택 사항) 배포 ZIP 루트로 함께 복제할 추가 디렉토리
 }
 ```
 
@@ -99,6 +102,7 @@ distribution {
 
 - 💡 **`distHelp` (배포 도움말 가이드 출력)**
     - 터미널에 환경 변수, 지원 태스크 목록 및 실행 예시 가이드를 출력합니다.
+
     ```bash
     ./gradlew distHelp
     # 또는 기본 도움말
@@ -110,6 +114,7 @@ distribution {
     - **산출물**: `build/distributions/{APP_NAME}-{version}.zip`
     - **포함 내용**: `JAR` + `Scripts (deploy/, bin/)` + `Config` + `Docker (Dockerfile, docker-compose.yml)`
     - 서버 배포 시 수동 압축 해제 후 `deploy/install_service.sh`를 실행하여 Legacy 또는 Docker 방식을 대화형으로 선택 설치할 수 있습니다.
+
     ```bash
     ./gradlew package -Penv=prod
     ```

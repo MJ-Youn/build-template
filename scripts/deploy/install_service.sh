@@ -454,6 +454,41 @@ copy_legacy_files() {
     # 4. Config
     cp -rf "$PKG_ROOT/config/"* "$DEST_DIR/config/"
 
+    # 5. 추가 디렉토리 복사 (EXTRA_DIRS 설정 및 패키지 내 사용자 디렉토리 자동 감지)
+    local CONFIGURED_EXTRA_DIRS="$EXTRA_DIRS"
+    if [ -z "$CONFIGURED_EXTRA_DIRS" ] && [ -f "$PKG_ROOT/bin/.env" ]; then
+        CONFIGURED_EXTRA_DIRS=$(grep "^EXTRA_DIRS=" "$PKG_ROOT/bin/.env" 2>/dev/null | cut -d= -f2 | tr -d '"' | tr -d "'")
+    fi
+
+    if [ -n "$CONFIGURED_EXTRA_DIRS" ]; then
+        for extra_dir in $CONFIGURED_EXTRA_DIRS; do
+            if [ -d "$PKG_ROOT/$extra_dir" ]; then
+                log_info "추가 디렉토리 복사 중: $extra_dir"
+                cp -rf "$PKG_ROOT/$extra_dir" "$DEST_DIR/"
+                chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR/$extra_dir"
+                chmod -R 755 "$DEST_DIR/$extra_dir"
+            fi
+        done
+    fi
+
+    # 패키지 루트의 비표준 사용자 정의 디렉토리 자동 복사 (flags 등)
+    for item in "$PKG_ROOT"/*; do
+        if [ -d "$item" ]; then
+            local bname=$(basename "$item")
+            case "$bname" in
+                bin|libs|lib|config|docker|deploy|scripts) ;;
+                *)
+                    if [ ! -d "$DEST_DIR/$bname" ]; then
+                        log_info "패키지 내 추가 디렉토리 자동 복사 중: $bname"
+                        cp -rf "$item" "$DEST_DIR/"
+                        chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR/$bname"
+                        chmod -R 755 "$DEST_DIR/$bname"
+                    fi
+                    ;;
+            esac
+        fi
+    done
+
     # 권한 설정
     chmod 755 "$DEST_DIR/bin/"*.sh
     chmod 644 "$DEST_DIR/libs/"*.jar
@@ -785,6 +820,41 @@ copy_docker_files() {
         cp -r "$CONFIG_SRC" "$DEST_DIR/"
         log_info "config 폴더 복사 완료 (Host Mount용)"
     fi
+
+    # 추가 디렉토리 복사 (EXTRA_DIRS 설정 및 패키지 내 사용자 디렉토리 자동 감지)
+    local CONFIGURED_EXTRA_DIRS="$EXTRA_DIRS"
+    if [ -z "$CONFIGURED_EXTRA_DIRS" ] && [ -f "$DEST_DIR/.env" ]; then
+        CONFIGURED_EXTRA_DIRS=$(grep "^EXTRA_DIRS=" "$DEST_DIR/.env" 2>/dev/null | cut -d= -f2 | tr -d '"' | tr -d "'")
+    fi
+
+    if [ -n "$CONFIGURED_EXTRA_DIRS" ]; then
+        for extra_dir in $CONFIGURED_EXTRA_DIRS; do
+            if [ -d "$PKG_ROOT/$extra_dir" ]; then
+                log_info "추가 디렉토리 복사 중: $extra_dir"
+                cp -rf "$PKG_ROOT/$extra_dir" "$DEST_DIR/"
+                chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR/$extra_dir"
+                chmod -R 755 "$DEST_DIR/$extra_dir"
+            fi
+        done
+    fi
+
+    # 패키지 루트의 비표준 사용자 정의 디렉토리 자동 복사 (flags 등)
+    for item in "$PKG_ROOT"/*; do
+        if [ -d "$item" ]; then
+            local bname=$(basename "$item")
+            case "$bname" in
+                bin|libs|lib|config|docker|deploy|scripts) ;;
+                *)
+                    if [ ! -d "$DEST_DIR/$bname" ]; then
+                        log_info "패키지 내 추가 디렉토리 자동 복사 중: $bname"
+                        cp -rf "$item" "$DEST_DIR/"
+                        chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR/$bname"
+                        chmod -R 755 "$DEST_DIR/$bname"
+                    fi
+                    ;;
+            esac
+        fi
+    done
 
     # 권한 설정
     chmod 755 "$DEST_DIR/bin/"*.sh

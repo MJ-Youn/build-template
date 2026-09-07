@@ -36,6 +36,9 @@ public class DistributionMojo extends AbstractMojo {
     @Parameter(defaultValue = "${project.build.directory}", required = true)
     private File outputDirectory;
 
+    @Parameter(property = "extraDirs")
+    private String extraDirs;
+
     private static final List<String> ENVIRONMENTS = List.of("dev", "prod", "local", "test", "stage");
 
     /**
@@ -138,6 +141,18 @@ public class DistributionMojo extends AbstractMojo {
             // --- 3.4. 실행 가능한 JAR 파일 (target/*.jar -> lib) ---
             addJarFiles(zos, outputDirectory, "lib/", addedEntries);
 
+            // --- 3.5. 추가 복제 디렉토리 (EXTRA_DIRS / extraDirs) ---
+            Set<String> extraDirsToCopy = resolveExtraDirs(projectBasedir, env);
+            for (String dirName : extraDirsToCopy) {
+                File extraDir = new File(projectBasedir, dirName);
+                if (extraDir.exists() && extraDir.isDirectory()) {
+                    getLog().info("📦 추가 디렉토리 번들링: " + dirName);
+                    addDirectoryIfExists(zos, extraDir, dirName + "/", 0755, tokens, addedEntries);
+                } else {
+                    getLog().warn("⚠️ 설정된 추가 디렉토리를 찾을 수 없습니다: " + dirName);
+                }
+            }
+
             getLog().info("✅ 배포 패키지 생성 완료: " + targetZip.getAbsolutePath());
 
         } catch (IOException e) {
@@ -179,7 +194,9 @@ public class DistributionMojo extends AbstractMojo {
             return;
 
         for (File file : files) {
-            if (file.isFile()) {
+            if (file.isDirectory()) {
+                addConfigFiles(zos, file, zipPathPrefix + file.getName() + "/", currentEnv, addedEntries);
+            } else if (file.isFile()) {
                 String targetName = file.getName().replace("-" + currentEnv, "");
                 String entryName = zipPathPrefix + targetName;
                 if (addedEntries.add(entryName)) {
@@ -202,7 +219,12 @@ public class DistributionMojo extends AbstractMojo {
             return;
 
         for (File file : files) {
-            if (file.isFile()) {
+            if (file.isDirectory()) {
+                if (ENVIRONMENTS.contains(file.getName()) || file.getName().equals(currentEnv)) {
+                    continue; // 환경별 폴더(dev, prod 등)는 별도 처리
+                }
+                addCommonConfigFiles(zos, file, zipPathPrefix + file.getName() + "/", currentEnv, addedEntries);
+            } else if (file.isFile()) {
                 if (ENVIRONMENTS.contains(file.getName()) || file.getName().contains(currentEnv)) {
                     continue;
                 }
@@ -218,6 +240,43 @@ public class DistributionMojo extends AbstractMojo {
                 }
             }
         }
+    }
+
+    /**
+     * .env 파일 및 플러그인 파라미터(extraDirs)로부터 추가 복제 디렉토리 목록을 파싱합니다.
+     */
+    private Set<String> resolveExtraDirs(File projectBasedir, String currentEnv) {
+        Set<String> dirs = new LinkedHashSet<>();
+        if (extraDirs != null && !extraDirs.trim().isEmpty()) {
+            for (String d : extraDirs.split("[,\\s]+")) {
+                if (!d.trim().isEmpty()) dirs.add(d.trim());
+            }
+        }
+
+        List<File> envFiles = List.of(
+            new File(projectBasedir, "config.profiles/" + currentEnv + "/.env"),
+            new File(projectBasedir, "config/" + currentEnv + "/.env"),
+            new File(projectBasedir, ".env"),
+            new File(projectBasedir, "scripts/service/.env")
+        );
+        for (File envFile : envFiles) {
+            if (envFile.exists() && envFile.isFile()) {
+                try {
+                    List<String> lines = Files.readAllLines(envFile.toPath(), StandardCharsets.UTF_8);
+                    for (String line : lines) {
+                        line = line.trim();
+                        if (line.startsWith("EXTRA_DIRS=")) {
+                            String val = line.substring("EXTRA_DIRS=".length()).trim();
+                            val = val.replaceAll("^[\"']|[\"']$", "");
+                            for (String d : val.split("[,\\s]+")) {
+                                if (!d.trim().isEmpty()) dirs.add(d.trim());
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+        return dirs;
     }
 
     private void addJarFiles(ZipArchiveOutputStream zos, File targetDir, String zipPathPrefix, Set<String> addedEntries)

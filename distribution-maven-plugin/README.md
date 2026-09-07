@@ -7,11 +7,11 @@
 - **JDK Requirement**: Java 25 이상
 - **GroupId**: `io.github.mj-youn`
 - **ArtifactId**: `distribution-maven-plugin`
-- **Version**: `1.0.2`
-- **Goals**: 
-  - `package`: 표준 배포 Zip 아카이브 생성
-  - `deploy`: 빌드(패키징) ➡️ Zip 자동 압축 해제 ➡️ `install_service.sh` 자동 실행 (원스탑 배포)
-  - `help`: 배포 플러그인 도움말 및 사용 가이드 출력
+- **Version**: `1.1.3`
+- **Goals**:
+    - `package`: 표준 배포 Zip 아카이브 생성
+    - `deploy`: 빌드(패키징) ➡️ Zip 자동 압축 해제 ➡️ `install_service.sh` 자동 실행 (원스탑 배포)
+    - `help`: 배포 플러그인 도움말 및 사용 가이드 출력
 
 ---
 
@@ -73,7 +73,7 @@
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>1.1.2</version>
+            <version>1.1.3</version>
             <executions>
                 <execution>
                     <phase>package</phase>
@@ -83,8 +83,11 @@
                 </execution>
             </executions>
             <configuration>
-                <!-- (선택 사항) 앱 이름 커스텀 -->
+                <!-- (선택 사항) 앱 이름 커스텀 (미지정 시 project.artifactId가 기본 적용됨) -->
+                <!-- artifactId가 길거나 대문자가 포함된 경우 간결한 소문자 서비스명으로 지정을 권장합니다 -->
                 <appName>my-maven-service</appName>
+                <!-- (선택 사항) 배포 ZIP 루트로 함께 복제할 추가 디렉토리 (공백/콤마 구분) -->
+                <extraDirs>flags data</extraDirs>
             </configuration>
         </plugin>
     </plugins>
@@ -94,11 +97,13 @@
 ### 🚀 빌드 및 배포 명령어 가이드
 
 #### 💡 [배포 도움말 확인]
+
 ```bash
 mvn distribution:help
 ```
 
 #### 📦 [기본 패키징 (ZIP 생성)]
+
 ```bash
 # 개발(dev) 환경 패키징
 mvn clean package -Denv=dev
@@ -106,10 +111,12 @@ mvn clean package -Denv=dev
 # 운영(prod) 환경 패키징
 mvn clean package -Denv=prod
 ```
+
 - **산출물**: `target/{project.artifactId}-{project.version}.zip`
 - 서버 배포 시 압축 해제 후 `deploy/install_service.sh`를 실행하면 Systemd/SysVinit 서비스 또는 Docker 컨테이너 방식으로 즉시 설치됩니다.
 
 #### 🚀 [원스탑 빌드 및 서비스 자동 배포]
+
 ```bash
 # 빌드 ➡️ 압축 해제 ➡️ install_service.sh 자동 실행까지 원클릭 완료
 mvn distribution:deploy -Denv=dev

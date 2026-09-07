@@ -36,7 +36,7 @@
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '1.1.2'
+    id 'io.github.mj-youn.distribution' version '1.1.3'
 }
 ```
 
@@ -54,7 +54,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>1.1.2</version>
+            <version>1.1.3</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -70,6 +70,34 @@ plugins {
     mvn clean package -Denv=dev    # 개발 환경 배포 Zip
     mvn clean package -Denv=prod   # 운영 환경 배포 Zip
     ```
+
+#### 🏷️ `appName` 옵션 설정 가이드 및 주의 사항 (선택 사항)
+
+플러그인 설정의 `appName`은 서버 배포 및 운영 전반에서 사용되는 **해당 서비스의 공식 식별자(Identifier)**입니다.
+
+##### 1) 기본 동작 (미설정 시)
+
+- **설정하지 않아도 문제없이 동작합니다.**
+- 기본값:
+    - **Maven**: `pom.xml`의 `<artifactId>` (예: `nccatweb`)
+    - **Gradle**: `settings.gradle`의 `rootProject.name` (예: `LGUplus-HDRMS-WEB`)
+
+##### 2) 언제 설정하면 좋은가요?
+
+다음과 같은 경우 `appName`을 간결하고 명확한 소문자 식별자로 지정하는 것을 강력히 권장합니다:
+
+- **저장소명이나 artifactId가 길거나 대문자/특수문자가 포함된 경우**:
+    - 예: `LGUplus-HDRMS-WEB` ➡️ `appName = 'hdrms'`
+- **서버 운영 리소스 명칭을 통일하고 싶을 때**:
+    - 🐧 **Linux Systemd 서비스명**: `/etc/systemd/system/{appName}.service` (`systemctl start {appName}`)
+    - 📁 **기본 로그 저장 경로**: `/log/{appName}` (예: `/log/hdrms`)
+    - 🐳 **Docker 이미지 태그**: `{appName}:{version}` (예: `hdrms:1.1.3`)
+    - 🐚 **프로세스 제어 콘솔 출력**: `🚀 [{appName}] 서비스를 시작합니다...`
+
+##### 3) ⚠️ 설정 시 주의 사항
+
+> **이미 서버에 배포된 서비스의 `appName` 변경 시**:  
+> Linux Systemd는 파일명(`{appName}.service`)으로 서비스를 식별합니다. 이미 배포된 서버에서 `appName`을 변경하면 이전 서비스와 이름이 달라져 **새로운 별개 서비스로 중복 등록**될 수 있습니다. 따라서 최초 배포 단계에서 원하는 서비스 명칭을 확정하시는 것을 권장합니다.
 
 ---
 
@@ -388,19 +416,20 @@ curl -v http://localhost:8080/
 
 ### 📋 지원하는 주요 환경변수 목록
 
-| 분류 | 변수명 | 기본값 | 설명 및 예시 |
-| :--- | :--- | :--- | :--- |
-| **JVM 힙 메모리** | `JVM_XMS` | *(미지정)* | JVM 초기 힙 메모리 크기 (예: `-Xms1024m`, `-Xms2g`) |
-| | `JVM_XMX` | *(미지정)* | JVM 최대 힙 메모리 크기 (예: `-Xmx2048m`, `-Xmx4g`) |
-| **JVM 추가 옵션** | `EXTRA_JAVA_OPTS` | *(공백)* | GC 설정, 파일 인코딩, 타임존 등 추가 옵션<br/>`"-XX:+UseG1GC -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Seoul"` |
-| **Spring Boot 인수** | `APP_ARGS` | *(공백)* | JAR 실행 시 뒤에 붙을 프로그램 커맨드라인 인수<br/>`"--server.port=9090 --custom.flag=true --spring.main.banner-mode=off"` |
-| **프로세스 관리** | `SERVER_PORT` | `8080` (자동 감지) | 서비스 포트 (미지정 시 `application.yml`의 port 자동 파싱) |
-| | `LOG_PATH` | `{PROJECT_ROOT}/log` | 애플리케이션 로그 파일이 저장될 절대/상대 경로 |
-| | `PID_FILE` | `bin/application.pid` | 프로세스 ID(PID)가 기록될 파일 경로 |
-| | `STOP_TIMEOUT` | `10` (초) | 서비스 정상 종료(Graceful Shutdown) 대기 시간 |
-| **Docker / 컨테이너** | `APP_UID` / `APP_GID` | `1000` / `1000` | 컨테이너 내부 실행 리눅스 계정의 UID 및 GID |
-| | `CHOWN_DIRS` | *(미지정)* | 볼륨 마운트 시 컨테이너 기동 시점에 소유권을 자동 변경할 폴더 목록 |
-| | `TZ` | `Asia/Seoul` | 컨테이너 시스템 타임존 |
+| 분류                   | 변수명                | 기본값                | 설명 및 예시                                                                                                               |
+| :--------------------- | :-------------------- | :-------------------- | :------------------------------------------------------------------------------------------------------------------------- |
+| **JVM 힙 메모리**      | `JVM_XMS`             | _(미지정)_            | JVM 초기 힙 메모리 크기 (예: `-Xms1024m`, `-Xms2g`)                                                                        |
+|                        | `JVM_XMX`             | _(미지정)_            | JVM 최대 힙 메모리 크기 (예: `-Xmx2048m`, `-Xmx4g`)                                                                        |
+| **JVM 추가 옵션**      | `EXTRA_JAVA_OPTS`     | _(공백)_              | GC 설정, 파일 인코딩, 타임존 등 추가 옵션<br/>`"-XX:+UseG1GC -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Seoul"`            |
+| **Spring Boot 인수**   | `APP_ARGS`            | _(공백)_              | JAR 실행 시 뒤에 붙을 프로그램 커맨드라인 인수<br/>`"--server.port=9090 --custom.flag=true --spring.main.banner-mode=off"` |
+| **프로세스 관리**      | `SERVER_PORT`         | `8080` (자동 감지)    | 서비스 포트 (미지정 시 `application.yml`의 port 자동 파싱)                                                                 |
+|                        | `LOG_PATH`            | `{PROJECT_ROOT}/log`  | 애플리케이션 로그 파일이 저장될 절대/상대 경로                                                                             |
+|                        | `PID_FILE`            | `bin/application.pid` | 프로세스 ID(PID)가 기록될 파일 경로                                                                                        |
+|                        | `STOP_TIMEOUT`        | `10` (초)             | 서비스 정상 종료(Graceful Shutdown) 대기 시간                                                                              |
+| **Docker / 컨테이너**  | `APP_UID` / `APP_GID` | `1000` / `1000`       | 컨테이너 내부 실행 리눅스 계정의 UID 및 GID                                                                                |
+|                        | `CHOWN_DIRS`          | _(미지정)_            | 볼륨 마운트 시 컨테이너 기동 시점에 소유권을 자동 변경할 폴더 목록                                                         |
+|                        | `TZ`                  | `Asia/Seoul`          | 컨테이너 시스템 타임존                                                                                                     |
+| **추가 디렉토리 복제** | `EXTRA_DIRS`          | _(미지정)_            | 배포 패키지 및 설치 위치로 함께 복사할 추가 폴더 목록 (공백 구분)<br/>`EXTRA_DIRS="flags data uploads"`                    |
 
 ---
 
@@ -410,10 +439,10 @@ curl -v http://localhost:8080/
 
 #### 1. 두 방식의 역할 차이
 
-| 구분 | 🖥️ 일반 서버(Legacy) `.env` | 🐳 Docker Compose `.env` |
-| :--- | :--- | :--- |
-| **주요 소비자** | Bash 쉘 스크립트 (`start.sh`, `stop.sh`, `status.sh`) | Docker Compose CLI (`docker-compose up`) |
-| **동작 메커니즘** | 스크립트 실행 시 `source .env`로 Bash 환경변수로 로드 | Compose 파일 파싱 시 `${VAR}` 치환 및 컨테이너 환경변수 주입 |
+| 구분               | 🖥️ 일반 서버(Legacy) `.env`                                 | 🐳 Docker Compose `.env`                                        |
+| :----------------- | :---------------------------------------------------------- | :-------------------------------------------------------------- |
+| **주요 소비자**    | Bash 쉘 스크립트 (`start.sh`, `stop.sh`, `status.sh`)       | Docker Compose CLI (`docker-compose up`)                        |
+| **동작 메커니즘**  | 스크립트 실행 시 `source .env`로 Bash 환경변수로 로드       | Compose 파일 파싱 시 `${VAR}` 치환 및 컨테이너 환경변수 주입    |
 | **핵심 사용 목적** | JVM 튜닝, Spring Boot 프로그램 인수, 로컬 프로세스 PID 관리 | 호스트-컨테이너 포트 매핑, 이미지 태그, 호스트 볼륨 경로 바인딩 |
 
 #### 2. 🤝 함께(공용으로) 사용해도 되나요?
@@ -440,7 +469,52 @@ EXTRA_JAVA_OPTS="-XX:+UseG1GC -Dfile.encoding=UTF-8"
 APP_ARGS="--spring.profiles.active=prod"
 LOG_PATH="/var/log/my-service"
 STOP_TIMEOUT=15
+
+# 3) 추가 리소스 디렉토리 복제 설정 (예: flags, data 등)
+EXTRA_DIRS="flags data"
 ```
+
+---
+
+### 📁 추가 리소스 디렉토리 복제 가이드 (`EXTRA_DIRS` / `extraDirs`)
+
+프로젝트에 따라 표준 디렉토리(`bin`, `libs`, `config`, `docker`) 외에 **국기 이미지(`flags/`), 정적 데이터(`data/`), 업로드 템플릿(`uploads/`)** 등 프로젝트 고유의 리소스 폴더를 배포 패키지 및 최종 서버 설치 디렉토리로 함께 복제해야 하는 경우가 있습니다.
+
+이러한 경우 코드 수정 없이 **설정 한 줄**로 유연하게 처리할 수 있습니다:
+
+#### 1. `.env` 파일로 지정하는 방법 (권장)
+
+`.env` (또는 `config.profiles/{env}/.env`)에 공백으로 구분하여 원하는 폴더명을 작성합니다:
+
+```bash
+# 배포 패키지 및 설치 경로로 함께 복사할 추가 폴더 목록 (공백 구분)
+EXTRA_DIRS="flags data uploads"
+```
+
+#### 2. 빌드 스크립트(`pom.xml` / `build.gradle`)로 지정하는 방법
+
+- **Maven (`pom.xml`)**:
+    ```xml
+    <configuration>
+      <appName>${project.artifactId}</appName>
+      <!-- 추가 복제할 폴더 지정 (공백 또는 콤마 구분) -->
+      <extraDirs>flags data</extraDirs>
+    </configuration>
+    ```
+- **Gradle (`build.gradle`)**:
+    ```groovy
+    distribution {
+        appName = 'my-service'
+        extraDirs = ['flags', 'data']
+    }
+    ```
+
+#### ⚙️ 동작 메커니즘
+
+1. **빌드 시 (`package`)**: 플러그인이 설정된 디렉토리를 프로젝트 루트에서 탐색하여 배포 ZIP 아카이브 루트에 트리 구조 그대로 번들링합니다.
+2. **서비스 설치 시 (`install_service.sh`)**:
+    - **Legacy 모드**: 배포 패키지 내의 해당 폴더들을 최종 설치 위치(`$DEST_DIR`)로 자동 복사하고 실행 계정 소유권(`chown/chmod 755`)을 부여합니다.
+    - **Docker 모드**: Dockerfile의 `COPY flags/ /app/flags/` 명령어가 정상 동작하도록 빌드 컨텍스트에 배치합니다.
 
 ---
 

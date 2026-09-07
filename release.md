@@ -4,6 +4,20 @@
 
 ---
 
+## 🚀 [1.1.3] - 2026-09-07
+
+### ✨ 주요 개선 사항 (Features & Enhancements)
+- **유연한 추가 디렉토리 복제 설정 (`EXTRA_DIRS` / `extraDirs`)**
+  - 특정 폴더명 하드코딩 없이, `.env` 파일의 `EXTRA_DIRS="flags data uploads"` 또는 빌드 설정(`<extraDirs>flags</extraDirs>`, `extraDirs = ['flags']`)을 통해 프로젝트 고유의 리소스 폴더를 배포 ZIP 루트에 자동 번들링.
+  - 서비스 설치 스크립트(`install_service.sh`)에서도 `EXTRA_DIRS` 및 패키지 내 비표준 디렉토리를 감지하여 최종 서비스 설치 경로(`$DEST_DIR`)로 자동 복사 및 권한(`chown/chmod 755`) 부여.
+- **`config/` 하위 디렉토리 재귀 복사 지원 (Maven 플러그인)**
+  - Maven 플러그인(`DistributionMojo.java`)에서 `config/` 디렉토리 아래에 하위 디렉토리가 존재하는 경우(예: `config/sql/`, `config/rules/` 등), 누락 없이 트리 구조 전체를 재귀적으로 배포 ZIP에 포함하도록 수정.
+- **`appName` 옵션 가이드 및 운영 주의 사항 추가**
+  - 미설정 시 기본값(`artifactId` 또는 `rootProject.name`) 동작 원리 안내.
+  - 리소스 명칭 정제(Systemd 서비스, `/log/{appName}`, Docker 태그 등)를 위한 권장 사용처 및 배포 후 명칭 변경 시 유의사항(중복 등록 방지) 문서화.
+
+---
+
 ## 🚀 [1.1.2] - 2026-09-07
 
 ### ✨ 주요 개선 사항 (Features & Enhancements)

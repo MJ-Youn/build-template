@@ -2,7 +2,9 @@ package io.github.mj_youn.plugin;
 
 import org.gradle.api.Project;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -25,6 +27,7 @@ public class DistributionExtension {
     private final Project project;
     private String appName;
     private final Map<String, Object> extraTokens = new HashMap<>();
+    private final List<String> extraDirs = new ArrayList<>();
 
     /**
      * DistributionExtension 생성자입니다.
@@ -75,5 +78,29 @@ public class DistributionExtension {
      */
     public void token(String key, Object value) {
         this.extraTokens.put(key, value);
+    }
+
+    /**
+     * 배포 패키지 루트에 함께 포함할 추가 디렉토리 목록을 반환합니다.
+     */
+    public List<String> getExtraDirs() {
+        return extraDirs;
+    }
+
+    /**
+     * 배포 패키지 루트에 함께 포함할 추가 디렉토리를 설정합니다.
+     */
+    public void setExtraDirs(List<String> extraDirs) {
+        this.extraDirs.clear();
+        if (extraDirs != null) {
+            this.extraDirs.addAll(extraDirs);
+        }
+    }
+
+    /**
+     * 배포 패키지 루트에 함께 포함할 추가 디렉토리를 추가합니다.
+     */
+    public void extraDir(String dir) {
+        this.extraDirs.add(dir);
     }
 }

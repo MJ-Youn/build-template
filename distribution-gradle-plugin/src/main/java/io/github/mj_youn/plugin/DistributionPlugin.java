@@ -16,8 +16,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 표준 배포 구조(deploy, bin, config, lib, docker)를 일관되게 패키징하고, 내장 스크립트 템플릿 제공 및 프로젝트별 파일
@@ -299,6 +301,42 @@ public class DistributionPlugin implements Plugin<Project> {
             spec.exclude("*plain.jar"); // Spring Boot 기본 plain jar 제외
             spec.into("lib");
         });
+
+        // -------------------------------------------------------------
+        // 5. 추가 복제 디렉토리 (EXTRA_DIRS / extraDirs)
+        // -------------------------------------------------------------
+        Set<String> extraDirsToCopy = new LinkedHashSet<>(extension.getExtraDirs());
+        List<File> envFiles = List.of(
+            project.file("config.profiles/" + env + "/.env"),
+            project.file("config/" + env + "/.env"),
+            project.file(".env"),
+            project.file("scripts/service/.env")
+        );
+        for (File envFile : envFiles) {
+            if (envFile.exists() && envFile.isFile()) {
+                try {
+                    List<String> lines = Files.readAllLines(envFile.toPath(), StandardCharsets.UTF_8);
+                    for (String line : lines) {
+                        line = line.trim();
+                        if (line.startsWith("EXTRA_DIRS=")) {
+                            String val = line.substring("EXTRA_DIRS=".length()).trim();
+                            val = val.replaceAll("^[\"']|[\"']$", "");
+                            for (String d : val.split("[,\\s]+")) {
+                                if (!d.trim().isEmpty()) extraDirsToCopy.add(d.trim());
+                            }
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        }
+        for (String dirName : extraDirsToCopy) {
+            File extraDir = project.file(dirName);
+            if (extraDir.exists() && extraDir.isDirectory()) {
+                zipTask.from(extraDir, spec -> {
+                    spec.into(dirName);
+                });
+            }
+        }
     }
 
     /**
