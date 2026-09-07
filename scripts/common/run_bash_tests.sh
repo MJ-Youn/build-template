@@ -7,6 +7,9 @@
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 TEST_DIR="$SCRIPT_DIR/tests"
+if [ ! -d "$TEST_DIR" ] && [ -d "$SCRIPT_DIR/../tests" ]; then
+    TEST_DIR="$SCRIPT_DIR/../tests"
+fi
 
 PASSED_SCRIPTS=0
 FAILED_SCRIPTS=0

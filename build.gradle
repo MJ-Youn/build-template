@@ -63,20 +63,43 @@ task 'package'(type: Zip) {
         def env = project.property('env')
         envSuffix = "-${env}"
         
-        from("config/$env") {
-            into 'config'
-            rename { String filename ->
-                filename.replace("-${env}", "")
+        // 환경별 설정 파일 오버레이 (config.profiles/$env 우선, config/$env 호환 지원)
+        def profileDir = file("config.profiles/$env")
+        if (profileDir.exists()) {
+            from(profileDir) {
+                into 'config'
+                rename { String filename ->
+                    filename.replace("-${env}", "")
+                }
+            }
+        } else {
+            from("config/$env") {
+                into 'config'
+                rename { String filename ->
+                    filename.replace("-${env}", "")
+                }
             }
         }
         
+        // 환경별 스크립트 오버레이 (scripts/$env)
+        from("scripts/$env/service") {
+            into 'bin'
+            filter(ReplaceTokens, tokens: [appName: project.name, deployMode: ''])
+            rename { String filename -> filename.replace("-${env}", "") }
+            exclude '**/*test*'
+        }
+        from("scripts/$env/deploy") {
+            into 'deploy'
+            filter(ReplaceTokens, tokens: [appName: project.name, deployMode: ''])
+            rename { String filename -> filename.replace("-${env}", "") }
+            exclude '**/*test*'
+        }
+        // 기존 scripts/$env 루트에 위치한 파일도 하위 호환을 위해 bin으로 지원
         from("scripts/$env") {
             into 'bin'
             filter(ReplaceTokens, tokens: [appName: project.name, deployMode: ''])
-            rename { String filename ->
-                filename.replace("-${env}", "")
-            }
-            exclude '**/*test*'
+            rename { String filename -> filename.replace("-${env}", "") }
+            exclude 'deploy/**', 'service/**', 'common/**', '**/*test*'
         }
     }
     
@@ -99,7 +122,7 @@ task 'package'(type: Zip) {
             exclude env
             
             // 환경별 파일로 덮어쓰기 위해, 이름이 동일해질 기본 파일들을 명시적으로 제외
-            def envDir = file("config/${env}")
+            def envDir = file("config.profiles/${env}").exists() ? file("config.profiles/${env}") : file("config/${env}")
             if (envDir.exists()) {
                 envDir.listFiles().each { File envFile ->
                     if (envFile.isFile()) {
@@ -111,13 +134,37 @@ task 'package'(type: Zip) {
         }
     }
 
-    from('scripts') {
+    // 2-1. 서비스 구동용 스크립트 (service) -> bin
+    from('scripts/service') {
         into 'bin'
         filter(ReplaceTokens, tokens: [appName: project.name, deployMode: '', dockerImage: "${project.name}:${project.version}".toString()])
         exclude environments
         if (project.hasProperty('env')) {
             exclude project.property('env')
         }
+        exclude '**/*test*'
+    }
+
+    // 2-2. 배포/설치용 스크립트 (deploy) -> deploy
+    from('scripts/deploy') {
+        into 'deploy'
+        filter(ReplaceTokens, tokens: [appName: project.name, deployMode: '', dockerImage: "${project.name}:${project.version}".toString()])
+        exclude environments
+        if (project.hasProperty('env')) {
+            exclude project.property('env')
+        }
+        exclude '**/*test*'
+    }
+
+    // 2-3. 공통 유틸리티 스크립트 (common) -> bin 및 deploy 모두에 배치
+    from('scripts/common') {
+        into 'bin'
+        filter(ReplaceTokens, tokens: [appName: project.name, deployMode: '', dockerImage: "${project.name}:${project.version}".toString()])
+        exclude '**/*test*'
+    }
+    from('scripts/common') {
+        into 'deploy'
+        filter(ReplaceTokens, tokens: [appName: project.name, deployMode: '', dockerImage: "${project.name}:${project.version}".toString()])
         exclude '**/*test*'
     }
 
@@ -260,7 +307,7 @@ task dockerBuildRemote {
         println "║"
         println "║  [4-a] 자동 설치 (Systemd 서비스 등록 포함 — 권장)"
         println "║      cd /home/user/docker-dist"
-        println "║      sudo ./install_service.sh"
+        println "║      sudo ./deploy/install_service.sh"
         println "║"
         println "║  [4-b] 수동 실행 (docker compose 직접)"
         println "║      cd /home/user/docker-dist"
@@ -312,6 +359,10 @@ task packageDocker {
         def binDir = file("${dockerContext}/bin")
         if (binDir.exists()) { 
             copy { from binDir; into "${dockerDistDir}/bin" } 
+        }
+        def deployDir = file("${dockerContext}/deploy")
+        if (deployDir.exists()) { 
+            copy { from deployDir; into "${dockerDistDir}/deploy" } 
         }
         def cronDir = file("${dockerContext}/bin/cron")
         if (cronDir.exists()) { 
@@ -397,15 +448,15 @@ tasks.named('help') {
 
 [환경 지정 옵션 (-Penv=...)]
   모든 배포 태스크에 환경(`dev`, `prod`, `local` 등)을 지정할 수 있습니다.
-  지정 시 `config/{env}/` 및 `scripts/{env}/` 내의 파일들이 오버레이(덮어쓰기) 됩니다.
+  지정 시 `config.profiles/{env}/` 및 `scripts/{env}/` 내의 파일들이 오버레이(덮어쓰기) 됩니다.
   예시: ./gradlew package -Penv=prod
 
 [배포 태스크 (Distribution Tasks)]
   📦 1. package
      - 일반 서버(Legacy / Docker 선택 가능) 배포용 Zip 생성
      - 산출물: build/dist/{APP_NAME}-{version}-{env}.dist.zip
-     - 포함 내용: JAR + Scripts + Config + docker/ (Dockerfile, docker-compose.yml)
-     - 서버 배포 시 install_service.sh를 실행하면 Legacy 또는 Docker 방식을 선택할 수 있습니다.
+     - 포함 내용: JAR + Scripts (deploy/, bin/) + Config + docker/ (Dockerfile, docker-compose.yml)
+     - 서버 배포 시 deploy/install_service.sh를 실행하면 Legacy 또는 Docker 방식을 선택할 수 있습니다.
      - 예시: ./gradlew package -Penv=prod
 
   🐳 2. packageDocker (Strategy 1 - 오프라인/폐쇄망 환경용)
