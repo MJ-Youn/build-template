@@ -7,7 +7,7 @@
 - **JDK Requirement**: Java 25 이상
 - **GroupId**: `io.github.mj-youn`
 - **ArtifactId**: `distribution-maven-plugin`
-- **Version**: `1.1.4`
+- **Version**: `1.1.5`
 - **Goals**:
     - `package`: 표준 배포 Zip 아카이브 생성
     - `deploy`: 빌드(패키징) ➡️ Zip 자동 압축 해제 ➡️ `install_service.sh` 자동 실행 (원스탑 배포)
@@ -73,7 +73,7 @@
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>1.1.4</version>
+            <version>1.1.5</version>
             <executions>
                 <execution>
                     <phase>package</phase>

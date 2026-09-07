@@ -53,11 +53,11 @@ select_deploy_mode() {
     if [ "$OVERWRITE_EXISTING" = "Y" ] && [ -n "$PREVIOUS_INSTALL_LOC" ]; then
         if [ -f "$PREVIOUS_INSTALL_LOC/docker-compose.yml" ]; then
             DEPLOY_MODE="docker"
-            log_info "기존 서비스의 배포 방식(Docker)을 그대로 유지합니다."
+            echo -e "   🐳 배포 방식 : ${CYAN}기존 방식(Docker) 유지${NC}"
             return 0
-        elif [ -d "$PREVIOUS_INSTALL_LOC/libs" ] || [ -f "$PREVIOUS_INSTALL_LOC/bin/start.sh" ]; then
+        elif [ -d "$PREVIOUS_INSTALL_LOC/libs" ] || [ -d "$PREVIOUS_INSTALL_LOC/lib" ] || [ -f "$PREVIOUS_INSTALL_LOC/bin/start.sh" ]; then
             DEPLOY_MODE="legacy"
-            log_info "기존 서비스의 배포 방식(Legacy)을 그대로 유지합니다."
+            echo -e "   ☕ 배포 방식 : ${CYAN}기존 방식(Legacy) 유지${NC}"
             return 0
         fi
     fi
@@ -163,11 +163,13 @@ check_and_handle_existing_service() {
             fi
         fi
 
-        log_warning "기존에 설치된 서비스가 감지되었습니다: $PREVIOUS_INSTALL_LOC"
+        echo ""
+        log_warning "기존에 설치된 서비스가 감지되었습니다."
+        echo -e "   📍 설치 위치 : ${CYAN}$PREVIOUS_INSTALL_LOC${NC}"
         if [ -n "$PREVIOUS_LOG_PATH" ]; then
-            log_info "기존 로그 경로: $PREVIOUS_LOG_PATH"
+            echo -e "   📝 로그 경로 : ${CYAN}$PREVIOUS_LOG_PATH${NC}"
         fi
-
+        echo ""
         read -p "   ❓ 기존 서비스 정보를 덮어 씌우시겠습니까? (Y/n): " USER_OVERWRITE_CHOICE
         USER_OVERWRITE_CHOICE=${USER_OVERWRITE_CHOICE:-Y}
 
@@ -175,10 +177,12 @@ check_and_handle_existing_service() {
             OVERWRITE_EXISTING="Y"
             DEST_DIR="$PREVIOUS_INSTALL_LOC"
             LOG_PATH="$PREVIOUS_LOG_PATH"
+            echo ""
             log_success "기존 설정을 유지하여 덮어쓰기 설치를 진행합니다."
         else
             OVERWRITE_EXISTING="N"
-            log_info "기존 서비스 삭제 후 새로 설치를 진행합니다..."
+            echo ""
+            log_info "기존 서비스를 삭제하고 새로 설치를 진행합니다..."
 
             # uninstall_service.sh 탐색 및 실행
             local UNINSTALL_SCRIPT=""
@@ -305,7 +309,7 @@ check_legacy_prerequisites() {
 prompt_log_path() {
     # 기존 서비스 덮어쓰기(OVERWRITE_EXISTING=Y)이고 이미 LOG_PATH가 설정된 경우 추가 질문 없이 유지
     if [ "$OVERWRITE_EXISTING" = "Y" ] && [ -n "$LOG_PATH" ]; then
-        log_info "기존 로그 경로를 그대로 유지합니다: $LOG_PATH"
+        log_info "로그 경로: $LOG_PATH"
         return 0
     fi
 
@@ -339,9 +343,7 @@ determine_install_dir() {
     log_step "설치 위치 설정"
 
     # 기존 서비스 덮어쓰기(OVERWRITE_EXISTING=Y)인 경우 추가 입력 없이 기존 위치 유지
-    if [ "$OVERWRITE_EXISTING" = "Y" ] && [ -n "$DEST_DIR" ]; then
-        log_info "기존 설치 위치를 그대로 유지합니다: $DEST_DIR"
-    else
+    if [ "$OVERWRITE_EXISTING" != "Y" ] || [ -z "$DEST_DIR" ]; then
         # 기존 설치 감지 (사전 감지가 안 되었을 경우의 Fallback)
         PREVIOUS_INSTALL_LOC=""
 
@@ -701,9 +703,7 @@ determine_docker_install_dir() {
     log_step "설치 위치 설정"
 
     # 기존 서비스 덮어쓰기(OVERWRITE_EXISTING=Y)인 경우 추가 입력 없이 기존 위치 유지
-    if [ "$OVERWRITE_EXISTING" = "Y" ] && [ -n "$DEST_DIR" ]; then
-        log_info "기존 설치 위치를 그대로 유지합니다: $DEST_DIR"
-    else
+    if [ "$OVERWRITE_EXISTING" != "Y" ] || [ -z "$DEST_DIR" ]; then
         # 기존 설치 위치 감지 (Systemd - 사전 감지가 안 되었을 경우의 Fallback)
         DEST_DIR=""
         if [ -f "/etc/systemd/system/$APP_NAME.service" ]; then
