@@ -134,6 +134,12 @@ if [ -f "$APP_CONFIG" ]; then
         "${SED_CMD[@]}" "s/name: .*/name: $ESCAPED_PROJECT_NAME/" "$APP_CONFIG"
     fi
     echo "✅ config/application.yml 수정 완료"
+
+    # config.profiles 내 환경별 application-*.yml 파일의 application name도 함께 수정
+    if [ -d "config.profiles" ]; then
+        find config.profiles -name "application-*.yml" -exec "${SED_CMD[@]}" "s/name: $CURRENT_PROJECT_NAME/name: $ESCAPED_PROJECT_NAME/g" {} + 2>/dev/null || true
+        echo "✅ config.profiles/* 수정 완료"
+    fi
 fi
 
 # 3-4. 패키지 구조 변경 (Group Name + Project Name)

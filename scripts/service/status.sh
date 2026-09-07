@@ -10,14 +10,18 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # 부트스트랩 (유틸리티 로드 및 폴백)
-source "$SCRIPT_DIR/bootstrap.sh"
+if [ -f "$SCRIPT_DIR/bootstrap.sh" ]; then
+    source "$SCRIPT_DIR/bootstrap.sh"
+elif [ -f "$SCRIPT_DIR/../common/bootstrap.sh" ]; then
+    source "$SCRIPT_DIR/../common/bootstrap.sh"
+fi
 
 # --- [Constants & Variables] ---
 APP_NAME="@appName@"
 
 # 환경 변수 파일 로드 (로그 경로 등 확인용)
-if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
-    source "$SCRIPT_DIR/.app-env.properties"
+if [ -f "$SCRIPT_DIR/.env" ]; then
+    source "$SCRIPT_DIR/.env"
 fi
 
 PID_FILE="${PID_FILE:-$SCRIPT_DIR/application.pid}"

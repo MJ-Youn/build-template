@@ -9,7 +9,7 @@
 # 실행 순서:
 #   1. Git pull (현재 디렉토리가 Git 저장소인 경우)
 #   2. Gradle package 빌드 (-Penv=<환경명>)
-#   3. 빌드 결과물(ZIP) 압축 해제 후 bin/install_service.sh 실행
+#   3. 빌드 결과물(ZIP) 압축 해제 후 deploy/install_service.sh 실행
 #
 # @author 윤명준 (MJ Yun)
 # @since  2026-03-19
@@ -80,9 +80,9 @@ echo ""
 
 # -----------------------------------------------------------------------------
 # STEP 2. Gradle 빌드
-# ./gradlew package -Penv=<env> 실행
+# ./gradlew clean package -Penv=<env> 실행
 # -----------------------------------------------------------------------------
-echo -e "${CYAN}[2/3] 🔨 Gradle 빌드 시작 (./gradlew package -Penv=${ENV_VALUE})${NC}"
+echo -e "${CYAN}[2/3] 🔨 Gradle 빌드 시작 (./gradlew clean package -Penv=${ENV_VALUE})${NC}"
 
 GRADLEW="${SCRIPT_DIR}/gradlew"
 
@@ -97,7 +97,7 @@ if [ ! -x "${GRADLEW}" ]; then
     chmod +x "${GRADLEW}"
 fi
 
-"${GRADLEW}" -p "${SCRIPT_DIR}" package "-Penv=${ENV_VALUE}"
+"${GRADLEW}" -p "${SCRIPT_DIR}" clean package "-Penv=${ENV_VALUE}"
 echo -e "${GREEN}✅ Gradle 빌드 완료${NC}"
 echo ""
 
@@ -143,11 +143,13 @@ echo -e "   📂 압축 해제 위치: ${EXTRACT_DIR}"
 unzip -q "${ZIP_FILE}" -d "${EXTRACT_DIR}"
 echo -e "${GREEN}   ✅ 압축 해제 완료${NC}"
 
-# bin/install_service.sh 존재 여부 확인
-INSTALL_SCRIPT="${EXTRACT_DIR}/bin/install_service.sh"
-
-if [ ! -f "${INSTALL_SCRIPT}" ]; then
-    echo -e "${RED}❌ 설치 스크립트를 찾을 수 없습니다: ${INSTALL_SCRIPT}${NC}"
+# deploy/install_service.sh (또는 bin/install_service.sh) 존재 여부 확인
+if [ -f "${EXTRACT_DIR}/deploy/install_service.sh" ]; then
+    INSTALL_SCRIPT="${EXTRACT_DIR}/deploy/install_service.sh"
+elif [ -f "${EXTRACT_DIR}/bin/install_service.sh" ]; then
+    INSTALL_SCRIPT="${EXTRACT_DIR}/bin/install_service.sh"
+else
+    echo -e "${RED}❌ 설치 스크립트를 찾을 수 없습니다: ${EXTRACT_DIR}/deploy/install_service.sh${NC}"
     exit 1
 fi
 

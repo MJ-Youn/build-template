@@ -11,28 +11,32 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # 부트스트랩 (유틸리티 로드 및 폴백)
-source "$SCRIPT_DIR/bootstrap.sh"
+if [ -f "$SCRIPT_DIR/bootstrap.sh" ]; then
+    source "$SCRIPT_DIR/bootstrap.sh"
+elif [ -f "$SCRIPT_DIR/../common/bootstrap.sh" ]; then
+    source "$SCRIPT_DIR/../common/bootstrap.sh"
+fi
 
 # --- [Constants & Variables] ---
 # @appName@은 Gradle 빌드 시 실제 프로젝트 이름으로 치환됨
 APP_NAME="@appName@"
 # 배포 방식에 따라 INSTALL_DIR 결정:
-# - Legacy 모드: 스크립트가 bin/ 하위에 있으므로 부모 디렉토리가 설치 루트
+# - Legacy 모드: 스크립트가 bin/ 또는 deploy/ 하위에 있으므로 부모 디렉토리가 설치 루트
 # - Docker 모드: 스크립트가 설치 루트에 직접 있으므로 SCRIPT_DIR 자체가 설치 루트
-if [ "$(basename "$SCRIPT_DIR")" = "bin" ]; then
+if [ "$(basename "$SCRIPT_DIR")" = "bin" ] || [ "$(basename "$SCRIPT_DIR")" = "deploy" ]; then
     INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
 else
     INSTALL_DIR="$SCRIPT_DIR"
 fi
 
 # 환경 변수 파일 (로그 경로 등 확인용)
-# Legacy: bin/.app-env.properties / Docker: .app-env.properties (INSTALL_DIR 바로 아래)
-if [ -f "$INSTALL_DIR/.app-env.properties" ]; then
-    PROP_FILE="$INSTALL_DIR/.app-env.properties"
-elif [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
-    PROP_FILE="$SCRIPT_DIR/.app-env.properties"
+# Legacy: bin/.env / Docker: .env (INSTALL_DIR 바로 아래)
+if [ -f "$INSTALL_DIR/.env" ]; then
+    PROP_FILE="$INSTALL_DIR/.env"
+elif [ -f "$SCRIPT_DIR/.env" ]; then
+    PROP_FILE="$SCRIPT_DIR/.env"
 else
-    PROP_FILE="$SCRIPT_DIR/.app-env.properties"
+    PROP_FILE="$SCRIPT_DIR/.env"
 fi
 
 # 실행 유저 확인
@@ -225,7 +229,7 @@ remove_cron() {
 remove_logs() {
     log_step "로그 데이터 처리"
 
-    # 로그 경로 파악 (.app-env.properties 읽기)
+    # 로그 경로 파악 (.env 읽기)
     local LOG_PATH=""
     if [ -f "$PROP_FILE" ]; then
         local LOG_PATH_Line
@@ -285,15 +289,21 @@ remove_docker_image() {
         log_success "이미지 아카이브 삭제됨."
     fi
 
+    # Docker 이미지 이름 결정
+    local IMAGE_TAG="@dockerImage@"
+    if [[ "$IMAGE_TAG" == "@""dockerImage@" ]]; then
+        IMAGE_TAG="${APP_NAME}:latest"
+    fi
+
     # Docker 이미지 삭제 여부 확인
-    read -p "   ❓ Docker 이미지($APP_NAME:latest)를 삭제하시겠습니까? (y/N): " DEL_IMG
+    read -p "   ❓ Docker 이미지($IMAGE_TAG)를 삭제하시겠습니까? (y/N): " DEL_IMG
     DEL_IMG=${DEL_IMG:-N}
     if [[ "$DEL_IMG" =~ ^[Yy]$ ]]; then
-        if docker image inspect "$APP_NAME:latest" >/dev/null 2>&1; then
-            docker rmi "$APP_NAME:latest"
-            log_success "Docker 이미지 삭제 완료 ($APP_NAME:latest)"
+        if docker image inspect "$IMAGE_TAG" >/dev/null 2>&1; then
+            docker rmi "$IMAGE_TAG"
+            log_success "Docker 이미지 삭제 완료 ($IMAGE_TAG)"
         else
-            log_warning "이미지 '$APP_NAME:latest'를 찾을 수 없어 삭제를 건너뜁니다."
+            log_warning "이미지 '$IMAGE_TAG'를 찾을 수 없어 삭제를 건너뜁니다."
         fi
     fi
 }

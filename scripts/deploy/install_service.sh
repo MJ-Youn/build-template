@@ -11,13 +11,20 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # 부트스트랩 (유틸리티 로드 및 폴백)
-source "$SCRIPT_DIR/bootstrap.sh"
+if [ -f "$SCRIPT_DIR/bootstrap.sh" ]; then
+    source "$SCRIPT_DIR/bootstrap.sh"
+elif [ -f "$SCRIPT_DIR/../common/bootstrap.sh" ]; then
+    source "$SCRIPT_DIR/../common/bootstrap.sh"
+fi
 
 # --- [Constants & Variables] ---
 # @appName@은 Gradle 빌드 시 실제 프로젝트 이름으로 치환됨
 APP_NAME="@appName@"
-# 배포 패키지 루트 (build/dist/XXX 압축 해제 위치)
-PKG_ROOT="$(dirname "$SCRIPT_DIR")"
+if [ "$(basename "$SCRIPT_DIR")" = "bin" ] || [ "$(basename "$SCRIPT_DIR")" = "deploy" ]; then
+    PKG_ROOT="$(dirname "$SCRIPT_DIR")"
+else
+    PKG_ROOT="$SCRIPT_DIR"
+fi
 
 # 기본 설치 위치 정의 (환경 변수 INSTALL_DIR 또는 첫 번째 인자로 재정의 가능)
 DEFAULT_INSTALL_DIR="${1:-${INSTALL_DIR:-/opt/$APP_NAME}}"
@@ -30,12 +37,27 @@ SERVICE_GROUP=$(id -gn "$REAL_USER")
 # 전역 변수 (함수 내에서 설정됨)
 DEST_DIR=""
 LOG_PATH=""
-DEPLOY_MODE=""  # "legacy" 또는 "docker"
+# 초기화 (런타임에 결정됨)
+DEPLOY_MODE=""
 
 # --- [Functions] ---
 
 # @description 배포 방식 선택 (legacy / docker)
 select_deploy_mode() {
+    # 1. 자동 감지: PKG_ROOT 내에 .tar 파일이 존재하면 Docker Offline 모드로 자동 지정
+    local TAR_FILES=("$PKG_ROOT"/*.tar)
+    if [ -e "${TAR_FILES[0]}" ]; then
+        DEPLOY_MODE="docker"
+        log_info "로컬 Docker 아카이브(.tar)가 감지되어 Docker Offline 모드로 자동 진행합니다."
+        return 0
+    fi
+
+    # 2. 이미 지정된 경우
+    if [ "$DEPLOY_MODE" = "docker" ]; then
+        log_info "지정된 배포 방식($DEPLOY_MODE)으로 진행합니다."
+        return 0
+    fi
+
     log_step "배포 방식 선택"
     echo ""
     echo -e "   ${BOLD}배포 방식을 선택하세요:${NC}"
@@ -44,8 +66,8 @@ select_deploy_mode() {
     echo ""
 
     while true; do
-        read -p "   선택 [1/2] (기본값: 1): " MODE_INPUT
-        MODE_INPUT="${MODE_INPUT:-1}"
+        read -p "   선택 [1/2] (기본값: 2): " MODE_INPUT
+        MODE_INPUT="${MODE_INPUT:-2}"
         case "$MODE_INPUT" in
             1)
                 DEPLOY_MODE="legacy"
@@ -116,7 +138,7 @@ cleanup_docker_artifacts() {
         "$DEST_DIR/bootstrap.sh"
         "$DEST_DIR/utils.sh"
         "$DEST_DIR/uninstall_service.sh"
-        "$DEST_DIR/.app-env.properties"
+        "$DEST_DIR/.env"
     )
 
     local CLEANED=0
@@ -147,6 +169,33 @@ check_legacy_prerequisites() {
         exit 1
     fi
     log_success "Java 설치 확인 완료."
+}
+
+# @description 로그 경로 입력 프롬프트
+prompt_log_path() {
+    local DEST_PROP=""
+    if [ "$DEPLOY_MODE" = "docker" ]; then
+        DEST_PROP="$DEST_DIR/.env"
+    else
+        DEST_PROP="$DEST_DIR/bin/.env"
+    fi
+
+    LOG_PATH=""
+    if [ -f "$DEST_PROP" ]; then
+        local LOG_PATH_Line=$(grep "^LOG_PATH=" "$DEST_PROP" 2>/dev/null)
+        if [ -n "$LOG_PATH_Line" ]; then
+            LOG_PATH=$(echo "$LOG_PATH_Line" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+        fi
+    fi
+
+    local DEFAULT_LOG_PATH="/log/$APP_NAME"
+    if [ -n "$LOG_PATH" ]; then
+        DEFAULT_LOG_PATH="$LOG_PATH"
+    fi
+
+    log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
+    read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
+    LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
 }
 
 # @description 설치 경로 결정 (기존 설치 감지 또는 사용자 입력)
@@ -189,21 +238,15 @@ determine_install_dir() {
     fi
 
     if [ -z "$DEST_DIR" ]; then
-        while true; do
-            log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
-            read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
-            DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
-
-            if is_safe_path "$DEST_DIR"; then
-                break
-            else
-                log_error "허용되지 않는 설치 경로입니다 ($DEST_DIR). 다른 경로를 입력해주세요."
-                DEST_DIR=""
-            fi
-        done
+        log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
+        read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
+        DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
     fi
 
     log_info "최종 설치 위치: $DEST_DIR"
+    
+    prompt_log_path
+    
     log_info "서비스 실행 유저: $REAL_USER"
 
     # 디렉토리 생성 및 권한 설정
@@ -212,13 +255,9 @@ determine_install_dir() {
     mkdir -p "$DEST_DIR/libs"
     mkdir -p "$DEST_DIR/run"
 
-    # 보안 강화: 실행 파일 디렉토리는 root 소유로 설정하여 서비스 유저의 변조 방지
-    chown root:root "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config" "$DEST_DIR/libs"
-    chmod 755 "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config" "$DEST_DIR/libs"
-
-    # 실행 시 생성되는 파일(PID 등)을 위한 디렉토리는 서비스 유저 권한 부여
-    chown $REAL_USER:$SERVICE_GROUP "$DEST_DIR/run"
-    chmod 755 "$DEST_DIR/run"
+    # 실행 파일 디렉토리 소유권 설정 (현재 로그인 유저)
+    chown $REAL_USER:$SERVICE_GROUP "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config" "$DEST_DIR/libs" "$DEST_DIR/run"
+    chmod 755 "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config" "$DEST_DIR/libs" "$DEST_DIR/run"
 
     log_success "설치 디렉토리 준비 완료."
 }
@@ -231,24 +270,45 @@ copy_legacy_files() {
     cp -f "$PKG_ROOT/libs/"*.jar "$DEST_DIR/libs/"
 
     # 2. Bin Scripts
-    # Legacy 실행에 필요한 스크립트만 명시적으로 복사
-    # (run_bash_tests.sh, bootstrap.sh 등 불필요한 파일 제외)
-    local LEGACY_SCRIPTS=("start.sh" "stop.sh" "status.sh" "uninstall_service.sh" "utils.sh" "bootstrap.sh")
-    for script in "${LEGACY_SCRIPTS[@]}"; do
-        if [ -f "$SCRIPT_DIR/$script" ]; then
+    # 서비스 실행에 필요한 스크립트 복사 (start.sh, stop.sh, status.sh 등)
+    local SERVICE_SRC=""
+    if [ -d "$PKG_ROOT/bin" ]; then
+        SERVICE_SRC="$PKG_ROOT/bin"
+    elif [ -d "$PKG_ROOT/scripts/service" ]; then
+        SERVICE_SRC="$PKG_ROOT/scripts/service"
+    else
+        SERVICE_SRC="$SCRIPT_DIR"
+    fi
+
+    local SERVICE_SCRIPTS=("start.sh" "stop.sh" "status.sh")
+    for script in "${SERVICE_SCRIPTS[@]}"; do
+        if [ -f "$SERVICE_SRC/$script" ]; then
+            cp -f "$SERVICE_SRC/$script" "$DEST_DIR/bin/"
+        elif [ -f "$SCRIPT_DIR/$script" ]; then
             cp -f "$SCRIPT_DIR/$script" "$DEST_DIR/bin/"
         fi
     done
 
     # cron 디렉토리 복사
-    if [ -d "$SCRIPT_DIR/cron" ]; then
+    if [ -d "$SERVICE_SRC/cron" ]; then
+        cp -rf "$SERVICE_SRC/cron" "$DEST_DIR/bin/"
+    elif [ -d "$SCRIPT_DIR/cron" ]; then
         cp -rf "$SCRIPT_DIR/cron" "$DEST_DIR/bin/"
     fi
 
-    # 3. .app-env.properties
-    if [ -f "$SCRIPT_DIR/.app-env.properties" ]; then
-        cp -f "$SCRIPT_DIR/.app-env.properties" "$DEST_DIR/bin/"
-    fi
+    # 관리 및 유틸리티 스크립트 복사 (uninstall_service.sh, utils.sh, bootstrap.sh)
+    local MGMT_SCRIPTS=("uninstall_service.sh" "utils.sh" "bootstrap.sh")
+    for script in "${MGMT_SCRIPTS[@]}"; do
+        if [ -f "$SCRIPT_DIR/$script" ]; then
+            cp -f "$SCRIPT_DIR/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/deploy/$script" ]; then
+            cp -f "$PKG_ROOT/deploy/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/bin/$script" ]; then
+            cp -f "$PKG_ROOT/bin/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/scripts/common/$script" ]; then
+            cp -f "$PKG_ROOT/scripts/common/$script" "$DEST_DIR/bin/"
+        fi
+    done
 
     # 4. Config
     cp -rf "$PKG_ROOT/config/"* "$DEST_DIR/config/"
@@ -259,13 +319,13 @@ copy_legacy_files() {
     chmod -R 644 "$DEST_DIR/config/"*
     find "$DEST_DIR/config" -type d -exec chmod 755 {} +
 
-    # 보안 강화: 배포된 파일들은 root 소유로 설정
-    chown -R root:root "$DEST_DIR/bin" "$DEST_DIR/libs" "$DEST_DIR/config"
+    # 배포된 파일 소유권 설정 (현재 로그인 유저)
+    chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR/bin" "$DEST_DIR/libs" "$DEST_DIR/config"
 
-    # .app-env.properties 보안 권한 (640, root:$SERVICE_GROUP)
-    if [ -f "$DEST_DIR/bin/.app-env.properties" ]; then
-        chmod 640 "$DEST_DIR/bin/.app-env.properties"
-        chown "root:$SERVICE_GROUP" "$DEST_DIR/bin/.app-env.properties"
+    # .env 보안 권한 (640, $REAL_USER:$SERVICE_GROUP)
+    if [ -f "$DEST_DIR/bin/.env" ]; then
+        chmod 640 "$DEST_DIR/bin/.env"
+        chown "$REAL_USER:$SERVICE_GROUP" "$DEST_DIR/bin/.env"
     fi
 
     log_success "파일 복사 및 권한 설정 완료."
@@ -276,50 +336,26 @@ copy_legacy_files() {
 configure_legacy_env() {
     log_step "환경 설정 및 로그 경로 확인"
 
-    DEST_PROP_FILE="$DEST_DIR/bin/.app-env.properties"
+    DEST_PROP_FILE="$DEST_DIR/bin/.env"
 
     if [ ! -f "$DEST_PROP_FILE" ]; then
         mkdir -p "$(dirname "$DEST_PROP_FILE")"
         echo "# Application Deployment Configuration" > "$DEST_PROP_FILE"
         chmod 640 "$DEST_PROP_FILE"
-        chown "root:$SERVICE_GROUP" "$DEST_PROP_FILE"
+        chown "$REAL_USER:$SERVICE_GROUP" "$DEST_PROP_FILE"
         log_info "새로운 환경 설정 파일 생성: $DEST_PROP_FILE"
     fi
 
-    # 현재 파일에서 LOG_PATH 읽기
-    LOG_PATH=""
-    if [ -f "$DEST_PROP_FILE" ]; then
-        LOG_PATH_Line=$(grep "^LOG_PATH=" "$DEST_PROP_FILE")
-        if [ -n "$LOG_PATH_Line" ]; then
-            LOG_PATH=$(echo "$LOG_PATH_Line" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
-        fi
+
+
+    if grep -q "^LOG_PATH=" "$DEST_PROP_FILE"; then
+        sed -i "/^LOG_PATH=/c\\LOG_PATH=\"$LOG_PATH\"" "$DEST_PROP_FILE"
+    else
+        echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP_FILE"
     fi
-
-    # LOG_PATH 설정 (없는 경우 사용자 입력)
-    if [ -z "$LOG_PATH" ]; then
-        while true; do
-            DEFAULT_LOG_PATH="$DEST_DIR/log"
-            log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
-            read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
-            LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
-
-            if is_safe_path "$LOG_PATH"; then
-                break
-            else
-                log_error "허용되지 않는 로그 경로입니다 ($LOG_PATH). 다른 경로를 입력해주세요."
-                LOG_PATH=""
-            fi
-        done
-
-        if grep -q "^LOG_PATH=" "$DEST_PROP_FILE"; then
-            sed -i "/^LOG_PATH=/c\\LOG_PATH=\"$LOG_PATH\"" "$DEST_PROP_FILE"
-        else
-            echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP_FILE"
-        fi
-        chmod 640 "$DEST_PROP_FILE"
-        chown "root:$SERVICE_GROUP" "$DEST_PROP_FILE"
-        log_info "환경 설정 파일에 LOG_PATH 저장 완료."
-    fi
+    chmod 640 "$DEST_PROP_FILE"
+    chown "$REAL_USER:$SERVICE_GROUP" "$DEST_PROP_FILE"
+    log_info "환경 설정 파일에 LOG_PATH 저장 완료."
 
     # PID_FILE 설정
     NEW_PID_FILE="$DEST_DIR/run/application.pid"
@@ -329,7 +365,7 @@ configure_legacy_env() {
         echo "PID_FILE=\"$NEW_PID_FILE\"" >> "$DEST_PROP_FILE"
     fi
     chmod 640 "$DEST_PROP_FILE"
-    chown "root:$SERVICE_GROUP" "$DEST_PROP_FILE"
+    chown "$REAL_USER:$SERVICE_GROUP" "$DEST_PROP_FILE"
     log_info "환경 설정 파일에 PID_FILE 저장 완료."
 
     log_info "로그 경로: $LOG_PATH"
@@ -367,6 +403,7 @@ After=network.target
 User=$REAL_USER
 Group=$SERVICE_GROUP
 Type=forking
+WorkingDirectory=$DEST_DIR
 ExecStart=$START_SCRIPT
 ExecStop=$STOP_SCRIPT
 PIDFile=$DEST_DIR/run/application.pid
@@ -451,14 +488,14 @@ install_docker_mode() {
     # 설치 위치 결정
     determine_docker_install_dir
 
-    # Docker 이미지 빌드 (dist 파일 기반)
-    build_docker_image_from_dist
-
     # docker-compose 및 관련 파일 복사
     copy_docker_files
 
     # 환경 설정 (LOG_PATH 등)
     configure_docker_env
+
+    # Docker 이미지 준비 (Load 또는 Build)
+    load_or_build_docker_image
 
     # docker-compose.yml 환경변수(.env) 설정
     configure_compose
@@ -498,59 +535,64 @@ determine_docker_install_dir() {
     fi
 
     if [ -z "$DEST_DIR" ]; then
-        while true; do
-            log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
-            read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
-            DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
-
-            if is_safe_path "$DEST_DIR"; then
-                break
-            else
-                log_error "허용되지 않는 설치 경로입니다 ($DEST_DIR). 다른 경로를 입력해주세요."
-                DEST_DIR=""
-            fi
-        done
+        log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
+        read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
+        DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
     fi
 
     log_info "설치 위치: $DEST_DIR"
 
-    mkdir -p "$DEST_DIR"
+    prompt_log_path
+
+    mkdir -p "$DEST_DIR/bin"
+    mkdir -p "$DEST_DIR/config"
+
+    # 실행 파일 디렉토리 소유권 설정 (현재 로그인 유저)
+    chown $REAL_USER:$SERVICE_GROUP "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config"
+    chmod 755 "$DEST_DIR" "$DEST_DIR/bin" "$DEST_DIR/config"
+
     chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR"
+    
+    log_success "설치 디렉토리 준비 완료."
 }
 
-# @description dist 패키지 파일로 Docker 이미지를 빌드
-# dist.zip 압축 해제 경로(PKG_ROOT)를 빌드 컨텍스트로 활용
-# PKG_ROOT/docker/Dockerfile을 사용하여 이미지 생성
-build_docker_image_from_dist() {
-    log_step "Docker 이미지 빌드 중 (배포 파일 기반)..."
+# @description dist 패키지 파일로 Docker 이미지를 준비 (Load 또는 Build)
+# PKG_ROOT 내에 .tar 파일이 있으면 docker load, Dockerfile이 있으면 docker build
+load_or_build_docker_image() {
+    local TAR_FILE="$PKG_ROOT/${APP_NAME}.tar"
+    local DOCKERFILE_PATH="$PKG_ROOT/docker/Dockerfile"
+    local IMAGE_TAG="@dockerImage@"
 
-    DOCKERFILE_PATH="$PKG_ROOT/docker/Dockerfile"
+    if [ -f "$TAR_FILE" ]; then
+        log_step "Docker 이미지 로드 중 ($TAR_FILE)..."
+        docker load -i "$TAR_FILE"
+        if [ $? -ne 0 ]; then
+            log_error "Docker 이미지 로드 실패"
+            exit 1
+        fi
+        log_success "Docker 이미지 로드 완료."
+    elif [ -f "$DOCKERFILE_PATH" ]; then
+        log_step "Docker 이미지 빌드 중 (Dockerfile 기반)..."
+        log_info "빌드 컨텍스트: $PKG_ROOT"
+        log_info "Dockerfile: $DOCKERFILE_PATH"
+        log_info "이미지 태그: $IMAGE_TAG"
 
-    if [ ! -f "$DOCKERFILE_PATH" ]; then
-        log_error "Dockerfile을 찾을 수 없습니다: $DOCKERFILE_PATH"
-        exit 1
+        docker build --build-arg APP_NAME="$APP_NAME" -t "$IMAGE_TAG" -f "$DOCKERFILE_PATH" "$PKG_ROOT"
+        if [ $? -ne 0 ]; then
+            log_error "Docker 이미지 빌드 실패"
+            exit 1
+        fi
+        log_success "Docker 이미지 빌드 완료: $IMAGE_TAG"
+    else
+        log_info "Docker 이미지 로드/빌드를 건너뜁니다. (원격 레지스트리 사용 예상)"
     fi
-
-    local IMAGE_TAG="${APP_NAME}:latest"
-
-    log_info "빌드 컨텍스트: $PKG_ROOT"
-    log_info "Dockerfile: $DOCKERFILE_PATH"
-    log_info "이미지 태그: $IMAGE_TAG"
-
-    docker build -t "$IMAGE_TAG" -f "$DOCKERFILE_PATH" "$PKG_ROOT"
-
-    if [ $? -ne 0 ]; then
-        log_error "Docker 이미지 빌드 실패"
-        exit 1
-    fi
-
-    log_success "Docker 이미지 빌드 완료: $IMAGE_TAG"
 }
 
 # @description Docker 관련 파일 복사 (docker-compose, uninstall 스크립트 등)
 copy_docker_files() {
     log_step "Docker 배포 파일 복사 중..."
 
+    # 1. docker 파일 복제
     local DOCKER_DIR="$PKG_ROOT/docker"
     local COMPOSE_SRC="$DOCKER_DIR/docker-compose.yml"
 
@@ -561,28 +603,32 @@ copy_docker_files() {
 
     cp "$COMPOSE_SRC" "$DEST_DIR/"
 
-    # uninstall 스크립트 복사
-    local UNINSTALL_SRC="$SCRIPT_DIR/uninstall_service.sh"
-    if [ -f "$UNINSTALL_SRC" ]; then
-        cp "$UNINSTALL_SRC" "$DEST_DIR/"
-        chmod +x "$DEST_DIR/uninstall_service.sh"
-    fi
-
-    # bootstrap.sh 복사 (uninstall_service.sh가 source하여 사용)
-    local BOOTSTRAP_SRC="$SCRIPT_DIR/bootstrap.sh"
-    if [ -f "$BOOTSTRAP_SRC" ]; then
-        cp "$BOOTSTRAP_SRC" "$DEST_DIR/"
-    fi
-
-    # utils.sh 복사
-    local UTILS_SRC="$SCRIPT_DIR/utils.sh"
-    if [ -f "$UTILS_SRC" ]; then
-        cp "$UTILS_SRC" "$DEST_DIR/"
-    fi
+    # 2. Bin Scripts
+    # Docker 실행 및 관리에 필요한 스크립트 복사
+    local MGMT_SCRIPTS=("uninstall_service.sh" "utils.sh" "bootstrap.sh")
+    for script in "${MGMT_SCRIPTS[@]}"; do
+        if [ -f "$SCRIPT_DIR/$script" ]; then
+            cp -rf "$SCRIPT_DIR/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/deploy/$script" ]; then
+            cp -rf "$PKG_ROOT/deploy/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/bin/$script" ]; then
+            cp -rf "$PKG_ROOT/bin/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/scripts/common/$script" ]; then
+            cp -rf "$PKG_ROOT/scripts/common/$script" "$DEST_DIR/bin/"
+        fi
+    done
 
     # cron 디렉토리 복사
-    if [ -d "$SCRIPT_DIR/cron" ]; then
-        cp -r "$SCRIPT_DIR/cron" "$DEST_DIR/"
+    local CRON_SRC=""
+    if [ -d "$PKG_ROOT/bin/cron" ]; then
+        CRON_SRC="$PKG_ROOT/bin/cron"
+    elif [ -d "$PKG_ROOT/scripts/service/cron" ]; then
+        CRON_SRC="$PKG_ROOT/scripts/service/cron"
+    elif [ -d "$SCRIPT_DIR/cron" ]; then
+        CRON_SRC="$SCRIPT_DIR/cron"
+    fi
+    if [ -n "$CRON_SRC" ]; then
+        cp -rf "$CRON_SRC" "$DEST_DIR/bin/"
     fi
 
     # config 폴더 복사 (Host Mount용)
@@ -592,53 +638,20 @@ copy_docker_files() {
         log_info "config 폴더 복사 완료 (Host Mount용)"
     fi
 
-    log_success "Docker 배포 파일 복사 완료."
+    # 권한 설정
+    chmod 755 "$DEST_DIR/bin/"*.sh
+    chmod -R 644 "$DEST_DIR/config/"*
+    find "$DEST_DIR/config" -type d -exec chmod 755 {} +
+
+    # 배포된 파일 소유권 설정 (현재 로그인 유저)
+    chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR/bin" "$DEST_DIR/config"
+
+    log_success "파일 복사 및 권한 설정 완료."
 }
 
 # @description 환경 변수 설정 (Docker 모드 - LOG_PATH 등)
 configure_docker_env() {
     log_step "환경 설정 및 로그 경로 확인"
-
-    # .app-env.properties 복사 및 로드
-    local SRC_PROP="$SCRIPT_DIR/.app-env.properties"
-    local DEST_PROP="$DEST_DIR/.app-env.properties"
-    LOG_PATH=""
-
-    if [ -f "$SRC_PROP" ]; then
-        cp "$SRC_PROP" "$DEST_PROP"
-        source "$DEST_PROP"
-    else
-        echo "# Application Deployment Configuration" > "$DEST_PROP"
-    fi
-
-    # .app-env.properties 보안 권한 (640, root:$SERVICE_GROUP)
-    chmod 640 "$DEST_PROP"
-    chown "root:$SERVICE_GROUP" "$DEST_PROP"
-
-    # LOG_PATH 설정
-    if [ -z "$LOG_PATH" ]; then
-        while true; do
-            local DEFAULT_LOG_PATH="$DEST_DIR/log"
-            log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
-            read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
-            LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
-
-            if is_safe_path "$LOG_PATH"; then
-                break
-            else
-                log_error "허용되지 않는 로그 경로입니다 ($LOG_PATH). 다른 경로를 입력해주세요."
-                LOG_PATH=""
-            fi
-        done
-
-        if grep -q "^LOG_PATH=" "$DEST_PROP"; then
-            grep -v "^LOG_PATH=" "$DEST_PROP" > "$DEST_PROP.tmp"
-            echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP.tmp"
-            mv "$DEST_PROP.tmp" "$DEST_PROP"
-        else
-            echo "LOG_PATH=\"$LOG_PATH\"" >> "$DEST_PROP"
-        fi
-    fi
 
     log_info "로그 경로: $LOG_PATH"
 
@@ -661,17 +674,30 @@ configure_compose() {
         exit 1
     fi
 
+    local REAL_UID=$(id -u "$REAL_USER")
+    local REAL_GID=$(id -g "$REAL_USER")
+
     cat <<EOF > "$ENV_FILE"
 # ==========================================================
 # Docker Compose Environment Variables
 # Generated by install_service.sh
 # ==========================================================
+APP_UID=$REAL_UID
+APP_GID=$REAL_GID
+
 APP_NAME=$APP_NAME
+
+# [호스트 환경] 로그 및 설치 디렉토리 (Legacy 모드 로그 경로 겸용)
 LOG_PATH=$LOG_PATH
 DEST_DIR=$DEST_DIR
-DOCKER_IMAGE=${APP_NAME}:latest
+
+# [컨테이너 환경] 컨테이너 내부 서비스 로그 경로
+CONTAINER_LOG_PATH=/log
+
+DOCKER_IMAGE=@dockerImage@
 EOF
 
+    chown "$REAL_USER:$SERVICE_GROUP" "$ENV_FILE"
     log_success "환경 및 볼륨(.env) 설정 업데이트 완료"
 
     # 빈 config 폴더 마운트로 인한 컨테이너 내부 config 초기화 방지
@@ -681,6 +707,7 @@ EOF
     if [ -z "$(ls -A "$CONFIG_DIR")" ]; then
         log_step "초기 Host Config 파일 생성 중..."
         docker run --rm -v "$CONFIG_DIR:/tmp_config" "${APP_NAME}:latest" sh -c "cp -r /app/config/* /tmp_config/ 2>/dev/null || true"
+        chown -R $REAL_USER:$SERVICE_GROUP "$CONFIG_DIR"
         log_success "Host Config 마운트 폴더 초기화 완료"
     fi
 }
@@ -716,6 +743,8 @@ Requires=docker.service
 Wants=network-online.target
 
 [Service]
+User=$REAL_USER
+Group=$SERVICE_GROUP
 Type=simple
 WorkingDirectory=$DEST_DIR
 ExecStart=$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up
@@ -741,11 +770,11 @@ EOF
         register_cron
 
         # 서비스 상태 출력
-        wait_for_condition "docker ps -f \"name=${APP_NAME}-app\" --format \"{{.Status}}\" | grep -q '.'" 5 0.2
+        sleep 2
         local CONTAINER_STATUS
         local CONTAINER_ID
-        CONTAINER_STATUS=$(docker ps -f "name=${APP_NAME}-app" --format "{{.Status}}")
-        CONTAINER_ID=$(docker ps -f "name=${APP_NAME}-app" --format "{{.ID}}")
+        CONTAINER_STATUS=$(docker ps -f "name=${APP_NAME}" --format "{{.Status}}")
+        CONTAINER_ID=$(docker ps -f "name=${APP_NAME}" --format "{{.ID}}")
 
         echo -e "${BOLD}${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
         echo -e "${BOLD}${BLUE}║                  🐳 DOCKER SERVICE STARTED                     ║${NC}"
@@ -778,7 +807,7 @@ case "\$1" in
         \$0 start
         ;;
     status)
-        docker ps -f "name=${APP_NAME}-app"
+        docker ps -f "name=${APP_NAME}"
         ;;
     *)
         echo "사용법: \$0 {start|stop|restart|status}"
@@ -807,14 +836,7 @@ EOF
 # @description Cron 작업 등록
 register_cron() {
     log_step "Cron 작업 등록..."
-    local SRC_CRON_FILE=""
-
-    if [ "$DEPLOY_MODE" = "docker" ]; then
-        SRC_CRON_FILE="$DEST_DIR/cron/crond"
-    else
-        SRC_CRON_FILE="$PKG_ROOT/bin/cron/crond"
-    fi
-
+    local SRC_CRON_FILE="$PKG_ROOT/bin/cron/crond"
     local TARGET_CRON_FILE="/etc/cron.d/$APP_NAME"
 
     if [ -d "/etc/cron.d" ] && [ -f "$SRC_CRON_FILE" ]; then
@@ -850,32 +872,51 @@ create_tail_log_script() {
     local TARGET_TAIL_SCRIPT="$USER_BIN/$TAIL_SCRIPT_NAME"
 
     if [ "$DEPLOY_MODE" = "docker" ]; then
-        cat <<EOF > "$TARGET_TAIL_SCRIPT"
+        cat <<'EOF' > "$TARGET_TAIL_SCRIPT"
 #!/bin/bash
 # Docker 로그 확인 스크립트
+
+APP_NAME="APP_NAME_PLACEHOLDER"
+DEST_DIR="DEST_DIR_PLACEHOLDER"
+
+if [ -f "$DEST_DIR/.env" ]; then
+    source "$DEST_DIR/.env"
+fi
 LOG_FILE="$LOG_PATH/${APP_NAME}.log"
 
-if [ -f "\$LOG_FILE" ]; then
-    echo "로그 파일($LOG_PATH/${APP_NAME}.log)을 추적합니다..."
-    tail -F -n 1000 "\$LOG_FILE"
+if [ -f "$LOG_FILE" ]; then
+    echo "로그 파일($LOG_FILE)을 추적합니다..."
+    tail -F -n 1000 "$LOG_FILE"
 else
     echo "로그 파일이 아직 생성되지 않았거나 경로가 다릅니다."
     echo "Docker 컨테이너 로그를 확인합니다..."
-    docker logs -f --tail 1000 ${APP_NAME}-app
+    docker logs -f --tail 1000 ${APP_NAME}
 fi
 EOF
     else
-        cat <<EOF > "$TARGET_TAIL_SCRIPT"
+        cat <<'EOF' > "$TARGET_TAIL_SCRIPT"
 #!/bin/bash
+
+APP_NAME="APP_NAME_PLACEHOLDER"
+DEST_DIR="DEST_DIR_PLACEHOLDER"
+
+if [ -f "$DEST_DIR/bin/.env" ]; then
+    source "$DEST_DIR/bin/.env"
+fi
 LOG_FILE="$LOG_PATH/${APP_NAME}.log"
-if [ ! -f "\$LOG_FILE" ]; then
-    echo "로그 파일을 찾을 수 없습니다: \$LOG_FILE"
+
+if [ ! -f "$LOG_FILE" ]; then
+    echo "로그 파일을 찾을 수 없습니다: $LOG_FILE"
     echo "서비스가 실행 중인지 확인해주세요."
     exit 1
 fi
-tail -F -n 1000 "\$LOG_FILE"
+tail -F -n 1000 "$LOG_FILE"
 EOF
     fi
+
+    # Placeholder 치환
+    sed -i "s|APP_NAME_PLACEHOLDER|$APP_NAME|g" "$TARGET_TAIL_SCRIPT"
+    sed -i "s|DEST_DIR_PLACEHOLDER|$DEST_DIR|g" "$TARGET_TAIL_SCRIPT"
 
     chown $REAL_USER:$SERVICE_GROUP "$TARGET_TAIL_SCRIPT"
     chmod +x "$TARGET_TAIL_SCRIPT"
@@ -946,7 +987,7 @@ register_path() {
 
 # @description Legacy 배포 완료 후 서비스 상태 확인
 check_legacy_service_status() {
-    wait_for_condition "[ \"\$(systemctl show --property MainPID --value $APP_NAME)\" != \"0\" ]" 5 0.2
+    sleep 2
     local CURRENT_PID
     CURRENT_PID=$(systemctl show --property MainPID --value $APP_NAME)
 
@@ -982,13 +1023,10 @@ check_legacy_service_status() {
 
 # --- [Execution] ---
 
-# Note: Wrap with source guard to allow testing individual functions
-if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
-    # 루트 권한 확인
-    if [ "$EUID" -ne 0 ]; then
-      echo "Error: 이 스크립트는 root 권한으로 실행해야 합니다."
-      exit 1
-    fi
-
-    install_service
+# 루트 권한 확인
+if [ "$EUID" -ne 0 ]; then
+  echo "Error: 이 스크립트는 root 권한으로 실행해야 합니다."
+  exit 1
 fi
+
+install_service

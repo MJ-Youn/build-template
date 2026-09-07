@@ -13,12 +13,20 @@
     - **일반 배포**: Jar + Config + Scripts가 포함된 Zip 패키지.
     - **Docker 배포**: Image(tar) + Docker Compose + Script가 통합된 Zip 패키지.
 2.  **🎨 환경별 덮어쓰기 (Overlay Build)**:
-    - 기본 설정(`scripts/`, `config/`) 위에 환경별 파일(`scripts/prod/`, `config/prod/`)을 덮어쓰는 구조.
+    - 기본 설정(`scripts/`, `config/`) 위에 환경별 파일(`scripts/prod/`, `config.profiles/prod/`)을 덮어쓰는 구조.
     - 소스 코드 변경 없이 파일 추가만으로 환경별 커스터마이징 가능.
 3.  **🪵 동적 로그 경로 설정**:
-    - 빌드 시점(`scripts/.app-env.properties`) 또는 배포 시점(사용자 입력)에 로그 경로 설정 가능.
+    - 빌드 시점(`scripts/.env`) 또는 배포 시점(사용자 입력)에 로그 경로 설정 가능.
 4.  **🐧 Linux 서비스 자동 등록**:
     - `Systemd`, `SysVinit` 자동 감지 및 서비스 등록/시작.
+
+---
+
+## 🔌 Gradle 배포 플러그인 (Distribution Plugin)
+
+> 💡 **알림**: 개별 프로젝트에 `scripts/`나 `docker/` 폴더를 복사하지 않고, Gradle 플러그인 1줄(`plugins { id 'io.github.mj-youn.distribution' }`)로 배포 패키징 및 파일 단위 `@Override`를 적용할 수 있는 커스텀 플러그인을 제공합니다.
+> 
+> 자세한 사용법 및 배포 가이드는 [**Distribution Gradle Plugin README**](distribution-gradle-plugin/README.md) 문서를 확인하세요.
 
 ---
 
@@ -65,7 +73,7 @@
 ```
 [1/3] 📥 Git Pull        → 최신 소스 코드 수신
 [2/3] 🔨 Gradle Package  → 환경별 배포 패키지(ZIP) 빌드
-[3/3] 📦 AUTO 압축 해제   → bin/install_service.sh 자동 실행
+[3/3] 📦 AUTO 압축 해제   → deploy/install_service.sh 자동 실행
 ```
 
 ### 🚀 사용법
@@ -86,14 +94,14 @@
 | Git 저장소               | `.git` 폴더가 존재하면 자동으로 `git pull` 실행, 없으면 건너뜀 |
 | JDK                      | `./gradlew` 실행 가능 환경 필요                                |
 | `unzip`                  | 패키지 압축 해제에 필요                                        |
-| `bin/install_service.sh` | 빌드 패키지 내 포함된 설치 스크립트                            |
+| `deploy/install_service.sh` | 빌드 패키지 내 포함된 설치 스크립트                         |
 
 ### 📋 상세 동작
 
 1. **Git Pull**: 현재 디렉토리에 `.git` 폴더가 있으면 `git pull`을 실행하여 최신 코드를 반영합니다.
 2. **Gradle 빌드**: `./gradlew package -Penv=<환경명>` 을 실행하여 배포 패키지를 생성합니다.
     - 결과물: `build/dist/{APP_NAME}-{version}-{env}.dist.zip`
-3. **압축 해제 및 설치**: 생성된 ZIP 파일을 자동으로 찾아 압축을 해제하고, 내부의 `bin/install_service.sh`를 실행합니다.
+3. **압축 해제 및 설치**: 생성된 ZIP 파일을 자동으로 찾아 압축을 해제하고, 내부의 `deploy/install_service.sh`를 실행합니다.
     - 압축 해제 경로: `build/dist/{ZIP파일명}/`
     - 기존 폴더가 있으면 자동으로 삭제 후 재생성
 
@@ -106,7 +114,7 @@
 > **💡 Docker 배포 시 주요 특징 (설정 파일 Host Mount & .env 적용)**
 >
 > - 배포 결과물에는 호스트 환경에서 직접 수정 가능한 `config/` 디렉토리가 포함됩니다.
-> - `install_docker_service.sh` 실행 시 혹은 `docker-compose up` 시 서버 측 `config/` 폴더가 컨테이너 내부로 바인드 마운트되어, **이미지 재빌드 없이 `application.yml`, `log4j2.yml` 등을 런타임에 즉시 변경**할 수 있습니다.
+> - `install_service.sh` 실행 시 혹은 `docker-compose up` 시 서버 측 `config/` 폴더가 컨테이너 내부로 바인드 마운트되어, **이미지 재빌드 없이 `application.yml`, `log4j2.yml` 등을 런타임에 즉시 변경**할 수 있습니다.
 > - 초기 설치 시 빈 마운트로 인한 파일 유실을 막기 위해 이미지에서 초기 설정 파일들을 자동으로 추출(Seed)하는 방어 로직이 내장되어 있습니다.
 > - 자체 문자열 치환(`@VAR@`) 대신 표준 **Docker Compose `.env` 파일** 환경변수를 사용하여 `docker-compose up` 명령어 단독 실행 시에도 완벽하게 동작합니다.
 
@@ -119,7 +127,7 @@
 
 ```bash
 # 운영(prod) 환경 배포용 패키지 생성
-./gradlew dockerBuild -Penv=prod
+./gradlew packageDocker -Penv=prod
 ```
 
 - **결과물**: `build/dist/{APP_NAME}-docker-prod.zip`
@@ -127,8 +135,8 @@
     - `image.tar`: Docker 이미지 (linux/amd64)
     - `docker-compose.yml`: 실행 설정 (표준 변수 사용)
     - `config/`: 운영 환경용 설정 파일 (Host Mount용)
-    - `install_docker_service.sh`: 서비스 등록/실행 및 `.env` 파일 생성 스크립트
-    - `uninstall_docker_service.sh`: 서비스 제거 스크립트
+    - `deploy/install_service.sh`: 서비스 등록/실행 및 `.env` 파일 생성 스크립트
+    - `deploy/uninstall_service.sh`: 서비스 제거 스크립트
     - `utils.sh`: 공통 스크립트
 
 **2. 배포 (Production Server)**
@@ -140,7 +148,7 @@ scp build/dist/{APP_NAME}-docker-prod.zip user@server:/home/user/
 # 2. 서버 접속 후 압축 해제 및 설치
 unzip {APP_NAME}-docker-prod.zip -d deploy
 cd deploy
-sudo ./install_docker_service.sh
+sudo ./deploy/install_service.sh
 ```
 
 - **자동 수행**:
@@ -149,37 +157,7 @@ sudo ./install_docker_service.sh
     - Docker Compose 실행 (`docker-compose up -d`)
     - Linux 서비스(Systemd) 등록 (재부팅 시 자동 실행)
 
-### 🐳 Docker 배포 2: 서버 빌드 (Source Transfer)
-
-**"소스 전송 -> 서버 빌드 -> 실행"** 전략을 사용합니다.
-빌드 결과물(Image)을 전송하는 과정이 생략되어 네트워크 대역폭을 절약할 수 있으며, 수정 사항을 빠르게 반영할 수 있습니다.
-
-**1. 소스 전송 (Development PC -> Server)**
-
-Github 등을 통해 소스 코드를 서버로 내려받습니다.
-
-```bash
-git clone https://github.com/my-repo/my-project.git
-cd my-project
-```
-
-**2. 빌드 및 실행 (Server)**
-
-```bash
-# 1. Docker 이미지 빌드 및 배포 파일 구성
-./gradlew dockerBuildImage -Penv=prod
-
-# 2. 생성된 배포 디렉토리로 이동
-cd build/docker-dist
-
-# 3. 환경 변수 초기화 및 컨테이너 실행 (설정 파일 Host Extract 포함)
-sudo ./install_docker_service.sh
-# (주의: 스크립트 없이 docker-compose up -d 단독 실행 시 .env 파일 직접 구성 필요)
-```
-
-> 💡 **Tip**: 반복 배포 시 `git pull && ./gradlew dockerBuildImage -Penv=prod` 명령으로 빠르게 최신화할 수 있습니다. Legacy(일반 서버) 배포 환경이라면 `build_deploy.sh -Penv=prod`를 사용하면 Git pull → 빌드 → 설치까지 한 번에 자동화됩니다.
-
-### 🐳 Docker 배포 3: 레지스트리 (Push & Pull)
+### 🐳 Docker 배포 2: 레지스트리 (Push & Pull)
 
 **"Local/CI 빌드 -> Registry Push -> Server Pull -> 실행"** 전략을 사용합니다.
 Docker Hub, ECR, GCR 등 원격 레지스트리를 활용하는 표준적인 방식입니다.
@@ -188,10 +166,10 @@ Docker Hub, ECR, GCR 등 원격 레지스트리를 활용하는 표준적인 방
 
 ```bash
 # 레지스트리 주소를 지정하여 빌드 및 Push
-./gradlew dockerPushImage -Penv=prod -PdockerRegistry=my-registry.com/repo
+./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=my-registry.com/repo
 
 # (선택) 태그 지정 가능 (기본값: latest)
-# ./gradlew dockerPushImage -Penv=prod -PdockerRegistry=... -PdockerImageTag=v1.0.0
+# ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=... -PdockerImageTag=v1.0.0
 ```
 
 - **결과물**:
@@ -208,7 +186,7 @@ CI/CD 파이프라인을 통해 설정 파일만 배포하거나, scp로 전송�
 cd docker-dist
 
 # 2. 서비스 등록 (이미지는 레지스트리에서 자동 Pull 및 .env 구성)
-sudo ./install_docker_service.sh
+sudo ./deploy/install_service.sh
 ```
 
 > ⚠️ **주의**: Private Registry를 사용하는 경우, 서버에서 `docker login`이 선행되어야 합니다.
@@ -231,10 +209,10 @@ Docker 없이 Java(JDK)만 설치된 서버에 배포하는 방식입니다.
 # 압축 해제 후 설치 스크립트 실행
 unzip {APP_NAME}-*.dist.zip -d {APP_NAME}
 cd {APP_NAME}
-sudo ./bin/install_service.sh
+sudo ./deploy/install_service.sh
 ```
 
-**2-b. 배포 (Server) — 자동화 스크립트 사용 (권장)**
+**3. 배포 (Server) — 자동화 스크립트 사용 (권장)**
 
 서버에 소스 코드가 이미 있는 경우, `build_deploy.sh`로 Git pull부터 설치까지 한 번에 처리할 수 있습니다.
 
@@ -296,7 +274,7 @@ netstat -anlp | grep :8080
 
 ```bash
 # 🐳 Docker 배포 시
-docker logs -f my-service-app
+docker logs -f my-service
 
 # 🖥️ 일반 배포 시 (편의 스크립트)
 tail-log-my-service.sh
@@ -316,20 +294,45 @@ curl -v http://localhost:8080/
 
 ---
 
+## 📂 Scripts 디렉토리 구조
+
+`/scripts` 디렉토리는 역할에 따라 명확히 하위 폴더로 구분되어 관리됩니다:
+
+- **`scripts/deploy/`** (배포/설치 및 제거)
+  - `install_service.sh`: 서비스 설치 및 Systemd/SysVinit 등록 스크립트
+  - `uninstall_service.sh`: 서비스 중지 및 제거 스크립트
+- **`scripts/service/`** (서비스 구동 및 런타임 운영)
+  - `start.sh`: 백그라운드 서비스 시작 스크립트
+  - `stop.sh`: 서비스 프로세스 종료 스크립트 (Graceful shutdown & Force kill)
+  - `status.sh`: 서비스 구동 상태, PID, 포트, 로그 경로 확인 스크립트
+  - `cron/`: 크론 및 헬스체크 작업
+- **`scripts/common/`** (공통 유틸리티)
+  - `bootstrap.sh`: 환경 로더 및 유틸리티 폴백
+  - `utils.sh`: 컬러 로깅 및 안전 경로 검증 함수
+  - `run_bash_tests.sh`: Bash 테스트 실행기
+
+> 💡 빌드(`package`) 시 `scripts/deploy` 및 `scripts/common`은 배포 아카이브의 `deploy/` 폴더로 패키징되며, `scripts/service` 및 `scripts/common`은 `bin/` 폴더로 패키징됩니다.
+
+---
+
 ## 🎨 고급 설정: 환경별 빌드 (Overlay)
 
-`scripts`와 `config` 폴더는 **"덮어쓰기 전략"** 을 따릅니다.
-환경별로 다른 설정이 필요하면, `prod` 폴더를 만들고 파일을 넣으세요.
+설정 파일(`config`)과 스크립트(`scripts`)는 **"덮어쓰기 전략"** 을 따릅니다.
+환경별로 다른 설정이 필요하면, `config.profiles/{env}/` 및 `scripts/{env}/` 폴더에 파일을 넣으세요.
 
 | 경로                               | 역할                              | 우선순위                            |
 | ---------------------------------- | --------------------------------- | ----------------------------------- |
-| `scripts/prod/.app-env.properties` | **운영 환경 전용** (로그 경로 등) | 🥇 1순위 (Zip에 이 파일이 덮어써짐) |
-| `scripts/.app-env.properties`      | **공통 기본값**                   | 🥈 2순위                            |
+| `config.profiles/prod/application-prod.yml` | **운영 환경 전용 애플리케이션 설정** | 🥇 1순위 (`config/application.yml`로 덮어써짐) |
+| `config.profiles/prod/log4j2-prod.yml`      | **운영 환경 전용 로깅 설정**       | 🥇 1순위 (`config/log4j2.yml`로 덮어써짐)     |
+| `config/application.yml`           | **공통 기본 설정**                | 🥈 2순위                            |
+| `config/log4j2.yml`                | **공통 기본 로깅 설정**           | 🥈 2순위                            |
+| `scripts/prod/.env`                | **운영 환경 전용 스크립트 환경변수** | 🥇 1순위 (Zip에 이 파일이 덮어써짐) |
+| `scripts/.env`                     | **공통 기본값**                   | 🥈 2순위                            |
 
-**예시: 운영 서버 로그 경로 변경**
+**예시: 운영 서버 설정 및 로그 경로 변경**
 
-1. `scripts/prod/.app-env.properties` 생성
-2. 내용 작성: `LOG_PATH="/var/log/my-service"`
+1. `config.profiles/prod/application-prod.yml` 및 `config.profiles/prod/log4j2-prod.yml` 작성
+2. `scripts/prod/.env` 작성: `LOG_PATH="/var/log/my-service"`
 3. `./gradlew package -Penv=prod` 실행 시 자동으로 적용됨.
 
 ---
@@ -357,39 +360,29 @@ flowchart TD
         DockerDecide{"전략 선택"}
 
         %% Strategy 1: Local Image
-        subgraph DockerOpt1 ["① 로컬 빌드 + 전송"]
-            D1_Build["🔨 dockerBuild task<br/>(이미지 빌드)"]
+        subgraph DockerOpt1 ["① 오프라인 빌드 (Offline)"]
+            D1_Build["🔨 packageDocker task<br/>(이미지 빌드)"]
             D1_Save["💾 Docker Image Save<br/>(.tar 파일)"]
             D1_Trans["📂 파일 전송<br/>(Local → Server)"]
-            D1_Load["📦 Image Load<br/>(docker load)"]
+            D1_Load["📦 스마트 인스톨<br/>(자동 docker load)"]
 
             D1_Build --> D1_Save --> D1_Trans --> D1_Load
         end
 
-        %% Strategy 2: Source Transfer
-        subgraph DockerOpt2 ["② 소스 전송 + 서버 빌드"]
-            D2_Trans["📂 소스/Dockerfile 전송"]
-            D2_Build["🔨 서버 빌드<br/>(dockerBuildImage task)"]
+        %% Strategy 2: Repository
+        subgraph DockerOpt2 ["② 레지스트리 (Registry)"]
+            D2_Build["🔨 로컬 빌드<br/>(dockerBuildRemote task)"]
+            D2_Push["☁️ Push to Registry<br/>(on Local PC)"]
+            D2_Pull["⬇️ Pull from Registry<br/>(on Server)"]
 
-            D2_Trans --> D2_Build
-        end
-
-        %% Strategy 3: Repository
-        subgraph DockerOpt3 ["③ Registry Push & Pull"]
-            D3_Build["🔨 로컬 빌드<br/>(dockerPushImage task)"]
-            D3_Push["☁️ Push to Registry<br/>(on Local PC)"]
-            D3_Pull["⬇️ Pull from Registry<br/>(on Server)"]
-
-            D3_Build --> D3_Push --> D3_Pull
+            D2_Build --> D2_Push --> D2_Pull
         end
 
         DockerDecide --> DockerOpt1
         DockerDecide --> DockerOpt2
-        DockerDecide --> DockerOpt3
 
         D1_Load --> DockerService["⚙️ 서비스 등록/실행<br/>(Systemd/SysVinit)"]
-        D2_Build --> DockerService
-        D3_Pull --> DockerService
+        D2_Pull --> DockerService
     end
 
     %% 서브그래프: K8s
@@ -434,8 +427,8 @@ flowchart TD
     class Monitor endNode;
 
     %% Nodes & Legend Styling (Local vs Remote)
-    class LegacyBuild,K8sBuild,D1_Build,D1_Save,D1_Trans,D2_Trans,D3_Build,D3_Push,L1 local_env;
-    class LegacyTrans,LegacyRun,PkgDocker,K8sDeploy,D1_Load,D2_Build,D3_Pull,DockerService,L2 remote_env;
+    class LegacyBuild,K8sBuild,D1_Build,D1_Save,D1_Trans,D2_Build,D2_Push,L1 local_env;
+    class LegacyTrans,LegacyRun,PkgDocker,K8sDeploy,D1_Load,D2_Pull,DockerService,L2 remote_env;
     class AS1,AS2,AS3 remote_env;
 ```
 
@@ -458,7 +451,7 @@ sequenceDiagram
 
     Dev->>Server: scp + unzip
     activate Server
-    Dev->>Server: sudo ./bin/install_service.sh
+    Dev->>Server: sudo ./deploy/install_service.sh
 
     Note over Server: 배포 방식 선택 (대화형)
 
@@ -475,9 +468,20 @@ sequenceDiagram
     deactivate Server
 ```
 
-### 🐳 Docker 배포 (3가지 전략)
+### 🐳 Docker 배포 (2가지 전용 전략 + 1 통합 배포)
 
-#### Strategy 1 — 로컬 이미지 파일 전송 (`./gradlew dockerBuild`)
+Docker 전용 태스크는 주로 **어디서 빌드하고 어떻게 서버에 배포할 것인가(네트워크 및 인프라 환경)**에 따라 나뉩니다. 다음 표를 참고하여 환경에 맞는 방식을 선택하세요.
+
+| 구분 | Strategy 1: `packageDocker` | Strategy 2: `dockerBuildRemote` | (참고) 통합 배포: `package` |
+|:---:|:---|:---|:---|
+| **핵심 목적** | 외부 서버 전송을 위한 **단일 Zip 패키지 생성** | 원격 저장소를 활용한 **표준 파이프라인 구성** | 배포 서버에서 런타임에 직접 실행 방식 선택 |
+| **타겟 환경** | 인터넷/레지스트리 접근이 불가한 **폐쇄망 환경** | AWS ECR, Docker Hub 등 **원격 레지스트리 환경** | 서버에서 소스를 클론받아 바로 띄우는 환경 |
+| **작업 내용** | 이미지 빌드 + `.tar` 추출 + Zip 파일 압축 | 이미지 빌드 + 원격 레지스트리로 `docker push` | Jar 빌드 + Dockerfile + 스크립트 압축 |
+| **주요 산출물** | `build/dist/...-docker-prod.zip` | Remote Registry에 업로드된 Docker Image | `build/dist/...-prod.dist.zip` |
+| **전송 방식** | 수동 전송 필요 (Zip 파일을 복사) | 자동 풀 (운영 서버에서 `docker pull`로 수신) | 소스 pull 또는 Zip 복사 |
+| **실행 예시** | `./gradlew packageDocker -Penv=prod` | `./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=...` | `./gradlew package -Penv=prod` |
+
+#### Strategy 1 — 오프라인 빌드 (Offline Image) (`./gradlew packageDocker`)
 
 ```mermaid
 sequenceDiagram
@@ -486,7 +490,7 @@ sequenceDiagram
     participant Gradle as 🐘 Gradle
     participant Server as 🖥️ 운영 서버
 
-    Dev->>Gradle: ./gradlew dockerBuild -Penv=prod
+    Dev->>Gradle: ./gradlew packageDocker -Penv=prod
     activate Gradle
     Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)
     Gradle->>Gradle: docker save → image.tar 추출
@@ -496,7 +500,7 @@ sequenceDiagram
 
     Dev->>Server: scp + unzip
     activate Server
-    Dev->>Server: sudo ./install_docker_service.sh
+    Dev->>Server: sudo ./deploy/install_service.sh
     Server->>Server: docker load (image.tar)
     Server->>Server: docker compose up -d
     Server->>Server: Systemd/SysVinit 서비스 등록
@@ -504,30 +508,7 @@ sequenceDiagram
     deactivate Server
 ```
 
-#### Strategy 2 — 서버에서 직접 빌드 (`./gradlew dockerBuildImage`)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Dev as 🧑‍💻 개발자
-    participant Gradle as 🐘 Gradle
-    participant Server as 🖥️ 운영 서버
-
-    Dev->>Server: git clone / git pull (소스 전송)
-    activate Server
-    Server->>Gradle: ./gradlew dockerBuildImage -Penv=prod
-    activate Gradle
-    Gradle->>Gradle: Jar 빌드 + docker-build/ 컨텍스트 구성
-    Gradle->>Server: docker build (서버 로컬)
-    deactivate Gradle
-    Server->>Server: sudo ./install_docker_service.sh
-    Server->>Server: docker compose up -d
-    Server->>Server: Systemd/SysVinit 서비스 등록
-    Server-->>Dev: 컨테이너 실행 완료
-    deactivate Server
-```
-
-#### Strategy 3 — Registry Push & Pull (`./gradlew dockerPushImage`)
+#### Strategy 2 — Registry Push & Pull (`./gradlew dockerBuildRemote`)
 
 ```mermaid
 sequenceDiagram
@@ -537,7 +518,7 @@ sequenceDiagram
     participant Registry as 🗄️ Docker Registry
     participant Server as 🖥️ 운영 서버
 
-    Dev->>Gradle: ./gradlew dockerPushImage -Penv=prod -PdockerRegistry=...
+    Dev->>Gradle: ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=...
     activate Gradle
     Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)
     Gradle->>Gradle: DEPLOY-GUIDE.md 자동 생성
@@ -548,7 +529,7 @@ sequenceDiagram
     Dev->>Server: scp docker-dist/ 폴더 전송
     activate Server
     Server->>Registry: docker pull {image}:{tag}
-    Dev->>Server: sudo ./install_docker_service.sh
+    Dev->>Server: sudo ./deploy/install_service.sh
     Server->>Server: docker compose up -d
     Server->>Server: Systemd/SysVinit 서비스 등록
     Server-->>Dev: 컨테이너 실행 완료
