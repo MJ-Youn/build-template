@@ -3,16 +3,17 @@
 # 빌드 및 배포 자동화 스크립트 (build_deploy.sh)
 #
 # 사용법: ./build_deploy.sh -Penv=<환경명>
-# 예시:   ./build_deploy.sh -Penv=dev
-#         ./build_deploy.sh -Penv=prod
+#         또는 ./build_deploy.sh <환경명> (예: ./build_deploy.sh dev)
 #
 # 실행 순서:
 #   1. Git pull (현재 디렉토리가 Git 저장소인 경우)
-#   2. Gradle package 빌드 (-Penv=<환경명>)
-#   3. 빌드 결과물(ZIP) 압축 해제 후 deploy/install_service.sh 실행
+#   2. 빌드 도구 감지 (Gradle / Maven) 및 플러그인 원스탑 배포 실행
+#      - Gradle: ./gradlew clean deployService -Penv=<환경명>
+#      - Maven:  ./mvnw clean distribution:deploy -Denv=<환경명>
+#   3. 플러그인 미적용 프로젝트에 대한 Fallback (ZIP 탐색 및 수동 설치)
 #
 # @author 윤명준 (MJ Yun)
-# @since  2026-03-19
+# @since  2026-03-19 (Updated: 2026-09-07)
 # =============================================================================
 
 set -e
@@ -26,14 +27,10 @@ YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# -----------------------------------------------------------------------------
-# 스크립트 실행 위치를 기준으로 프로젝트 루트 디렉토리 설정
-# (스크립트가 어느 위치에서 실행되든 동일하게 동작하도록 절대 경로 사용)
-# -----------------------------------------------------------------------------
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # -----------------------------------------------------------------------------
-# 파라미터 파싱 (-Penv=<값> 형식)
+# 파라미터 파싱 (-Penv=..., -Denv=..., --env=..., 또는 첫 번째 인자)
 # -----------------------------------------------------------------------------
 ENV_VALUE=""
 
@@ -42,20 +39,27 @@ for ARG in "$@"; do
         -Penv=*)
             ENV_VALUE="${ARG#-Penv=}"
             ;;
-        *)
-            echo -e "${RED}❌ 알 수 없는 옵션: ${ARG}${NC}"
-            echo -e "${YELLOW}사용법: ./build_deploy.sh -Penv=<환경명>${NC}"
-            echo -e "${YELLOW}예시:   ./build_deploy.sh -Penv=dev${NC}"
-            exit 1
+        -Denv=*)
+            ENV_VALUE="${ARG#-Denv=}"
+            ;;
+        --env=*)
+            ENV_VALUE="${ARG#--env=}"
+            ;;
+        dev|prod|local|test|stage|qa)
+            ENV_VALUE="${ARG}"
             ;;
     esac
 done
 
-# env 파라미터 필수 확인
+# 위치 인자로 지정된 경우 지원 (예: ./build_deploy.sh dev)
+if [ -z "${ENV_VALUE}" ] && [ -n "$1" ] && [[ "$1" != -* ]]; then
+    ENV_VALUE="$1"
+fi
+
 if [ -z "${ENV_VALUE}" ]; then
-    echo -e "${RED}❌ -Penv 파라미터가 필요합니다.${NC}"
-    echo -e "${YELLOW}사용법: ./build_deploy.sh -Penv=<환경명>${NC}"
-    echo -e "${YELLOW}예시:   ./build_deploy.sh -Penv=dev${NC}"
+    echo -e "${RED}❌ 환경 파라미터가 필요합니다.${NC}"
+    echo -e "${YELLOW}사용법: ./build_deploy.sh -Penv=<환경명> 또는 ./build_deploy.sh <환경명>${NC}"
+    echo -e "${YELLOW}예시:   ./build_deploy.sh -Penv=dev  (또는 ./build_deploy.sh dev)${NC}"
     exit 1
 fi
 
@@ -66,9 +70,8 @@ echo ""
 
 # -----------------------------------------------------------------------------
 # STEP 1. Git Pull
-# 현재 디렉토리가 Git 저장소인 경우에만 실행
 # -----------------------------------------------------------------------------
-echo -e "${CYAN}[1/3] 📥 Git 최신 코드 Pull 시도 중...${NC}"
+echo -e "${CYAN}[1/2] 📥 Git 최신 코드 Pull 시도 중...${NC}"
 
 if [ -d "${SCRIPT_DIR}/.git" ]; then
     git -C "${SCRIPT_DIR}" pull
@@ -79,86 +82,65 @@ fi
 echo ""
 
 # -----------------------------------------------------------------------------
-# STEP 2. Gradle 빌드
-# ./gradlew clean package -Penv=<env> 실행
+# STEP 2. 빌드 도구 감지 및 배포 실행
 # -----------------------------------------------------------------------------
-echo -e "${CYAN}[2/3] 🔨 Gradle 빌드 시작 (./gradlew clean package -Penv=${ENV_VALUE})${NC}"
+echo -e "${CYAN}[2/2] 🔨 배포 빌드 및 서비스 실행 시작...${NC}"
 
-GRADLEW="${SCRIPT_DIR}/gradlew"
+# A. Gradle 프로젝트인 경우
+if [ -f "${SCRIPT_DIR}/gradlew" ] || [ -f "${SCRIPT_DIR}/build.gradle" ] || [ -f "${SCRIPT_DIR}/build.gradle.kts" ]; then
+    GRADLEW="${SCRIPT_DIR}/gradlew"
+    if [ ! -f "${GRADLEW}" ]; then
+        GRADLEW="gradle"
+    elif [ ! -x "${GRADLEW}" ]; then
+        chmod +x "${GRADLEW}"
+    fi
 
-if [ ! -f "${GRADLEW}" ]; then
-    echo -e "${RED}❌ gradlew 파일을 찾을 수 없습니다: ${GRADLEW}${NC}"
-    exit 1
-fi
+    # 플러그인의 deployService 태스크 지원 여부 확인
+    if "${GRADLEW}" -p "${SCRIPT_DIR}" tasks --all 2>/dev/null | grep -q "deployService"; then
+        echo -e "${GREEN}✨ Distribution Plugin 감지: deployService 원스탑 배포를 실행합니다.${NC}"
+        "${GRADLEW}" -p "${SCRIPT_DIR}" clean deployService "-Penv=${ENV_VALUE}"
+    else
+        echo -e "${YELLOW}ℹ️  표준 package 빌드 후 수동 설치를 진행합니다.${NC}"
+        "${GRADLEW}" -p "${SCRIPT_DIR}" clean package "-Penv=${ENV_VALUE}"
 
-# gradlew 실행 권한 확인 및 부여
-if [ ! -x "${GRADLEW}" ]; then
-    echo -e "${YELLOW}⚠️  gradlew에 실행 권한이 없어 권한을 부여합니다.${NC}"
-    chmod +x "${GRADLEW}"
-fi
+        # ZIP 탐색 (build/distributions 우선, build/dist 차선)
+        ZIP_FILE=$(find "${SCRIPT_DIR}/build/distributions" "${SCRIPT_DIR}/build/dist" -maxdepth 2 -name "*.zip" 2>/dev/null | sort | tail -n 1)
+        if [ -z "${ZIP_FILE}" ]; then
+            echo -e "${RED}❌ 빌드 결과물 ZIP 파일을 찾을 수 없습니다.${NC}"
+            exit 1
+        fi
 
-"${GRADLEW}" -p "${SCRIPT_DIR}" clean package "-Penv=${ENV_VALUE}"
-echo -e "${GREEN}✅ Gradle 빌드 완료${NC}"
-echo ""
+        EXTRACT_DIR="${SCRIPT_DIR}/build/distributions/unpacked"
+        rm -rf "${EXTRACT_DIR}"
+        mkdir -p "${EXTRACT_DIR}"
+        unzip -q "${ZIP_FILE}" -d "${EXTRACT_DIR}"
 
-# -----------------------------------------------------------------------------
-# STEP 3. 빌드 결과물(ZIP) 압축 해제 및 install_service.sh 실행
-# 빌드 결과물: ./build/dist/<appName>-<version>-<env>.dist.zip
-# -----------------------------------------------------------------------------
-echo -e "${CYAN}[3/3] 📦 빌드 결과물 압축 해제 및 설치 스크립트 실행${NC}"
+        INSTALL_SCRIPT=$(find "${EXTRACT_DIR}" -name "install_service.sh" 2>/dev/null | head -n 1)
+        if [ -f "${INSTALL_SCRIPT}" ]; then
+            chmod +x "${INSTALL_SCRIPT}"
+            sudo "${INSTALL_SCRIPT}"
+        else
+            echo -e "${RED}❌ install_service.sh 를 찾을 수 없습니다.${NC}"
+            exit 1
+        fi
+    fi
 
-DIST_DIR="${SCRIPT_DIR}/build/dist"
+# B. Maven 프로젝트인 경우
+elif [ -f "${SCRIPT_DIR}/mvnw" ] || [ -f "${SCRIPT_DIR}/pom.xml" ]; then
+    MVNW="${SCRIPT_DIR}/mvnw"
+    if [ ! -f "${MVNW}" ]; then
+        MVNW="mvn"
+    elif [ ! -x "${MVNW}" ]; then
+        chmod +x "${MVNW}"
+    fi
 
-# build/dist 디렉토리 존재 여부 확인
-if [ ! -d "${DIST_DIR}" ]; then
-    echo -e "${RED}❌ 빌드 결과 디렉토리를 찾을 수 없습니다: ${DIST_DIR}${NC}"
-    exit 1
-fi
+    echo -e "${GREEN}✨ Maven Distribution Plugin: distribution:deploy 원스탑 배포를 실행합니다.${NC}"
+    "${MVNW}" -f "${SCRIPT_DIR}/pom.xml" clean distribution:deploy "-Denv=${ENV_VALUE}"
 
-# <env>.dist.zip 패턴으로 결과물 파일 탐색 (가장 최근 파일 사용)
-ZIP_FILE=$(find "${DIST_DIR}" -maxdepth 1 -name "*-${ENV_VALUE}.dist.zip" | sort | tail -n 1)
-
-if [ -z "${ZIP_FILE}" ]; then
-    echo -e "${RED}❌ 빌드 결과물 ZIP 파일을 찾을 수 없습니다.${NC}"
-    echo -e "${RED}   탐색 위치: ${DIST_DIR}/*-${ENV_VALUE}.dist.zip${NC}"
-    exit 1
-fi
-
-echo -e "   📄 발견된 ZIP 파일: ${ZIP_FILE}"
-
-# 압축 해제 대상 디렉토리 설정 (ZIP 파일명에서 .zip 제거)
-ZIP_BASENAME=$(basename "${ZIP_FILE}" .zip)
-EXTRACT_DIR="${DIST_DIR}/${ZIP_BASENAME}"
-
-# 기존 압축 해제 디렉토리가 있으면 삭제 후 재생성
-if [ -d "${EXTRACT_DIR}" ]; then
-    echo -e "${YELLOW}   ⚠️  기존 압축 해제 디렉토리를 삭제합니다: ${EXTRACT_DIR}${NC}"
-    rm -rf "${EXTRACT_DIR}"
-fi
-
-mkdir -p "${EXTRACT_DIR}"
-echo -e "   📂 압축 해제 위치: ${EXTRACT_DIR}"
-
-# ZIP 압축 해제
-unzip -q "${ZIP_FILE}" -d "${EXTRACT_DIR}"
-echo -e "${GREEN}   ✅ 압축 해제 완료${NC}"
-
-# deploy/install_service.sh (또는 bin/install_service.sh) 존재 여부 확인
-if [ -f "${EXTRACT_DIR}/deploy/install_service.sh" ]; then
-    INSTALL_SCRIPT="${EXTRACT_DIR}/deploy/install_service.sh"
-elif [ -f "${EXTRACT_DIR}/bin/install_service.sh" ]; then
-    INSTALL_SCRIPT="${EXTRACT_DIR}/bin/install_service.sh"
 else
-    echo -e "${RED}❌ 설치 스크립트를 찾을 수 없습니다: ${EXTRACT_DIR}/deploy/install_service.sh${NC}"
+    echo -e "${RED}❌ Gradle(gradlew) 또는 Maven(pom.xml) 프로젝트를 찾을 수 없습니다.${NC}"
     exit 1
 fi
-
-# 실행 권한 부여 및 설치 스크립트 실행
-chmod +x "${INSTALL_SCRIPT}"
-echo -e "   🛠️  설치 스크립트 실행 중: ${INSTALL_SCRIPT}"
-echo ""
-
-sudo "${INSTALL_SCRIPT}"
 
 echo ""
 echo -e "${CYAN}======================================================${NC}"

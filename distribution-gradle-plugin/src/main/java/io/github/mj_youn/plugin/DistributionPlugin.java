@@ -110,6 +110,31 @@ public class DistributionPlugin implements Plugin<Project> {
             task.setDescription("배포 플러그인 사용 가이드 및 명령어 안내를 출력합니다.");
             task.doLast(t -> printGuide(project));
         });
+
+        // 6. 'initDeployScript' 태스크 등록 (프로젝트 루트에 배포 자동화 쉘 스크립트 build_deploy.sh 생성)
+        project.getTasks().register("initDeployScript", task -> {
+            task.setGroup("distribution");
+            task.setDescription("프로젝트 루트에 배포 자동화 쉘 스크립트(build_deploy.sh)를 생성합니다.");
+            task.doLast(t -> {
+                File targetFile = project.file("build_deploy.sh");
+                InputStream stream = getClass().getClassLoader().getResourceAsStream("template/build_deploy.sh");
+                if (stream == null) {
+                    project.getLogger().error("❌ [Distribution] template/build_deploy.sh 템플릿을 찾을 수 없습니다.");
+                    return;
+                }
+                try (stream) {
+                    Files.copy(stream, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                    targetFile.setExecutable(true, false);
+                    project.getLogger().lifecycle("================================================================");
+                    project.getLogger().lifecycle("✅ [Distribution] build_deploy.sh 가 프로젝트 루트에 생성되었습니다!");
+                    project.getLogger().lifecycle("   - 파일 경로: {}", targetFile.getAbsolutePath());
+                    project.getLogger().lifecycle("   - 사용법: ./build_deploy.sh -Penv=dev");
+                    project.getLogger().lifecycle("================================================================");
+                } catch (IOException e) {
+                    throw new RuntimeException("build_deploy.sh 생성 실패: " + e.getMessage(), e);
+                }
+            });
+        });
     }
 
     private void printGuide(Project project) {
@@ -121,6 +146,8 @@ public class DistributionPlugin implements Plugin<Project> {
   ./gradlew package -Penv=dev       : 개발 환경 배포 패키지(Zip) 생성
   ./gradlew package -Penv=prod      : 운영 환경 배포 패키지(Zip) 생성
   ./gradlew deployService -Penv=prod: 원스탑 배포 (빌드 + 압축해제 + 서비스 설치/구동)
+  ./gradlew initDeployScript        : 프로젝트 루트에 build_deploy.sh 자동 생성
+  ./build_deploy.sh -Penv=dev       : 쉘 스크립트 기반 원스탑 배포 (Git pull + deployService)
 
 [환경 지정 옵션 (-Penv=...)]
   지정 시 config.profiles/{env}/ 내 설정 파일들이 패키지 config/ 로 오버레이됩니다.
