@@ -53,11 +53,80 @@ public class DistributionPlugin implements Plugin<Project> {
         });
 
         // 3. 'package' 태스크 등록 (표준 Zip 포맷)
-        project.getTasks().register("package", Zip.class, zip -> {
+        var packageTaskProvider = project.getTasks().register("package", Zip.class, zip -> {
             zip.setGroup("distribution");
             zip.setDescription("표준 배포용 Zip 패키지를 생성합니다. (내장 스크립트 및 로컬 @Override 지원)");
             configurePackagingTask(project, zip, builtinExtractDir, extractTemplateTask, extension);
         });
+
+        // 4. 'deployService' 태스크 등록 (원스탑 빌드 및 서비스 설치/구동)
+        project.getTasks().register("deployService", task -> {
+            task.setGroup("distribution");
+            task.setDescription("패키지 빌드 후 Zip을 자동으로 풀어 install_service.sh를 실행하여 서비스를 배포/구동합니다.");
+            task.dependsOn(packageTaskProvider);
+            task.doLast(t -> {
+                Zip zipTask = packageTaskProvider.get();
+                File zipFile = zipTask.getArchiveFile().get().getAsFile();
+                File unpackDir = new File(project.getLayout().getBuildDirectory().getAsFile().get(), "distributions/unpacked");
+
+                project.getLogger().lifecycle("================================================================");
+                project.getLogger().lifecycle("🚀 [Distribution] 원스탑 서비스 배포(deployService) 시작");
+                project.getLogger().lifecycle("   - 패키지 파일: {}", zipFile.getAbsolutePath());
+                project.getLogger().lifecycle("   - 압축 해제 경로: {}", unpackDir.getAbsolutePath());
+                project.getLogger().lifecycle("================================================================");
+
+                // 1. 기존 폴더 정리 후 압축 해제
+                project.delete(unpackDir);
+                project.copy(spec -> {
+                    spec.from(project.zipTree(zipFile));
+                    spec.into(unpackDir);
+                });
+
+                // 2. deploy/install_service.sh 실행
+                File installScript = new File(unpackDir, "deploy/install_service.sh");
+                if (!installScript.exists()) {
+                    throw new RuntimeException("deploy/install_service.sh 스크립트를 찾을 수 없습니다: " + installScript.getAbsolutePath());
+                }
+                installScript.setExecutable(true, false);
+
+                try {
+                    ProcessBuilder pb = new ProcessBuilder("./install_service.sh");
+                    pb.directory(installScript.getParentFile());
+                    pb.inheritIO();
+                    Process process = pb.start();
+                    int exitCode = process.waitFor();
+                    if (exitCode != 0) {
+                        throw new RuntimeException("install_service.sh 실행이 비정상 종료되었습니다 (코드: " + exitCode + ")");
+                    }
+                } catch (Exception e) {
+                    throw new RuntimeException("서비스 설치 스크립트 실행 중 오류 발생: " + e.getMessage(), e);
+                }
+            });
+        });
+
+        // 5. 'distHelp' 태스크 등록 (배포 가이드 출력)
+        project.getTasks().register("distHelp", task -> {
+            task.setGroup("distribution");
+            task.setDescription("배포 플러그인 사용 가이드 및 명령어 안내를 출력합니다.");
+            task.doLast(t -> printGuide(project));
+        });
+    }
+
+    private void printGuide(Project project) {
+        String msg = """
+================================================================================
+🚀 [Distribution Plugin] 빌드 및 배포 가이드
+================================================================================
+[기본 명령어]
+  ./gradlew package -Penv=dev       : 개발 환경 배포 패키지(Zip) 생성
+  ./gradlew package -Penv=prod      : 운영 환경 배포 패키지(Zip) 생성
+  ./gradlew deployService -Penv=prod: 원스탑 배포 (빌드 + 압축해제 + 서비스 설치/구동)
+
+[환경 지정 옵션 (-Penv=...)]
+  지정 시 config.profiles/{env}/ 내 설정 파일들이 패키지 config/ 로 오버레이됩니다.
+================================================================================
+""";
+        project.getLogger().lifecycle(msg);
     }
 
     /**
@@ -83,7 +152,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         zipTask.doFirst(task -> {
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("🚀 [YM Tech Distribution] 배포 패키지 생성 시작");
+            project.getLogger().lifecycle("🚀 [Distribution] 배포 패키지 생성 시작");
             project.getLogger().lifecycle("   - 대상 프로젝트: {}", project.getName());
             project.getLogger().lifecycle("   - 활성 프로파일: {}", env);
             project.getLogger().lifecycle("   - 산출물 이름: {}", zipTask.getArchiveFileName().get());
@@ -235,7 +304,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         InputStream manifestStream = getClass().getClassLoader().getResourceAsStream("template-manifest.txt");
         if (manifestStream == null) {
-            System.err.println("⚠️ [YM Tech Distribution] template-manifest.txt 를 찾을 수 없습니다.");
+            System.err.println("⚠️ [Distribution] template-manifest.txt 를 찾을 수 없습니다.");
             return;
         }
 

@@ -604,15 +604,17 @@ copy_docker_files() {
     cp "$COMPOSE_SRC" "$DEST_DIR/"
 
     # 2. Bin Scripts
-    # Docker 실행 및 관리에 필요한 스크립트 복사
-    local MGMT_SCRIPTS=("uninstall_service.sh" "utils.sh" "bootstrap.sh")
+    # Docker 실행 및 관리에 필요한 스크립트 복사 (Legacy와 일관된 인터페이스 제공)
+    local MGMT_SCRIPTS=("start.sh" "stop.sh" "status.sh" "uninstall_service.sh" "utils.sh" "bootstrap.sh")
     for script in "${MGMT_SCRIPTS[@]}"; do
         if [ -f "$SCRIPT_DIR/$script" ]; then
             cp -rf "$SCRIPT_DIR/$script" "$DEST_DIR/bin/"
-        elif [ -f "$PKG_ROOT/deploy/$script" ]; then
-            cp -rf "$PKG_ROOT/deploy/$script" "$DEST_DIR/bin/"
         elif [ -f "$PKG_ROOT/bin/$script" ]; then
             cp -rf "$PKG_ROOT/bin/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/scripts/service/$script" ]; then
+            cp -rf "$PKG_ROOT/scripts/service/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/deploy/$script" ]; then
+            cp -rf "$PKG_ROOT/deploy/$script" "$DEST_DIR/bin/"
         elif [ -f "$PKG_ROOT/scripts/common/$script" ]; then
             cp -rf "$PKG_ROOT/scripts/common/$script" "$DEST_DIR/bin/"
         fi
@@ -730,7 +732,11 @@ register_docker_service() {
     log_info "Docker Compose 명령어: $DOCKER_COMPOSE_CMD"
 
     local COMPOSE_FILE="$DEST_DIR/docker-compose.yml"
-    log_step "서비스 등록 및 시작..."
+    local START_SCRIPT="$DEST_DIR/bin/start.sh"
+    local STOP_SCRIPT="$DEST_DIR/bin/stop.sh"
+    local STATUS_SCRIPT="$DEST_DIR/bin/status.sh"
+
+    log_step "서비스 등록 및 시작 (스크립트 래퍼 연동)..."
 
     if [ "$INIT_SYSTEM" = "systemd" ]; then
         local SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
@@ -747,8 +753,8 @@ User=$REAL_USER
 Group=$SERVICE_GROUP
 Type=simple
 WorkingDirectory=$DEST_DIR
-ExecStart=$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up
-ExecStop=$DOCKER_COMPOSE_CMD -f $COMPOSE_FILE down
+ExecStart=$START_SCRIPT
+ExecStop=$STOP_SCRIPT
 Restart=always
 
 [Install]
@@ -795,19 +801,17 @@ EOF
 
 case "\$1" in
     start)
-        cd $DEST_DIR
-        $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE up -d
+        su - $REAL_USER -c "$START_SCRIPT -d"
         ;;
     stop)
-        cd $DEST_DIR
-        $DOCKER_COMPOSE_CMD -f $COMPOSE_FILE down
+        su - $REAL_USER -c "$STOP_SCRIPT"
         ;;
     restart)
         \$0 stop
         \$0 start
         ;;
     status)
-        docker ps -f "name=${APP_NAME}"
+        su - $REAL_USER -c "$STATUS_SCRIPT"
         ;;
     *)
         echo "사용법: \$0 {start|stop|restart|status}"
@@ -824,7 +828,7 @@ EOF
             update-rc.d $APP_NAME defaults
         fi
 
-        log_success "서비스가 등록되었습니다 (sysvinit)."
+        log_success "서비스가 등록되었습니다 (sysvinit)"
         service $APP_NAME restart
     fi
 }

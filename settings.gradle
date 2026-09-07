@@ -1,2 +1,3 @@
 rootProject.name = 'build_test'
 include 'distribution-gradle-plugin'
+include 'distribution-maven-plugin'

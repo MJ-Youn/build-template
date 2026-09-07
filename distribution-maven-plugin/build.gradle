@@ -1,0 +1,153 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+    id 'com.gradleup.nmcp' version '1.6.1'
+}
+
+group = 'io.github.mj-youn'
+version = '1.1.0'
+description = 'Maven distribution packaging plugin with embedded scripts and @Override support'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    withJavadocJar()
+    withSourcesJar()
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    compileOnly 'org.apache.maven:maven-plugin-api:3.9.6'
+    compileOnly 'org.apache.maven.plugin-tools:maven-plugin-annotations:3.11.0'
+    compileOnly 'org.apache.maven:maven-core:3.9.6'
+    
+    // Apache Commons Compress for Zip file permissions (0755)
+    implementation 'org.apache.commons:commons-compress:1.26.1'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// 루트 프로젝트의 scripts/, docker/, build_deploy.sh를 단일 원본(SSOT)으로 삼아 플러그인 리소스에 포함
+tasks.named('processResources') {
+    from("${rootProject.projectDir}/scripts") {
+        into 'template/scripts'
+    }
+    from("${rootProject.projectDir}/docker") {
+        into 'template/docker'
+    }
+    from("${rootProject.projectDir}/build_deploy.sh") {
+        into 'template'
+    }
+
+    // template 리소스 내부 파일 목록(manifest)을 자동 생성
+    doLast {
+        def templateDir = file("${destinationDir}/template")
+        if (templateDir.exists()) {
+            def manifestFile = file("${destinationDir}/template-manifest.txt")
+            def filesList = []
+            templateDir.eachFileRecurse(groovy.io.FileType.FILES) { f ->
+                def relative = templateDir.toPath().relativize(f.toPath()).toString()
+                filesList << relative
+            }
+            manifestFile.text = filesList.join('\n')
+            println "📋 [Maven Plugin] 템플릿 매니페스트 생성 완료 (${filesList.size()}개 파일 - 루트 단일 원본 동기화)"
+        }
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
+
+// Javadoc 빌드 시 경고 방지
+tasks.named('javadoc') {
+    if (JavaVersion.current().isJava9Compatible()) {
+        options.addBooleanOption('html5', true)
+    }
+}
+
+// Maven Central 배포용 POM 설정
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+            artifactId = 'distribution-maven-plugin'
+
+            pom {
+                name = 'Distribution Maven Plugin'
+                description = 'Maven distribution and packaging plugin with embedded scripts and @Override support'
+                url = 'https://github.com/MJ-Youn/build-template'
+                packaging = 'maven-plugin'
+
+                licenses {
+                    license {
+                        name = 'The Apache License, Version 2.0'
+                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'yun0244'
+                        name = 'MJ Yune'
+                        email = 'yun0244@naver.com'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:git://github.com/MJ-Youn/build-template.git'
+                    developerConnection = 'scm:git:ssh://github.com:MJ-Youn/build-template.git'
+                    url = 'https://github.com/MJ-Youn/build-template'
+                }
+            }
+        }
+    }
+}
+
+// Sonatype Central Portal (https://central.sonatype.com) 배포 설정
+nmcp {
+    publishAllPublicationsToCentralPortal {
+        username = project.findProperty('centralUsername') ?: System.getenv('CENTRAL_USERNAME')
+        password = project.findProperty('centralPassword') ?: System.getenv('CENTRAL_PASSWORD')
+        publishingType = 'AUTOMATIC'
+    }
+}
+
+// Sonatype Central Portal 배포 태스크 단축 별칭
+tasks.register('publishMavenPlugins') {
+    group = 'publishing'
+    description = 'Publishes Maven plugin to Sonatype Central Portal'
+    dependsOn 'publishAllPublicationsToCentralPortal'
+}
+
+// GPG 서명 설정 (인메모리 키 또는 로컬 gpg CLI 활용)
+signing {
+    required {
+        (gradle.taskGraph.hasTask("publishMavenPlugins") ||
+         gradle.taskGraph.hasTask(":distribution-maven-plugin:publishMavenPlugins") ||
+         gradle.taskGraph.hasTask("publishAllPublicationsToCentralPortal") ||
+         gradle.taskGraph.hasTask(":distribution-maven-plugin:publishAllPublicationsToCentralPortal")) &&
+        !version.endsWith("SNAPSHOT")
+    }
+    def signingKey = project.findProperty("signingKey") ?: System.getenv("SIGNING_KEY")
+    def signingPassword = project.findProperty("signingPassword") ?: System.getenv("SIGNING_PASSWORD")
+    if (signingKey != null) {
+        useInMemoryPgpKeys(signingKey, signingPassword)
+    } else {
+        useGpgCmd()
+    }
+    sign publishing.publications.mavenJava
+}
+
+tasks.withType(Sign).configureEach {
+    onlyIf {
+        gradle.taskGraph.hasTask("publishMavenPlugins") ||
+        gradle.taskGraph.hasTask(":distribution-maven-plugin:publishMavenPlugins") ||
+        gradle.taskGraph.hasTask("publishAllPublicationsToCentralPortal") ||
+        gradle.taskGraph.hasTask(":distribution-maven-plugin:publishAllPublicationsToCentralPortal")
+    }
+}

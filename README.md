@@ -1,111 +1,131 @@
-# 🚀 Spring Boot Build & Deploy Template
+# 🚀 Spring Boot Build & Deploy Platform
 
-> **이 프로젝트는 Spring Boot 애플리케이션의 빌드 및 배포 환경을 표준화하기 위한 Boilerplate(템플릿) 프로젝트입니다.**  
-> 자체 비즈니스 로직보다는 **안정적인 빌드 파이프라인**, **환경별 설정 관리(Overlay)**, **자동화된 배포 스크립트** 제공에 초점을 맞추고 있습니다.
-
----
-
-## 🏗️ 프로젝트 개요 (Overview)
-
-이 템플릿은 다음과 같은 강력한 배포 기능을 기본 제공합니다:
-
-1.  **📦 이원화된 패키징 전략**:
-    - **일반 배포**: Jar + Config + Scripts가 포함된 Zip 패키지.
-    - **Docker 배포**: Image(tar) + Docker Compose + Script가 통합된 Zip 패키지.
-2.  **🎨 환경별 덮어쓰기 (Overlay Build)**:
-    - 기본 설정(`scripts/`, `config/`) 위에 환경별 파일(`scripts/prod/`, `config.profiles/prod/`)을 덮어쓰는 구조.
-    - 소스 코드 변경 없이 파일 추가만으로 환경별 커스터마이징 가능.
-3.  **🪵 동적 로그 경로 설정**:
-    - 빌드 시점(`scripts/.env`) 또는 배포 시점(사용자 입력)에 로그 경로 설정 가능.
-4.  **🐧 Linux 서비스 자동 등록**:
-    - `Systemd`, `SysVinit` 자동 감지 및 서비스 등록/시작.
+> **이 프로젝트는 Spring Boot 애플리케이션의 배포 체계를 표준화하기 위한 중앙 빌드/배포 플랫폼 허브입니다.**  
+> 이제는 복잡한 스크립트 파일들을 프로젝트마다 복사(Boilerplate)하여 분산 관리할 필요가 없습니다.  
+> **Gradle 플러그인**과 **Maven 플러그인**을 한 지붕 아래에서 단일 원본(SSOT)으로 관리하며, 개별 프로젝트에서는 **플러그인 선언 1줄**만으로 완벽한 표준 배포 환경을 구축할 수 있습니다. ✨
 
 ---
 
-## 🔌 Gradle 배포 플러그인 (Distribution Plugin)
+## 🌟 핵심 가치: 왜 플러그인 방식을 사용해야 하는가?
 
-> 💡 **알림**: 개별 프로젝트에 `scripts/`나 `docker/` 폴더를 복사하지 않고, Gradle 플러그인 1줄(`plugins { id 'io.github.mj-youn.distribution' }`)로 배포 패키징 및 파일 단위 `@Override`를 적용할 수 있는 커스텀 플러그인을 제공합니다.
-> 
-> 자세한 사용법 및 배포 가이드는 [**Distribution Gradle Plugin README**](distribution-gradle-plugin/README.md) 문서를 확인하세요.
+1. **📦 배포 인프라 무설치 (Zero Copy)**:
+    - 개별 프로젝트에 `scripts/`나 `docker/` 폴더를 복사해 둘 필요가 없습니다.
+    - 플러그인 내부에 서비스 등록/시작/종료 스크립트와 `Dockerfile`이 기본 탑재되어 배포 아카이브(`.zip`)를 자동 조립합니다.
+2. **🧩 파일 단위 @Override 메커니즘 (Java의 상속 원리)**:
+    - 특정 프로젝트에서 JVM 옵션이나 스크립트 커스터마이징이 필요할 때, 프로젝트 로컬에 동일한 경로의 파일(예: `scripts/service/start.sh`)을 생성하기만 하면 **자동으로 로컬 파일이 우선 적용(@Override)**됩니다.
+    - 수정하지 않은 나머지 스크립트들은 플러그인의 최신 템플릿 파일이 그대로 유지됩니다.
+3. **🔄 단일 마스터 원본(SSOT)과 Gradle & Maven 통합 관리**:
+    - 본 저장소의 루트 `/scripts`와 `/docker`가 유일한 마스터 원본입니다.
+    - 플러그인 빌드 시 루트의 마스터 자원을 자동으로 끌어가므로 스크립트 중복 관리가 0개입니다.
+    - `./gradlew publishAllPlugins` 명령 한 줄로 **Gradle Plugin Portal**과 **Maven Central**에 동시에 최신 버전을 배포합니다.
 
 ---
 
-## 🛠️ 사용 가이드 (How to Use)
+## 🔌 배포 플러그인 (Distribution Plugins)
 
-이 프로젝트는 초기 설정을 자동화하는 스크립트(`init.sh`)를 제공합니다.
+개별 프로젝트의 빌드 도구에 맞추어 플러그인을 적용하세요:
 
-### 🚀 1단계: 프로젝트 초기화 (필수!)
+| 빌드 도구  | 플러그인 모듈                                 | 배포 저장소          | 문서 바로가기                                                    |
+| :--------- | :-------------------------------------------- | :------------------- | :--------------------------------------------------------------- |
+| **Gradle** | `io.github.mj-youn.distribution`              | Gradle Plugin Portal | [**Gradle Plugin README**](distribution-gradle-plugin/README.md) |
+| **Maven**  | `io.github.mj-youn:distribution-maven-plugin` | Maven Central        | [**Maven Plugin README**](distribution-maven-plugin/README.md)   |
 
-프로젝트 루트에 있는 `init.sh` 스크립트를 실행하여 **프로젝트 이름**, **그룹 이름**, **포트 번호**를 한 번에 설정하세요.
+### 💻 개별 프로젝트 적용 방법 (1줄 설정)
 
-```bash
-./init.sh
+#### 🐘 Gradle 프로젝트 (`build.gradle`)
+
+```groovy
+plugins {
+    id 'io.github.mj-youn.distribution' version '1.1.0'
+}
 ```
 
-### 💡 2단계: 배포 및 빌드 가이드 확인 (`help`)
+- **배포 패키지 생성**:
+    ```bash
+    ./gradlew package -Penv=dev    # 개발 환경 배포 Zip
+    ./gradlew package -Penv=prod   # 운영 환경 배포 Zip
+    ```
 
-프로젝트 전용으로 확장된 `help` 태스크를 통해 현재 설정된 환경별 빌드/배포 명령어 예시를 언제든 터미널에서 확인할 수 있습니다.
+#### 🪶 Maven 프로젝트 (`pom.xml`)
 
-```bash
-./gradlew help
+```xml
+<build>
+    <plugins>
+        <plugin>
+            <groupId>io.github.mj-youn</groupId>
+            <artifactId>distribution-maven-plugin</artifactId>
+            <version>1.1.0</version>
+            <executions>
+                <execution>
+                    <goals><goal>package</goal></goals>
+                </execution>
+            </executions>
+        </plugin>
+    </plugins>
+</build>
 ```
 
-### 3단계: 비즈니스 로직 개발
+- **배포 패키지 생성**:
+    ```bash
+    mvn clean package -Denv=dev    # 개발 환경 배포 Zip
+    mvn clean package -Denv=prod   # 운영 환경 배포 Zip
+    ```
 
-`src/main/java/{Group}/{Project}` 경로에 여러분만의 코드를 작성하세요!
+---
 
-### 🤖 4단계 (선택): 자동화 스크립트로 원스탑 배포
+## 💡 배포 및 빌드 가이드 확인 (`help`)
 
-서버에서 반복적인 Legacy 배포를 자동화할 때는 `build_deploy.sh`를 활용하세요. Git pull → Gradle 빌드 → 설치까지 한 번에 처리합니다.
+개별 프로젝트에서 터미널을 통해 언제든지 지원하는 태스크, 골(Goal), 환경 옵션 및 사용 예시를 확인할 수 있습니다:
+
+### 🐘 Gradle 프로젝트
 
 ```bash
-./build_deploy.sh -Penv=dev
+./gradlew help        # 프로젝트 기본 도움말과 배포 가이드 배너 출력
+./gradlew distHelp    # 배포 전용 상세 가이드 출력
+```
+
+### 🪶 Maven 프로젝트
+
+```bash
+mvn distribution:help
 ```
 
 ---
 
-## 🤖 자동화 배포 스크립트 (build_deploy.sh)
+## 🚀 원스탑 빌드 및 서비스 자동 배포 (`deployService` / `distribution:deploy`)
 
-> **소스 코드가 서버에 직접 올라가 있는 환경(Legacy/서버 빌드)**에서, 반복적인 배포 작업을 한 줄의 명령으로 완전 자동화합니다.
+> **서버에 소스 코드가 위치한 환경(Legacy/서버 직접 빌드)**에서, 번거로운 "빌드 ➡️ 압축 해제 ➡️ 스크립트 실행" 과정을 **단 한 줄의 명령어로 완전 자동화**합니다.  
+> (기존 외장 스크립트였던 `build_deploy.sh`의 기능을 플러그인 내부 태스크/골로 완벽히 내장하였습니다.)
 
 ### 🔄 실행 흐름
 
 ```
-[1/3] 📥 Git Pull        → 최신 소스 코드 수신
-[2/3] 🔨 Gradle Package  → 환경별 배포 패키지(ZIP) 빌드
-[3/3] 📦 AUTO 압축 해제   → deploy/install_service.sh 자동 실행
+[1/3] 🔨 Package         → 환경별 배포 패키지(ZIP) 자동 조립 (Jar + Scripts + Dockerfile)
+[2/3] 📦 AUTO 압축 해제   → 빌드 디렉토리에 산출물 Zip 자동 해제
+[3/3] 🚀 서비스 구동     → deploy/install_service.sh 자동 실행 (서비스 등록 및 백그라운드 구동)
 ```
 
-### 🚀 사용법
+### 💻 실행 명령어
+
+#### 🐘 Gradle 프로젝트
 
 ```bash
-# 기본 형식
-./build_deploy.sh -Penv=<환경명>
-
-# 예시
-./build_deploy.sh -Penv=dev    # 개발 환경
-./build_deploy.sh -Penv=prod   # 운영 환경
+./gradlew deployService -Penv=dev    # 개발 환경 빌드 & 즉시 서비스 설치/구동
+./gradlew deployService -Penv=prod   # 운영 환경 빌드 & 즉시 서비스 설치/구동
 ```
 
-### ✅ 사전 조건
+#### 🪶 Maven 프로젝트
 
-| 항목                     | 설명                                                           |
-| ------------------------ | -------------------------------------------------------------- |
-| Git 저장소               | `.git` 폴더가 존재하면 자동으로 `git pull` 실행, 없으면 건너뜀 |
-| JDK                      | `./gradlew` 실행 가능 환경 필요                                |
-| `unzip`                  | 패키지 압축 해제에 필요                                        |
-| `deploy/install_service.sh` | 빌드 패키지 내 포함된 설치 스크립트                         |
+```bash
+mvn distribution:deploy -Denv=dev    # 개발 환경 빌드 & 즉시 서비스 설치/구동
+mvn distribution:deploy -Denv=prod   # 운영 환경 빌드 & 즉시 서비스 설치/구동
+```
 
 ### 📋 상세 동작
 
-1. **Git Pull**: 현재 디렉토리에 `.git` 폴더가 있으면 `git pull`을 실행하여 최신 코드를 반영합니다.
-2. **Gradle 빌드**: `./gradlew package -Penv=<환경명>` 을 실행하여 배포 패키지를 생성합니다.
-    - 결과물: `build/dist/{APP_NAME}-{version}-{env}.dist.zip`
-3. **압축 해제 및 설치**: 생성된 ZIP 파일을 자동으로 찾아 압축을 해제하고, 내부의 `deploy/install_service.sh`를 실행합니다.
-    - 압축 해제 경로: `build/dist/{ZIP파일명}/`
-    - 기존 폴더가 있으면 자동으로 삭제 후 재생성
-
-> ⚠️ **주의**: `install_service.sh` 가 `sudo` 권한이 필요한 경우, `sudo ./build_deploy.sh -Penv=prod` 대신 스크립트 내부의 권한 상승 방식을 사용하거나, `sudo` 없이 실행 가능한 환경을 구성하세요.
+1. **패키징 (Package)**: 지정된 환경(`-Penv` 또는 `-Denv`)의 프로파일(`config.profiles/{env}`)과 스크립트 오버레이를 적용하여 배포 아카이브(`.zip`)를 생성합니다.
+2. **압축 자동 해제 (Unzip)**: 생성된 배포 ZIP을 빌드 디렉토리 내부 임시 폴더에 압축 해제합니다.
+3. **서비스 인스톨러 자동 실행**: 압축 해제된 `deploy/install_service.sh`에 실행 권한(`0755`)을 부여하고 즉시 실행하여, Linux 백그라운드 데몬 서비스 등록 및 앱 구동까지 마칩니다.
 
 ---
 
@@ -126,11 +146,14 @@
 **1. 빌드 (Development PC)**
 
 ```bash
-# 운영(prod) 환경 배포용 패키지 생성
+# 🐘 Gradle 환경
 ./gradlew packageDocker -Penv=prod
+
+# 🪶 Maven 환경
+mvn distribution:package-docker -Denv=prod
 ```
 
-- **결과물**: `build/dist/{APP_NAME}-docker-prod.zip`
+- **결과물**: `build/dist/{APP_NAME}-docker-prod.zip` 또는 `target/{APP_NAME}-docker-prod.zip`
 - **포함 내용**:
     - `image.tar`: Docker 이미지 (linux/amd64)
     - `docker-compose.yml`: 실행 설정 (표준 변수 사용)
@@ -165,20 +188,24 @@ Docker Hub, ECR, GCR 등 원격 레지스트리를 활용하는 표준적인 방
 **1. 빌드 및 Push (Development PC / CI)**
 
 ```bash
-# 레지스트리 주소를 지정하여 빌드 및 Push
+# 🐘 Gradle 환경
 ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=my-registry.com/repo
 
+# 🪶 Maven 환경
+mvn distribution:docker-build-remote -Denv=prod -DdockerRegistry=my-registry.com/repo
+
 # (선택) 태그 지정 가능 (기본값: latest)
-# ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=... -PdockerImageTag=v1.0.0
+# Gradle: ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=... -PdockerImageTag=v1.0.0
+# Maven:  mvn distribution:docker-build-remote -Denv=prod -DdockerRegistry=... -DdockerImageTag=v1.0.0
 ```
 
 - **결과물**:
     - Docker Registry에 이미지 업로드 (`my-registry.com/repo/{APP_NAME}:latest`)
-    - `build/docker-dist`: 실행에 필요한 파일들 (`docker-compose.yml`, `config`, 스크립트 등)
+    - `build/docker-dist` (또는 `target/docker-dist`): 실행에 필요한 파일들 (`docker-compose.yml`, `config`, 스크립트 등)
 
 **2. 배포 (Server)**
 
-서버에는 **`build/docker-dist` 폴더의 내용물만** 있으면 됩니다. (소스 코드 불필요)
+서버에는 **`build/docker-dist` (또는 `target/docker-dist`) 폴더의 내용물만** 있으면 됩니다. (소스 코드 불필요)
 CI/CD 파이프라인을 통해 설정 파일만 배포하거나, scp로 전송하세요.
 
 ```bash
@@ -197,27 +224,29 @@ Docker 없이 Java(JDK)만 설치된 서버에 배포하는 방식입니다.
 
 **1. 빌드 (Development PC)**
 
-```bash
-./gradlew package -Penv=prod
-```
+- **Gradle**: `./gradlew package -Penv=prod`
+- **Maven**: `mvn clean package -Denv=prod`
+- **결과물**: `build/distributions/{APP_NAME}-{version}.zip` 또는 `target/{APP_NAME}-{version}.zip`
 
-- **결과물**: `build/dist/{APP_NAME}-{version}-prod.dist.zip`
-
-**2. 배포 (Server) — 수동**
+**2. 배포 (Server) — 수동 아카이브 전송 시**
 
 ```bash
 # 압축 해제 후 설치 스크립트 실행
-unzip {APP_NAME}-*.dist.zip -d {APP_NAME}
+unzip {APP_NAME}-*.zip -d {APP_NAME}
 cd {APP_NAME}
 sudo ./deploy/install_service.sh
 ```
 
-**3. 배포 (Server) — 자동화 스크립트 사용 (권장)**
+**3. 배포 (Server) — 서버 소스 직접 원스탑 빌드/구동 (권장)**
 
-서버에 소스 코드가 이미 있는 경우, `build_deploy.sh`로 Git pull부터 설치까지 한 번에 처리할 수 있습니다.
+서버에 소스 코드가 위치해 있는 경우, 별도의 스크립트 없이 플러그인 원스탑 명령으로 패키징부터 설치/실행까지 한 번에 처리할 수 있습니다:
 
 ```bash
-./build_deploy.sh -Penv=prod
+# Gradle 환경
+./gradlew deployService -Penv=prod
+
+# Maven 환경
+mvn distribution:deploy -Denv=prod
 ```
 
 ### ☸️ Kubernetes 배포 (K8s) (개발 예정)
@@ -227,11 +256,14 @@ Docker 배포를 넘어, Kubernetes 환경을 위한 매니페스트(`yaml`)도 
 **1. 빌드 (Development PC)**
 
 ```bash
-# K8s 배포 패키지 생성 (Docker 빌드도 포함됨)
+# 🐘 Gradle 환경
 ./gradlew k8sBuild -Penv=prod
+
+# 🪶 Maven 환경
+mvn distribution:k8s-build -Denv=prod
 ```
 
-- **결과물**: `build/dist/{APP_NAME}-k8s-prod.zip`
+- **결과물**: `build/dist/{APP_NAME}-k8s-prod.zip` 또는 `target/{APP_NAME}-k8s-prod.zip`
 - **내용**: `deployment.yaml`, `service.yaml`, `configmap.yaml` (프로젝트 이름 자동 적용됨)
 
 **2. 배포 (K8s Cluster)**
@@ -299,17 +331,17 @@ curl -v http://localhost:8080/
 `/scripts` 디렉토리는 역할에 따라 명확히 하위 폴더로 구분되어 관리됩니다:
 
 - **`scripts/deploy/`** (배포/설치 및 제거)
-  - `install_service.sh`: 서비스 설치 및 Systemd/SysVinit 등록 스크립트
-  - `uninstall_service.sh`: 서비스 중지 및 제거 스크립트
+    - `install_service.sh`: 서비스 설치 및 Systemd/SysVinit 등록 스크립트
+    - `uninstall_service.sh`: 서비스 중지 및 제거 스크립트
 - **`scripts/service/`** (서비스 구동 및 런타임 운영)
-  - `start.sh`: 백그라운드 서비스 시작 스크립트
-  - `stop.sh`: 서비스 프로세스 종료 스크립트 (Graceful shutdown & Force kill)
-  - `status.sh`: 서비스 구동 상태, PID, 포트, 로그 경로 확인 스크립트
-  - `cron/`: 크론 및 헬스체크 작업
+    - `start.sh`: 백그라운드 서비스 시작 스크립트
+    - `stop.sh`: 서비스 프로세스 종료 스크립트 (Graceful shutdown & Force kill)
+    - `status.sh`: 서비스 구동 상태, PID, 포트, 로그 경로 확인 스크립트
+    - `cron/`: 크론 및 헬스체크 작업
 - **`scripts/common/`** (공통 유틸리티)
-  - `bootstrap.sh`: 환경 로더 및 유틸리티 폴백
-  - `utils.sh`: 컬러 로깅 및 안전 경로 검증 함수
-  - `run_bash_tests.sh`: Bash 테스트 실행기
+    - `bootstrap.sh`: 환경 로더 및 유틸리티 폴백
+    - `utils.sh`: 컬러 로깅 및 안전 경로 검증 함수
+    - `run_bash_tests.sh`: Bash 테스트 실행기
 
 > 💡 빌드(`package`) 시 `scripts/deploy` 및 `scripts/common`은 배포 아카이브의 `deploy/` 폴더로 패키징되며, `scripts/service` 및 `scripts/common`은 `bin/` 폴더로 패키징됩니다.
 
@@ -320,14 +352,14 @@ curl -v http://localhost:8080/
 설정 파일(`config`)과 스크립트(`scripts`)는 **"덮어쓰기 전략"** 을 따릅니다.
 환경별로 다른 설정이 필요하면, `config.profiles/{env}/` 및 `scripts/{env}/` 폴더에 파일을 넣으세요.
 
-| 경로                               | 역할                              | 우선순위                            |
-| ---------------------------------- | --------------------------------- | ----------------------------------- |
+| 경로                                        | 역할                                 | 우선순위                                       |
+| ------------------------------------------- | ------------------------------------ | ---------------------------------------------- |
 | `config.profiles/prod/application-prod.yml` | **운영 환경 전용 애플리케이션 설정** | 🥇 1순위 (`config/application.yml`로 덮어써짐) |
-| `config.profiles/prod/log4j2-prod.yml`      | **운영 환경 전용 로깅 설정**       | 🥇 1순위 (`config/log4j2.yml`로 덮어써짐)     |
-| `config/application.yml`           | **공통 기본 설정**                | 🥈 2순위                            |
-| `config/log4j2.yml`                | **공통 기본 로깅 설정**           | 🥈 2순위                            |
-| `scripts/prod/.env`                | **운영 환경 전용 스크립트 환경변수** | 🥇 1순위 (Zip에 이 파일이 덮어써짐) |
-| `scripts/.env`                     | **공통 기본값**                   | 🥈 2순위                            |
+| `config.profiles/prod/log4j2-prod.yml`      | **운영 환경 전용 로깅 설정**         | 🥇 1순위 (`config/log4j2.yml`로 덮어써짐)      |
+| `config/application.yml`                    | **공통 기본 설정**                   | 🥈 2순위                                       |
+| `config/log4j2.yml`                         | **공통 기본 로깅 설정**              | 🥈 2순위                                       |
+| `scripts/prod/.env`                         | **운영 환경 전용 스크립트 환경변수** | 🥇 1순위 (Zip에 이 파일이 덮어써짐)            |
+| `scripts/.env`                              | **공통 기본값**                      | 🥈 2순위                                       |
 
 **예시: 운영 서버 설정 및 로그 경로 변경**
 
@@ -337,229 +369,85 @@ curl -v http://localhost:8080/
 
 ---
 
-## 🧜‍♀️ 배포 워크플로우 (Workflow)
+## ⚙️ 런타임 환경 설정 (.env) 완벽 가이드
 
-```mermaid
-flowchart TD
-    Start["🚀 1. 프로젝트 생성"] --> Dev["💻 2. 개발 및 커스터마이징"]
-    Dev --> BuildSelect{"🛠️ 3. 빌드/배포 방식 선택"}
+> **`start.sh` 스크립트 전체를 복사하지 않고, 옵션과 파라미터만 스마트하게 변경하고 싶으신가요?**  
+> 이제 배포 패키지에 `.env` 파일만 생성하면 JVM 메모리 튜닝, 시스템 프로퍼티, Spring Boot 애플리케이션 인수를 단 한 줄로 자유롭게 제어할 수 있습니다. ✨
 
-    %% 서브그래프: package 태스크 (Legacy + Docker 겸용)
-    subgraph PackagePath ["📦 package 태스크 (Legacy + Docker 겸용)"]
-        direction TB
-        LegacyBuild["☕ Gradle 패키징<br/>(Jar + Scripts + Dockerfile)"]
-        LegacyBuild --> LegacyTrans["📂 파일 전송/압축해제"]
-        LegacyTrans --> InstallSelect{"⚙️ 배포 방식 선택<br/>(install_service.sh)"}
-        InstallSelect -->|"1 Legacy (Java)"| LegacyRun["☕ Java 직접 실행<br/>(Systemd/SysVinit 등록)"]
-        InstallSelect -->|"2 Docker"| PkgDocker["🐳 배포 패키지 내<br/>Dockerfile로 이미지 빌드<br/>& Compose 실행"]
-    end
+### 📍 `.env` 파일 위치 및 로딩 우선순위
 
-    %% 서브그래프: Docker 전용 전략
-    subgraph DockerPath ["🐳 Docker Path (전용 태스크)"]
-        direction TB
-        DockerDecide{"전략 선택"}
+스크립트 실행 시 다음 경로를 순서대로 탐색하여 로드합니다 (뒤에 로드된 파일이 앞선 설정을 오버라이드):
 
-        %% Strategy 1: Local Image
-        subgraph DockerOpt1 ["① 오프라인 빌드 (Offline)"]
-            D1_Build["🔨 packageDocker task<br/>(이미지 빌드)"]
-            D1_Save["💾 Docker Image Save<br/>(.tar 파일)"]
-            D1_Trans["📂 파일 전송<br/>(Local → Server)"]
-            D1_Load["📦 스마트 인스톨<br/>(자동 docker load)"]
+1. `📦 {PROJECT_ROOT}/.env` : 패키지 루트 디렉토리 (**Docker Compose와 공용 사용 시 권장**)
+2. `📁 config/.env` : 설정 디렉토리 내부
+3. `📁 bin/.env` : 실행 스크립트 디렉토리 내부 (Legacy 스크립트 전용)
 
-            D1_Build --> D1_Save --> D1_Trans --> D1_Load
-        end
+> 💡 **빌드 시 자동 포함 방법**: 프로젝트 소스 트리의 `scripts/service/.env` 또는 환경별 `scripts/{env}/.env`에 파일을 생성해두면, 플러그인이 빌드(`package`) 시 자동으로 배포 아카이브 내부에 포함시킵니다.
 
-        %% Strategy 2: Repository
-        subgraph DockerOpt2 ["② 레지스트리 (Registry)"]
-            D2_Build["🔨 로컬 빌드<br/>(dockerBuildRemote task)"]
-            D2_Push["☁️ Push to Registry<br/>(on Local PC)"]
-            D2_Pull["⬇️ Pull from Registry<br/>(on Server)"]
+---
 
-            D2_Build --> D2_Push --> D2_Pull
-        end
+### 📋 지원하는 주요 환경변수 목록
 
-        DockerDecide --> DockerOpt1
-        DockerDecide --> DockerOpt2
+| 분류 | 변수명 | 기본값 | 설명 및 예시 |
+| :--- | :--- | :--- | :--- |
+| **JVM 힙 메모리** | `JVM_XMS` | *(미지정)* | JVM 초기 힙 메모리 크기 (예: `-Xms1024m`, `-Xms2g`) |
+| | `JVM_XMX` | *(미지정)* | JVM 최대 힙 메모리 크기 (예: `-Xmx2048m`, `-Xmx4g`) |
+| **JVM 추가 옵션** | `EXTRA_JAVA_OPTS` | *(공백)* | GC 설정, 파일 인코딩, 타임존 등 추가 옵션<br/>`"-XX:+UseG1GC -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Seoul"` |
+| **Spring Boot 인수** | `APP_ARGS` | *(공백)* | JAR 실행 시 뒤에 붙을 프로그램 커맨드라인 인수<br/>`"--server.port=9090 --custom.flag=true --spring.main.banner-mode=off"` |
+| **프로세스 관리** | `SERVER_PORT` | `8080` (자동 감지) | 서비스 포트 (미지정 시 `application.yml`의 port 자동 파싱) |
+| | `LOG_PATH` | `{PROJECT_ROOT}/log` | 애플리케이션 로그 파일이 저장될 절대/상대 경로 |
+| | `PID_FILE` | `bin/application.pid` | 프로세스 ID(PID)가 기록될 파일 경로 |
+| | `STOP_TIMEOUT` | `10` (초) | 서비스 정상 종료(Graceful Shutdown) 대기 시간 |
+| **Docker / 컨테이너** | `APP_UID` / `APP_GID` | `1000` / `1000` | 컨테이너 내부 실행 리눅스 계정의 UID 및 GID |
+| | `CHOWN_DIRS` | *(미지정)* | 볼륨 마운트 시 컨테이너 기동 시점에 소유권을 자동 변경할 폴더 목록 |
+| | `TZ` | `Asia/Seoul` | 컨테이너 시스템 타임존 |
 
-        D1_Load --> DockerService["⚙️ 서비스 등록/실행<br/>(Systemd/SysVinit)"]
-        D2_Pull --> DockerService
-    end
+---
 
-    %% 서브그래프: K8s
-    subgraph K8s ["☸️ Kubernetes Path"]
-        direction TB
-        K8sBuild["☸️ K8s 빌드<br/>(Manifests)"]
-        K8sBuild --> K8sDeploy["☁️ K8s 배포<br/>(Kubectl Apply)"]
-    end
+### 🐳 일반 서버(Legacy) `.env` vs Docker Compose `.env` 차이 및 통합 사용법
 
-    %% 메인 연결
-    BuildSelect -->|"package"| LegacyBuild
-    BuildSelect -->|"Docker 전용 태스크"| DockerDecide
-    BuildSelect -->|"k8sBuild"| K8sBuild
+많은 분들이 궁금해하시는 두 방식의 차이점과 통합 활용 팁입니다:
 
-    LegacyRun --> Monitor["📈 통합 모니터링"]
-    PkgDocker --> Monitor
-    DockerService --> Monitor
-    K8sDeploy --> Monitor
+#### 1. 두 방식의 역할 차이
 
-    %% 범례
-    subgraph Legend ["🔖 범례 (Legend)"]
-        direction TB
-        L1["💻 Local PC 환경"]
-        L2["🖥️ Remote Server 환경"]
-    end
+| 구분 | 🖥️ 일반 서버(Legacy) `.env` | 🐳 Docker Compose `.env` |
+| :--- | :--- | :--- |
+| **주요 소비자** | Bash 쉘 스크립트 (`start.sh`, `stop.sh`, `status.sh`) | Docker Compose CLI (`docker-compose up`) |
+| **동작 메커니즘** | 스크립트 실행 시 `source .env`로 Bash 환경변수로 로드 | Compose 파일 파싱 시 `${VAR}` 치환 및 컨테이너 환경변수 주입 |
+| **핵심 사용 목적** | JVM 튜닝, Spring Boot 프로그램 인수, 로컬 프로세스 PID 관리 | 호스트-컨테이너 포트 매핑, 이미지 태그, 호스트 볼륨 경로 바인딩 |
 
-    %% 스타일 정의
-    classDef default fill:#f9f9f9,stroke:#333,stroke-width:1px;
-    classDef start fill:#E1F5FE,stroke:#01579B,stroke-width:2px,color:#000;
-    classDef decision fill:#F3E5F5,stroke:#4A148C,stroke-width:2px,color:#000,stroke-dasharray: 5 5;
-    classDef legacy fill:#FFEBEE,stroke:#B71C1C,stroke-width:2px,color:#000;
-    classDef docker fill:#E3F2FD,stroke:#0D47A1,stroke-width:2px,color:#000;
-    classDef k8s fill:#E8EAF6,stroke:#1A237E,stroke-width:2px,color:#000;
-    classDef endNode fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#000;
+#### 2. 🤝 함께(공용으로) 사용해도 되나요?
 
-    %% 환경별 (Local, Remote) Style
-    classDef local_env fill:#BBDEFB,stroke:#1976D2,stroke-width:2px,color:#000;
-    classDef remote_env fill:#C8E6C9,stroke:#388E3C,stroke-width:2px,color:#000;
+**네, 완벽하게 함께 사용할 수 있습니다!** 🎉
 
-    class Start,Dev start;
-    class BuildSelect,DockerDecide,InstallSelect, decision;
-    class Monitor endNode;
+Docker Compose와 Bash 스크립트 모두 표준적인 `KEY="VALUE"` 문법을 따르기 때문에, **배포 패키지 루트의 단일 `.env` 파일에 두 설정을 함께 작성**해 두면 다음과 같이 유기적으로 동작합니다:
 
-    %% Nodes & Legend Styling (Local vs Remote)
-    class LegacyBuild,K8sBuild,D1_Build,D1_Save,D1_Trans,D2_Build,D2_Push,L1 local_env;
-    class LegacyTrans,LegacyRun,PkgDocker,K8sDeploy,D1_Load,D2_Pull,DockerService,L2 remote_env;
-    class AS1,AS2,AS3 remote_env;
+1. **Docker Compose 실행 시**: Compose CLI가 `.env`에서 `SERVER_PORT`, `APP_UID`, `TZ` 등을 읽어 컨테이너 설정 및 포트 포워딩에 반영합니다.
+2. **컨테이너 내부 기동 시**: 컨테이너의 진입점(`start.sh`)이 마운트된 동일한 `.env`를 자동으로 `source`하여 `JVM_XMX`, `EXTRA_JAVA_OPTS`, `APP_ARGS`를 Java 프로세스에 적용합니다.
+
+```bash
+# ⭐️ 패키지 루트의 .env (Legacy와 Docker Compose 통합 예시)
+# 1) Docker Compose용 호스트 설정
+SERVER_PORT=8080
+TZ=Asia/Seoul
+APP_UID=1000
+APP_GID=1000
+
+# 2) Java & Spring Boot 실행용 설정 (Legacy 및 Docker 컨테이너 내부 공용)
+JVM_XMS="-Xms1g"
+JVM_XMX="-Xmx2g"
+EXTRA_JAVA_OPTS="-XX:+UseG1GC -Dfile.encoding=UTF-8"
+APP_ARGS="--spring.profiles.active=prod"
+LOG_PATH="/var/log/my-service"
+STOP_TIMEOUT=15
 ```
 
-## 🧜‍♀️ 배포 시퀀스 (Sequence Diagram)
+---
 
-### 📦 Legacy 배포 (`./gradlew package`)
+## 🛠️ 플랫폼 개발 및 관리자 가이드 (Maintainer Guide)
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Dev as 🧑‍💻 개발자
-    participant Gradle as 🐘 Gradle
-    participant Server as 🖥️ 운영 서버
+> **이 저장소(`build_template`) 자체를 개발, 유지보수하고 공식 저장소(Gradle Portal / Maven Central)에 배포하는 관리자이신가요?**
 
-    Dev->>Gradle: ./gradlew package -Penv=prod
-    activate Gradle
-    Gradle->>Gradle: Jar 빌드 + Scripts + Dockerfile 패키징
-    Gradle-->>Dev: {APP_NAME}-{version}-prod.dist.zip 생성
-    deactivate Gradle
+플러그인 아키텍처, 단일 원본(SSOT) 리소스 동기화 원리, 로컬 테스트 및 **원클릭 동시 배포(`publishAllPlugins`)**에 대한 상세 내용은 아래 전용 가이드 문서를 참고하시기 바랍니다:
 
-    Dev->>Server: scp + unzip
-    activate Server
-    Dev->>Server: sudo ./deploy/install_service.sh
-
-    Note over Server: 배포 방식 선택 (대화형)
-
-    alt 1) Legacy — Java 직접 실행
-        Server->>Server: JDK로 JAR 실행
-        Server->>Server: Systemd/SysVinit 서비스 등록
-    else 2) Docker — 패키지 내 Dockerfile 빌드
-        Server->>Server: docker build
-        Server->>Server: docker compose up -d
-        Server->>Server: Systemd/SysVinit 서비스 등록
-    end
-
-    Server-->>Dev: 서비스 시작 완료
-    deactivate Server
-```
-
-### 🐳 Docker 배포 (2가지 전용 전략 + 1 통합 배포)
-
-Docker 전용 태스크는 주로 **어디서 빌드하고 어떻게 서버에 배포할 것인가(네트워크 및 인프라 환경)**에 따라 나뉩니다. 다음 표를 참고하여 환경에 맞는 방식을 선택하세요.
-
-| 구분 | Strategy 1: `packageDocker` | Strategy 2: `dockerBuildRemote` | (참고) 통합 배포: `package` |
-|:---:|:---|:---|:---|
-| **핵심 목적** | 외부 서버 전송을 위한 **단일 Zip 패키지 생성** | 원격 저장소를 활용한 **표준 파이프라인 구성** | 배포 서버에서 런타임에 직접 실행 방식 선택 |
-| **타겟 환경** | 인터넷/레지스트리 접근이 불가한 **폐쇄망 환경** | AWS ECR, Docker Hub 등 **원격 레지스트리 환경** | 서버에서 소스를 클론받아 바로 띄우는 환경 |
-| **작업 내용** | 이미지 빌드 + `.tar` 추출 + Zip 파일 압축 | 이미지 빌드 + 원격 레지스트리로 `docker push` | Jar 빌드 + Dockerfile + 스크립트 압축 |
-| **주요 산출물** | `build/dist/...-docker-prod.zip` | Remote Registry에 업로드된 Docker Image | `build/dist/...-prod.dist.zip` |
-| **전송 방식** | 수동 전송 필요 (Zip 파일을 복사) | 자동 풀 (운영 서버에서 `docker pull`로 수신) | 소스 pull 또는 Zip 복사 |
-| **실행 예시** | `./gradlew packageDocker -Penv=prod` | `./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=...` | `./gradlew package -Penv=prod` |
-
-#### Strategy 1 — 오프라인 빌드 (Offline Image) (`./gradlew packageDocker`)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Dev as 🧑‍💻 개발자
-    participant Gradle as 🐘 Gradle
-    participant Server as 🖥️ 운영 서버
-
-    Dev->>Gradle: ./gradlew packageDocker -Penv=prod
-    activate Gradle
-    Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)
-    Gradle->>Gradle: docker save → image.tar 추출
-    Gradle->>Gradle: tar + 배포 스크립트 → docker.zip 패키징
-    Gradle-->>Dev: {APP_NAME}-docker-prod.zip 생성
-    deactivate Gradle
-
-    Dev->>Server: scp + unzip
-    activate Server
-    Dev->>Server: sudo ./deploy/install_service.sh
-    Server->>Server: docker load (image.tar)
-    Server->>Server: docker compose up -d
-    Server->>Server: Systemd/SysVinit 서비스 등록
-    Server-->>Dev: 컨테이너 실행 완료
-    deactivate Server
-```
-
-#### Strategy 2 — Registry Push & Pull (`./gradlew dockerBuildRemote`)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Dev as 🧑‍💻 개발자
-    participant Gradle as 🐘 Gradle
-    participant Registry as 🗄️ Docker Registry
-    participant Server as 🖥️ 운영 서버
-
-    Dev->>Gradle: ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=...
-    activate Gradle
-    Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)
-    Gradle->>Gradle: DEPLOY-GUIDE.md 자동 생성
-    Gradle->>Registry: docker push {image}:{tag}
-    Gradle-->>Dev: Push 완료 + docker-dist/ 폴더 준비
-    deactivate Gradle
-
-    Dev->>Server: scp docker-dist/ 폴더 전송
-    activate Server
-    Server->>Registry: docker pull {image}:{tag}
-    Dev->>Server: sudo ./deploy/install_service.sh
-    Server->>Server: docker compose up -d
-    Server->>Server: Systemd/SysVinit 서비스 등록
-    Server-->>Dev: 컨테이너 실행 완료
-    deactivate Server
-```
-
-### ☸️ Kubernetes 배포 (`./gradlew k8sBuild`)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Dev as 🧑‍💻 개발자
-    participant Gradle as 🐘 Gradle
-    participant Registry as 🗄️ Docker Registry
-    participant K8s as ☸️ K8s 클러스터
-
-    Dev->>Gradle: ./gradlew k8sBuild -Penv=prod -PdockerRegistry=...
-    activate Gradle
-    Gradle->>Gradle: Docker 이미지 빌드
-    Gradle->>Registry: docker push
-    Gradle->>Gradle: K8s 매니페스트 YAML 생성
-    Gradle-->>Dev: {APP_NAME}-k8s-prod.zip 생성
-    deactivate Gradle
-
-    Dev->>K8s: unzip → kubectl apply -f configmap.yaml
-    activate K8s
-    Dev->>K8s: kubectl apply -f deployment.yaml
-    Dev->>K8s: kubectl apply -f service.yaml
-    K8s->>Registry: 이미지 Pull
-    K8s-->>Dev: Pod/Service 배포 완료
-    deactivate K8s
-```
-
+👉 [**Spring Boot Build & Deploy 플랫폼 개발자 및 관리자 가이드 (DEVELOPER_GUIDE.md)**](DEVELOPER_GUIDE.md)

@@ -17,21 +17,39 @@ elif [ -f "$SCRIPT_DIR/../common/bootstrap.sh" ]; then
 fi
 
 # --- [Constants & Variables] ---
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+CONFIG_LOC="$PROJECT_ROOT/config/"
+
+# 환경 변수 파일 로드 (우선순위: 루트 .env -> config/.env -> bin/.env)
+[ -f "$PROJECT_ROOT/.env" ] && source "$PROJECT_ROOT/.env"
+[ -f "$CONFIG_LOC/.env" ] && source "$CONFIG_LOC/.env"
+[ -f "$SCRIPT_DIR/.env" ] && source "$SCRIPT_DIR/.env"
+
 APP_NAME="@appName@"
-
-# 환경 변수 파일 로드 (로그 경로 등 확인용)
-if [ -f "$SCRIPT_DIR/.env" ]; then
-    source "$SCRIPT_DIR/.env"
-fi
-
 PID_FILE="${PID_FILE:-$SCRIPT_DIR/application.pid}"
-INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
-LOG_PATH="${LOG_PATH:-$INSTALL_DIR/log}" # 환경 변수 또는 기본값
+LOG_PATH="${LOG_PATH:-$PROJECT_ROOT/log}" # 환경 변수 또는 기본값
 
 # --- [Functions] ---
 
 # @description 서비스 상태 및 정보 출력 (PID, Port, Log 등)
 check_status() {
+    # -------------------------------------------------------------
+    # 🐳 [호스트 환경] Docker Compose 배포 환경 감지 및 상태 확인
+    # -------------------------------------------------------------
+    local COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
+    if [ -f "$COMPOSE_FILE" ] && ! is_docker_container; then
+        echo -e "\n${BOLD}${BLUE}================================================================${NC}"
+        echo -e "${BOLD}${BLUE}🐳  $APP_NAME DOCKER STATUS CHECK                           ${NC}"
+        echo -e "${BOLD}${BLUE}================================================================${NC}"
+
+        detect_docker_compose_cmd true
+
+        cd "$PROJECT_ROOT" || exit 1
+        $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" ps
+        echo -e "${BOLD}${BLUE}================================================================${NC}\n"
+        return 0
+    fi
+
     echo -e "\n${BOLD}${BLUE}================================================================${NC}"
     echo -e "${BOLD}${BLUE}🚀  $APP_NAME STATUS CHECK                                 ${NC}"
     echo -e "${BOLD}${BLUE}================================================================${NC}"

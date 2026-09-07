@@ -196,3 +196,43 @@ wait_for_condition() {
         sleep "$interval"
     done
 }
+
+# --- [Environment Detection API] ---
+
+# @description 현재 실행 환경이 Docker 컨테이너 내부인지 정밀 감지
+# @return 0: Docker 컨테이너 내부, 1: 호스트 환경
+is_docker_container() {
+    # 0. 컨테이너 특유의 식별 파일 확인
+    if [ -f "/.dockerenv" ]; then
+        return 0
+    fi
+
+    # 1. 파일 시스템 증거 (mountinfo에 overlay/docker/containerd 흔적 확인)
+    local has_mount_evidence=false
+    if grep -qE '(docker|overlay|containerd)' /proc/1/mountinfo 2>/dev/null; then
+        has_mount_evidence=true
+    fi
+
+    # 2. 프로세스 증거 (PID 1이 systemd/init이 아닌지 확인)
+    local has_pid_evidence=false
+    if [ -f /proc/1/comm ]; then
+        local pid1_comm
+        pid1_comm=$(cat /proc/1/comm 2>/dev/null)
+        if [[ "$pid1_comm" != "systemd" && "$pid1_comm" != "init" ]]; then
+            has_pid_evidence=true
+        fi
+    fi
+
+    # 3. 스크립트 단독 실행 증거 (컨테이너 Entrypoint에서 직접 실행된 경우 PID가 1임)
+    if [ "$$" -eq 1 ]; then
+        return 0
+    fi
+
+    # ⚖️ 최종 판별 (마운트 증거와 PID 1 증거가 모두 참이면 컨테이너)
+    if [ "$has_mount_evidence" = true ] && [ "$has_pid_evidence" = true ]; then
+        return 0
+    fi
+
+    return 1
+}
+

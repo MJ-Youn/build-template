@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'io.github.mj-youn'
-version = '1.0.2'
+version = '1.1.0'
 description = 'Gradle distribution packaging plugin with embedded scripts and file-level override'
 
 java {
@@ -69,4 +69,11 @@ tasks.named('processResources') {
             println "📋 템플릿 매니페스트 생성 완료 (${filesList.size()}개 파일)"
         }
     }
+}
+
+// Gradle Plugin Portal 배포 태스크 단축 별칭
+tasks.register('publishGradlePlugins') {
+    group = 'publishing'
+    description = 'Publishes Gradle plugin to Gradle Plugin Portal'
+    dependsOn 'publishPlugins'
 }

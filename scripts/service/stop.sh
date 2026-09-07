@@ -17,10 +17,13 @@ elif [ -f "$SCRIPT_DIR/../common/bootstrap.sh" ]; then
 fi
 
 # --- [Constants & Variables] ---
-# .env 로드
-if [ -f "$SCRIPT_DIR/.env" ]; then
-    source "$SCRIPT_DIR/.env"
-fi
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+CONFIG_LOC="$PROJECT_ROOT/config/"
+
+# .env 로드 (우선순위: 루트 .env -> config/.env -> bin/.env)
+[ -f "$PROJECT_ROOT/.env" ] && source "$PROJECT_ROOT/.env"
+[ -f "$CONFIG_LOC/.env" ] && source "$CONFIG_LOC/.env"
+[ -f "$SCRIPT_DIR/.env" ] && source "$SCRIPT_DIR/.env"
 
 PID_FILE="${PID_FILE:-$SCRIPT_DIR/application.pid}"
 # @var STOP_TIMEOUT 종료 대기 시간 (초)
@@ -31,6 +34,22 @@ STOP_TIMEOUT=${STOP_TIMEOUT:-10}
 # @description 애플리케이션 종료 처리
 # @return 0: 종료 성공 또는 이미 종료됨
 stop_application() {
+    # -------------------------------------------------------------
+    # 🐳 [호스트 환경] Docker Compose 배포 환경 감지 및 중지
+    # -------------------------------------------------------------
+    local COMPOSE_FILE="$PROJECT_ROOT/docker-compose.yml"
+    if [ -f "$COMPOSE_FILE" ] && ! is_docker_container; then
+        log_header "Docker Compose 서비스 중지"
+
+        detect_docker_compose_cmd true
+
+        log_info "Docker Compose 명령어: $DOCKER_COMPOSE_CMD"
+        cd "$PROJECT_ROOT" || exit 1
+        $DOCKER_COMPOSE_CMD -f "$COMPOSE_FILE" down
+        log_success "Docker Compose 서비스가 중지되었습니다."
+        return 0
+    fi
+
     log_step "애플리케이션을 종료합니다..."
 
     if [ ! -f "$PID_FILE" ]; then

@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin>
+  <name>Distribution Maven Plugin</name>
+  <description>Maven distribution and packaging plugin with embedded scripts and @Override support</description>
+  <groupId>io.github.mj-youn</groupId>
+  <artifactId>distribution-maven-plugin</artifactId>
+  <version>1.0.2</version>
+  <goalPrefix>distribution</goalPrefix>
+  <isolatedRealm>false</isolatedRealm>
+  <inheritedByDefault>true</inheritedByDefault>
+  <mojos>
+    <mojo>
+      <goal>package</goal>
+      <description>표준 배포용 Zip 패키지를 생성합니다. (내장 스크립트 및 로컬 @Override 지원)</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <phase>package</phase>
+      <implementation>io.github.mj_youn.plugin.DistributionMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+      <parameters>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>MavenProject 인스턴스</description>
+        </parameter>
+        <parameter>
+          <name>appName</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>패키징 및 스크립트 치환에 사용할 애플리케이션 이름</description>
+        </parameter>
+        <parameter>
+          <name>env</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>활성화할 배포 프로파일 환경 (기본값: dev)</description>
+        </parameter>
+        <parameter>
+          <name>outputDirectory</name>
+          <type>java.io.File</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>패키지 산출물 디렉토리 (기본값: target)</description>
+        </parameter>
+      </parameters>
+      <configuration>
+        <project default-value="${project}" />
+        <appName default-value="${project.artifactId}" />
+        <env default-value="${env}" />
+        <outputDirectory default-value="${project.build.directory}" />
+      </configuration>
+    </mojo>
+    <mojo>
+      <goal>deploy</goal>
+      <description>패키지 빌드 후 Zip을 자동으로 풀어 install_service.sh를 실행하여 서비스를 배포/구동합니다.</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.DeployMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+      <parameters>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>MavenProject 인스턴스</description>
+        </parameter>
+        <parameter>
+          <name>appName</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>패키징 및 스크립트 치환에 사용할 애플리케이션 이름</description>
+        </parameter>
+        <parameter>
+          <name>env</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>활성화할 배포 프로파일 환경 (기본값: dev)</description>
+        </parameter>
+        <parameter>
+          <name>outputDirectory</name>
+          <type>java.io.File</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>패키지 산출물 디렉토리 (기본값: target)</description>
+        </parameter>
+      </parameters>
+      <configuration>
+        <project default-value="${project}" />
+        <appName default-value="${project.artifactId}" />
+        <env default-value="${env}" />
+        <outputDirectory default-value="${project.build.directory}" />
+      </configuration>
+    </mojo>
+    <mojo>
+      <goal>help</goal>
+      <description>배포 플러그인 사용 가이드 및 명령어 안내를 출력합니다.</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>false</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.HelpMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+    </mojo>
+  </mojos>
+</plugin>

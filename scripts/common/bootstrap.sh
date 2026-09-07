@@ -51,6 +51,7 @@ else
         return 0
     }
     detect_docker_compose_cmd() { return 1; }
+    is_docker_container() { return 1; }
     wait_for_condition() {
         local condition_cmd="$1"
         local timeout="${2:-5}"

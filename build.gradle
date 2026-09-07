@@ -482,3 +482,27 @@ tasks.named('help') {
 """
     }
 }
+
+// 🌐 Gradle 플러그인(Gradle Plugin Portal) 배포 태스크
+task publishGradlePlugins {
+    group = 'publishing'
+    description = 'Gradle 플러그인을 Gradle Plugin Portal에 배포합니다.'
+    dependsOn ':distribution-gradle-plugin:publishGradlePlugins'
+}
+
+// 🌐 Maven 플러그인(Sonatype Central Portal) 배포 태스크
+task publishMavenPlugins {
+    group = 'publishing'
+    description = 'Maven 플러그인을 Sonatype Central Portal에 배포합니다.'
+    dependsOn ':distribution-maven-plugin:publishMavenPlugins'
+}
+
+// 🌐 Gradle 플러그인과 Maven 플러그인을 한 번에 동시 배포하는 원클릭 태스크
+task publishAllPlugins {
+    group = 'publishing'
+    description = 'Gradle 플러그인(Gradle Portal)과 Maven 플러그인(Central Portal)을 동시에 배포합니다.'
+    dependsOn 'publishGradlePlugins', 'publishMavenPlugins'
+    doLast {
+        println "🎉 [Distribution] 모든 배포 플러그인이 각 퍼블릭 저장소에 성공적으로 배포되었습니다!"
+    }
+}

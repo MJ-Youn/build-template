@@ -66,7 +66,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.2.0' // 또는 프로젝트 버전
     // ⭐️ 배포 플러그인 추가
-    id 'io.github.mj-youn.distribution' version '1.0.2'
+    id 'io.github.mj-youn.distribution' version '1.1.0'
 }
 
 // (선택 사항) 앱 이름 커스텀 및 사용자 정의 토큰 지정
@@ -97,13 +97,29 @@ distribution {
 
 #### [배포 태스크 (Distribution Tasks)]
 
-- 📦 **`package` (일반 서버 배포용 Zip)**
+- 💡 **`distHelp` (배포 도움말 가이드 출력)**
+    - 터미널에 환경 변수, 지원 태스크 목록 및 실행 예시 가이드를 출력합니다.
+    ```bash
+    ./gradlew distHelp
+    # 또는 기본 도움말
+    ./gradlew help
+    ```
+
+- 📦 **`package` (일반 서버 배포용 Zip 패키징)**
     - 일반 서버(Legacy / Docker 선택 가능) 배포용 Zip 생성
     - **산출물**: `build/distributions/{APP_NAME}-{version}.zip`
     - **포함 내용**: `JAR` + `Scripts (deploy/, bin/)` + `Config` + `Docker (Dockerfile, docker-compose.yml)`
-    - 서버 배포 시 `deploy/install_service.sh`를 실행하면 Legacy 또는 Docker 방식을 대화형으로 선택하여 설치할 수 있습니다.
+    - 서버 배포 시 수동 압축 해제 후 `deploy/install_service.sh`를 실행하여 Legacy 또는 Docker 방식을 대화형으로 선택 설치할 수 있습니다.
     ```bash
     ./gradlew package -Penv=prod
+    ```
+
+- 🚀 **`deployService` (원스탑 빌드 & 자동 서비스 배포)**
+    - 서버에서 소스 코드를 빌드하고, 산출물 Zip을 즉시 압축 해제한 뒤 `deploy/install_service.sh`를 자동 실행합니다.
+    - 기존 `build_deploy.sh`의 기능을 플러그인 내장 태스크로 완전 자동화한 명령어입니다.
+    ```bash
+    ./gradlew deployService -Penv=dev
+    ./gradlew deployService -Penv=prod
     ```
 
 ---
