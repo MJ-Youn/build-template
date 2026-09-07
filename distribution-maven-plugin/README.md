@@ -73,7 +73,7 @@
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>1.1.0</version>
+            <version>1.1.2</version>
             <executions>
                 <execution>
                     <phase>package</phase>

@@ -39,11 +39,29 @@ DEST_DIR=""
 LOG_PATH=""
 # 초기화 (런타임에 결정됨)
 DEPLOY_MODE=""
+# 기존 서비스 감지 및 덮어쓰기 플래그
+EXISTING_SERVICE_FOUND=0
+OVERWRITE_EXISTING=""
+PREVIOUS_INSTALL_LOC=""
+PREVIOUS_LOG_PATH=""
 
 # --- [Functions] ---
 
 # @description 배포 방식 선택 (legacy / docker)
 select_deploy_mode() {
+    # 0. 기존 서비스 덮어쓰기인 경우 기존 배포 방식 자동 승계
+    if [ "$OVERWRITE_EXISTING" = "Y" ] && [ -n "$PREVIOUS_INSTALL_LOC" ]; then
+        if [ -f "$PREVIOUS_INSTALL_LOC/docker-compose.yml" ]; then
+            DEPLOY_MODE="docker"
+            log_info "기존 서비스의 배포 방식(Docker)을 그대로 유지합니다."
+            return 0
+        elif [ -d "$PREVIOUS_INSTALL_LOC/libs" ] || [ -f "$PREVIOUS_INSTALL_LOC/bin/start.sh" ]; then
+            DEPLOY_MODE="legacy"
+            log_info "기존 서비스의 배포 방식(Legacy)을 그대로 유지합니다."
+            return 0
+        fi
+    fi
+
     # 1. 자동 감지: PKG_ROOT 내에 .tar 파일이 존재하면 Docker Offline 모드로 자동 지정
     local TAR_FILES=("$PKG_ROOT"/*.tar)
     if [ -e "${TAR_FILES[0]}" ]; then
@@ -86,9 +104,122 @@ select_deploy_mode() {
     done
 }
 
+# @description 기존 설치 감지 및 덮어쓰기 여부 확인
+# 기존 서비스가 존재하면 덮어쓰기(Y/n)를 묻고,
+# Y인 경우 기존 경로/설정을 그대로 유지하여 추가 질문을 생략함.
+# n인 경우 기존 uninstall_service.sh를 실행하여 완전히 제거한 후 새로 설치 진행함.
+check_and_handle_existing_service() {
+    PREVIOUS_INSTALL_LOC=""
+    PREVIOUS_LOG_PATH=""
+    EXISTING_SERVICE_FOUND=0
+
+    # 1. Systemd 감지
+    if command -v systemctl >/dev/null 2>&1; then
+        local SERVICE_PATH
+        SERVICE_PATH=$(systemctl show -p FragmentPath "$APP_NAME.service" 2>/dev/null | cut -d= -f2)
+        if [ -n "$SERVICE_PATH" ] && [ -f "$SERVICE_PATH" ]; then
+            # Legacy 모드: ExecStart 라인에서 추출
+            local EXEC_START
+            EXEC_START=$(grep "ExecStart=" "$SERVICE_PATH" 2>/dev/null | cut -d= -f2 | sed 's/^"//;s/"$//')
+            if [ -n "$EXEC_START" ]; then
+                PREVIOUS_INSTALL_LOC=$(dirname "$(dirname "$EXEC_START")")
+            fi
+            # Docker 모드: WorkingDirectory 라인에서 추출
+            if [ -z "$PREVIOUS_INSTALL_LOC" ] || [ ! -d "$PREVIOUS_INSTALL_LOC" ]; then
+                local WORK_DIR
+                WORK_DIR=$(grep "WorkingDirectory=" "$SERVICE_PATH" 2>/dev/null | cut -d= -f2 | sed 's/^"//;s/"$//')
+                if [ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ]; then
+                    PREVIOUS_INSTALL_LOC="$WORK_DIR"
+                fi
+            fi
+        fi
+    fi
+
+    # 2. SysVinit 감지 (Systemd로 감지되지 않은 경우)
+    if [ -z "$PREVIOUS_INSTALL_LOC" ] && [ -f "/etc/init.d/$APP_NAME" ]; then
+        local EXEC_START
+        EXEC_START=$(grep "su - $REAL_USER -c" "/etc/init.d/$APP_NAME" 2>/dev/null | head -n 1 | awk -F '"' '{print $2}')
+        if [ -n "$EXEC_START" ]; then
+            PREVIOUS_INSTALL_LOC=$(dirname "$(dirname "$EXEC_START")")
+        fi
+    fi
+
+    # 기존 설치가 확인된 경우
+    if [ -n "$PREVIOUS_INSTALL_LOC" ] && [ -d "$PREVIOUS_INSTALL_LOC" ]; then
+        EXISTING_SERVICE_FOUND=1
+
+        # 기존 로그 경로 탐색 (.env 또는 bin/.env)
+        local ENV_FILE=""
+        if [ -f "$PREVIOUS_INSTALL_LOC/.env" ]; then
+            ENV_FILE="$PREVIOUS_INSTALL_LOC/.env"
+        elif [ -f "$PREVIOUS_INSTALL_LOC/bin/.env" ]; then
+            ENV_FILE="$PREVIOUS_INSTALL_LOC/bin/.env"
+        fi
+        if [ -n "$ENV_FILE" ]; then
+            local LOG_LINE
+            LOG_LINE=$(grep "^LOG_PATH=" "$ENV_FILE" 2>/dev/null)
+            if [ -n "$LOG_LINE" ]; then
+                PREVIOUS_LOG_PATH=$(echo "$LOG_LINE" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
+            fi
+        fi
+
+        log_warning "기존에 설치된 서비스가 감지되었습니다: $PREVIOUS_INSTALL_LOC"
+        if [ -n "$PREVIOUS_LOG_PATH" ]; then
+            log_info "기존 로그 경로: $PREVIOUS_LOG_PATH"
+        fi
+
+        read -p "   ❓ 기존 서비스 정보를 덮어 씌우시겠습니까? (Y/n): " USER_OVERWRITE_CHOICE
+        USER_OVERWRITE_CHOICE=${USER_OVERWRITE_CHOICE:-Y}
+
+        if [[ "$USER_OVERWRITE_CHOICE" =~ ^[Yy]$ ]]; then
+            OVERWRITE_EXISTING="Y"
+            DEST_DIR="$PREVIOUS_INSTALL_LOC"
+            LOG_PATH="$PREVIOUS_LOG_PATH"
+            log_success "기존 설정을 유지하여 덮어쓰기 설치를 진행합니다."
+        else
+            OVERWRITE_EXISTING="N"
+            log_info "기존 서비스 삭제 후 새로 설치를 진행합니다..."
+
+            # uninstall_service.sh 탐색 및 실행
+            local UNINSTALL_SCRIPT=""
+            if [ -f "$PREVIOUS_INSTALL_LOC/bin/uninstall_service.sh" ]; then
+                UNINSTALL_SCRIPT="$PREVIOUS_INSTALL_LOC/bin/uninstall_service.sh"
+            elif [ -f "$PREVIOUS_INSTALL_LOC/uninstall_service.sh" ]; then
+                UNINSTALL_SCRIPT="$PREVIOUS_INSTALL_LOC/uninstall_service.sh"
+            elif [ -f "$SCRIPT_DIR/uninstall_service.sh" ]; then
+                UNINSTALL_SCRIPT="$SCRIPT_DIR/uninstall_service.sh"
+            elif [ -f "$PKG_ROOT/scripts/deploy/uninstall_service.sh" ]; then
+                UNINSTALL_SCRIPT="$PKG_ROOT/scripts/deploy/uninstall_service.sh"
+            fi
+
+            if [ -n "$UNINSTALL_SCRIPT" ] && [ -f "$UNINSTALL_SCRIPT" ]; then
+                log_step "기존 서비스 삭제 실행 ($UNINSTALL_SCRIPT)..."
+                bash "$UNINSTALL_SCRIPT"
+                log_success "기존 서비스가 삭제되었습니다."
+            else
+                log_warning "uninstall_service.sh를 찾을 수 없어 기존 서비스 중지만 시도합니다."
+                if command -v systemctl >/dev/null 2>&1; then
+                    systemctl stop "$APP_NAME" 2>/dev/null || true
+                    systemctl disable "$APP_NAME" 2>/dev/null || true
+                fi
+            fi
+
+            # 상태 초기화
+            EXISTING_SERVICE_FOUND=0
+            PREVIOUS_INSTALL_LOC=""
+            PREVIOUS_LOG_PATH=""
+            DEST_DIR=""
+            LOG_PATH=""
+        fi
+    fi
+}
+
 # @description 서비스 설치 메인 함수
 install_service() {
     log_header "서비스 설치 시작 ($APP_NAME)"
+
+    # 0. 기존 설치 감지 및 덮어쓰기/삭제 분기 확인
+    check_and_handle_existing_service
 
     # 배포 방식 선택
     select_deploy_mode
@@ -160,7 +291,6 @@ cleanup_docker_artifacts() {
     fi
 }
 
-
 # @description Legacy 설치 사전 요구사항 점검 (Java 등)
 check_legacy_prerequisites() {
     log_step "사전 요구사항 확인"
@@ -173,6 +303,12 @@ check_legacy_prerequisites() {
 
 # @description 로그 경로 입력 프롬프트
 prompt_log_path() {
+    # 기존 서비스 덮어쓰기(OVERWRITE_EXISTING=Y)이고 이미 LOG_PATH가 설정된 경우 추가 질문 없이 유지
+    if [ "$OVERWRITE_EXISTING" = "Y" ] && [ -n "$LOG_PATH" ]; then
+        log_info "기존 로그 경로를 그대로 유지합니다: $LOG_PATH"
+        return 0
+    fi
+
     local DEST_PROP=""
     if [ "$DEPLOY_MODE" = "docker" ]; then
         DEST_PROP="$DEST_DIR/.env"
@@ -202,45 +338,50 @@ prompt_log_path() {
 determine_install_dir() {
     log_step "설치 위치 설정"
 
-    # 기존 설치 감지
-    PREVIOUS_INSTALL_LOC=""
+    # 기존 서비스 덮어쓰기(OVERWRITE_EXISTING=Y)인 경우 추가 입력 없이 기존 위치 유지
+    if [ "$OVERWRITE_EXISTING" = "Y" ] && [ -n "$DEST_DIR" ]; then
+        log_info "기존 설치 위치를 그대로 유지합니다: $DEST_DIR"
+    else
+        # 기존 설치 감지 (사전 감지가 안 되었을 경우의 Fallback)
+        PREVIOUS_INSTALL_LOC=""
 
-    # 1. Systemd 감지
-    if command -v systemctl >/dev/null 2>&1; then
-        # 서비스 파일 경로 확인
-        SERVICE_PATH=$(systemctl show -p FragmentPath "$APP_NAME.service" 2>/dev/null | cut -d= -f2)
-        if [ -n "$SERVICE_PATH" ] && [ -f "$SERVICE_PATH" ]; then
-            # ExecStart 라인에서 실제 실행 스크립트 경로 추출
-            EXEC_START=$(grep "ExecStart=" "$SERVICE_PATH" | cut -d= -f2 | sed 's/^"//;s/"$//')
+        # 1. Systemd 감지
+        if command -v systemctl >/dev/null 2>&1; then
+            # 서비스 파일 경로 확인
+            SERVICE_PATH=$(systemctl show -p FragmentPath "$APP_NAME.service" 2>/dev/null | cut -d= -f2)
+            if [ -n "$SERVICE_PATH" ] && [ -f "$SERVICE_PATH" ]; then
+                # ExecStart 라인에서 실제 실행 스크립트 경로 추출
+                EXEC_START=$(grep "ExecStart=" "$SERVICE_PATH" | cut -d= -f2 | sed 's/^"//;s/"$//')
+                if [ -n "$EXEC_START" ]; then
+                    # .../bin/start.sh -> .../bin -> 부모 디렉토리 (설치 루트)
+                    PREVIOUS_INSTALL_LOC=$(dirname "$(dirname "$EXEC_START")")
+                fi
+            fi
+        fi
+
+        # 2. SysVinit 감지 (Systemd가 없거나 못 찾았을 경우)
+        if [ -z "$PREVIOUS_INSTALL_LOC" ] && [ -f "/etc/init.d/$APP_NAME" ]; then
+            # init 스크립트에서 실행 경로 추출 시도
+            EXEC_START=$(grep "su - $REAL_USER -c" "/etc/init.d/$APP_NAME" | head -n 1 | awk -F '"' '{print $2}')
             if [ -n "$EXEC_START" ]; then
-                 # .../bin/start.sh -> .../bin -> 부모 디렉토리 (설치 루트)
-                 PREVIOUS_INSTALL_LOC=$(dirname "$(dirname "$EXEC_START")")
+                PREVIOUS_INSTALL_LOC=$(dirname "$(dirname "$EXEC_START")")
             fi
         fi
-    fi
 
-    # 2. SysVinit 감지 (Systemd가 없거나 못 찾았을 경우)
-    if [ -z "$PREVIOUS_INSTALL_LOC" ] && [ -f "/etc/init.d/$APP_NAME" ]; then
-         # init 스크립트에서 실행 경로 추출 시도
-         EXEC_START=$(grep "su - $REAL_USER -c" "/etc/init.d/$APP_NAME" | head -n 1 | awk -F '"' '{print $2}')
-          if [ -n "$EXEC_START" ]; then
-                 PREVIOUS_INSTALL_LOC=$(dirname "$(dirname "$EXEC_START")")
+        if [ -n "$PREVIOUS_INSTALL_LOC" ] && [ -d "$PREVIOUS_INSTALL_LOC" ]; then
+            log_info "기존 설치 위치가 감지되었습니다: $PREVIOUS_INSTALL_LOC"
+            read -p "   🔄 기존 위치에 재배포하시겠습니까? [Y/n] " REUSE_LOC
+            REUSE_LOC=${REUSE_LOC:-Y}
+            if [[ "$REUSE_LOC" =~ ^[Yy]$ ]]; then
+                DEST_DIR="$PREVIOUS_INSTALL_LOC"
             fi
-    fi
-
-    if [ -n "$PREVIOUS_INSTALL_LOC" ] && [ -d "$PREVIOUS_INSTALL_LOC" ]; then
-        log_info "기존 설치 위치가 감지되었습니다: $PREVIOUS_INSTALL_LOC"
-        read -p "   🔄 기존 위치에 재배포하시겠습니까? [Y/n] " REUSE_LOC
-        REUSE_LOC=${REUSE_LOC:-Y}
-        if [[ "$REUSE_LOC" =~ ^[Yy]$ ]]; then
-            DEST_DIR="$PREVIOUS_INSTALL_LOC"
         fi
-    fi
 
-    if [ -z "$DEST_DIR" ]; then
-        log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
-        read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
-        DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
+        if [ -z "$DEST_DIR" ]; then
+            log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
+            read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
+            DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
+        fi
     fi
 
     log_info "최종 설치 위치: $DEST_DIR"
@@ -520,24 +661,29 @@ check_docker_prerequisites() {
 determine_docker_install_dir() {
     log_step "설치 위치 설정"
 
-    # 기존 설치 위치 감지 (Systemd)
-    DEST_DIR=""
-    if [ -f "/etc/systemd/system/$APP_NAME.service" ]; then
-        EXISTING_DIR=$(grep "WorkingDirectory=" "/etc/systemd/system/$APP_NAME.service" | cut -d= -f2)
-        if [ -d "$EXISTING_DIR" ]; then
-            log_info "기존 설치 위치 감지: $EXISTING_DIR"
-            read -p "   기존 위치에 덮어쓰시겠습니까? (Y/n): " REUSE_LOC
-            REUSE_LOC=${REUSE_LOC:-Y}
-            if [[ "$REUSE_LOC" =~ ^[Yy]$ ]]; then
-                DEST_DIR="$EXISTING_DIR"
+    # 기존 서비스 덮어쓰기(OVERWRITE_EXISTING=Y)인 경우 추가 입력 없이 기존 위치 유지
+    if [ "$OVERWRITE_EXISTING" = "Y" ] && [ -n "$DEST_DIR" ]; then
+        log_info "기존 설치 위치를 그대로 유지합니다: $DEST_DIR"
+    else
+        # 기존 설치 위치 감지 (Systemd - 사전 감지가 안 되었을 경우의 Fallback)
+        DEST_DIR=""
+        if [ -f "/etc/systemd/system/$APP_NAME.service" ]; then
+            EXISTING_DIR=$(grep "WorkingDirectory=" "/etc/systemd/system/$APP_NAME.service" | cut -d= -f2)
+            if [ -d "$EXISTING_DIR" ]; then
+                log_info "기존 설치 위치 감지: $EXISTING_DIR"
+                read -p "   기존 위치에 덮어쓰시겠습니까? (Y/n): " REUSE_LOC
+                REUSE_LOC=${REUSE_LOC:-Y}
+                if [[ "$REUSE_LOC" =~ ^[Yy]$ ]]; then
+                    DEST_DIR="$EXISTING_DIR"
+                fi
             fi
         fi
-    fi
 
-    if [ -z "$DEST_DIR" ]; then
-        log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
-        read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
-        DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
+        if [ -z "$DEST_DIR" ]; then
+            log_info "기본 설치 위치: $DEFAULT_INSTALL_DIR"
+            read -p "   📂 설치할 위치를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOC
+            DEST_DIR="${INPUT_LOC:-$DEFAULT_INSTALL_DIR}"
+        fi
     fi
 
     log_info "설치 위치: $DEST_DIR"

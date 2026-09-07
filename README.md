@@ -36,7 +36,7 @@
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '1.1.0'
+    id 'io.github.mj-youn.distribution' version '1.1.2'
 }
 ```
 
@@ -54,7 +54,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>1.1.0</version>
+            <version>1.1.2</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
