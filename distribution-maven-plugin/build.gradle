@@ -17,6 +17,26 @@ java {
     withSourcesJar()
 }
 
+// 소스 코드 비공개를 위한 빈(더미) sources.jar 설정
+tasks.named('sourcesJar', Jar) {
+    includeEmptyDirs = false
+    // 실제 소스 코드 및 템플릿 리소스 일체 제외
+    exclude '**/*.java'
+    exclude '**/*.groovy'
+    exclude '**/*.kt'
+    exclude '**/*.xml'
+    exclude 'template/**'
+    exclude 'template-manifest.txt'
+    
+    // Maven Central 검증 통과를 위한 최소 안내 파일 1개만 포함
+    from(resources.text.fromString("""
+Source code is closed-source and not publicly available.
+(C) Copyright MJ-Youn. All rights reserved.
+""".trim())) {
+        rename { "NOTICE.txt" }
+    }
+}
+
 repositories {
     mavenCentral()
 }
@@ -94,7 +114,7 @@ publishing {
                 developers {
                     developer {
                         id = 'yun0244'
-                        name = 'MJ Yune'
+                        name = 'MJ Youn'
                         email = 'yun0244@naver.com'
                     }
                 }
