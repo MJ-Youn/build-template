@@ -407,8 +407,12 @@ determine_install_dir() {
 copy_legacy_files() {
     log_step "파일 복사 및 배포 중..."
 
-    # 1. Libs (Jar)
-    cp -f "$PKG_ROOT/libs/"*.jar "$DEST_DIR/libs/"
+    # 1. Libs (Jar) - libs 및 lib 디렉토리 호환
+    if [ -d "$PKG_ROOT/libs" ]; then
+        cp -f "$PKG_ROOT/libs/"*.jar "$DEST_DIR/libs/" 2>/dev/null || true
+    elif [ -d "$PKG_ROOT/lib" ]; then
+        cp -f "$PKG_ROOT/lib/"*.jar "$DEST_DIR/libs/" 2>/dev/null || true
+    fi
 
     # 2. Bin Scripts
     # 서비스 실행에 필요한 스크립트 복사 (start.sh, stop.sh, status.sh 등)

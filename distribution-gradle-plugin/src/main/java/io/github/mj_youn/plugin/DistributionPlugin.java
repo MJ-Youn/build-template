@@ -293,13 +293,13 @@ public class DistributionPlugin implements Plugin<Project> {
         }
 
         // -------------------------------------------------------------
-        // 4. 애플리케이션 라이브러리 및 JAR (build/libs/*.jar -> lib)
+        // 4. 애플리케이션 라이브러리 및 JAR (build/libs/*.jar -> libs)
         // -------------------------------------------------------------
         File libsDir = new File(project.getLayout().getBuildDirectory().getAsFile().get(), "libs");
         zipTask.from(libsDir, spec -> {
             spec.include("*.jar");
             spec.exclude("*plain.jar"); // Spring Boot 기본 plain jar 제외
-            spec.into("lib");
+            spec.into("libs");
         });
 
         // -------------------------------------------------------------

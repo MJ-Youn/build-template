@@ -36,7 +36,7 @@
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '1.1.3'
+    id 'io.github.mj-youn.distribution' version '1.1.4'
 }
 ```
 
@@ -54,7 +54,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>1.1.3</version>
+            <version>1.1.4</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -91,7 +91,7 @@ plugins {
 - **서버 운영 리소스 명칭을 통일하고 싶을 때**:
     - 🐧 **Linux Systemd 서비스명**: `/etc/systemd/system/{appName}.service` (`systemctl start {appName}`)
     - 📁 **기본 로그 저장 경로**: `/log/{appName}` (예: `/log/hdrms`)
-    - 🐳 **Docker 이미지 태그**: `{appName}:{version}` (예: `hdrms:1.1.3`)
+    - 🐳 **Docker 이미지 태그**: `{appName}:{version}` (예: `hdrms:1.1.4`)
     - 🐚 **프로세스 제어 콘솔 출력**: `🚀 [{appName}] 서비스를 시작합니다...`
 
 ##### 3) ⚠️ 설정 시 주의 사항

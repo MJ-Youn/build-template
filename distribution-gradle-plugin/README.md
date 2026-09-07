@@ -66,7 +66,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.2.0' // 또는 프로젝트 버전
     // ⭐️ 배포 플러그인 추가
-    id 'io.github.mj-youn.distribution' version '1.1.3'
+    id 'io.github.mj-youn.distribution' version '1.1.4'
 }
 
 // (선택 사항) 앱 이름 커스텀 및 사용자 정의 토큰/추가 디렉토리 지정

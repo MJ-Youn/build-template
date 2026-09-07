@@ -4,6 +4,16 @@
 
 ---
 
+## 🚀 [1.1.4] - 2026-09-07
+
+### 🐛 버그 수정 (Bug Fixes)
+- **배포 Zip 내 JAR 라이브러리 디렉토리 명칭 표준화 (`lib/` ➡️ `libs/`)**
+  - Dockerfile(`COPY libs/ /app/libs/`) 및 `install_service.sh`와의 명칭 불일치로 인해 Docker 빌드 시 `COPY libs/ /app/libs/: "/libs" not found` 에러가 발생하던 결함 수정.
+  - Gradle(`DistributionPlugin.java`) 및 Maven(`DistributionMojo.java`) 플러그인 모두 배포 아카이브 내 Jar 라이브러리 저장 경로를 `libs/`로 통일.
+  - 서비스 설치 스크립트(`install_service.sh`)에서도 `libs/` 및 `lib/` 경로를 모두 지원하도록 폴백(Fallback) 방어 로직 보강.
+
+---
+
 ## 🚀 [1.1.3] - 2026-09-07
 
 ### ✨ 주요 개선 사항 (Features & Enhancements)

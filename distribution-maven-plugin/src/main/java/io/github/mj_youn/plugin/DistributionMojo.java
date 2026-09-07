@@ -138,8 +138,8 @@ public class DistributionMojo extends AbstractMojo {
                 addCommonConfigFiles(zos, commonConfigDir, "config/", env, addedEntries);
             }
 
-            // --- 3.4. 실행 가능한 JAR 파일 (target/*.jar -> lib) ---
-            addJarFiles(zos, outputDirectory, "lib/", addedEntries);
+            // --- 3.4. 실행 가능한 JAR 파일 (target/*.jar -> libs) ---
+            addJarFiles(zos, outputDirectory, "libs/", addedEntries);
 
             // --- 3.5. 추가 복제 디렉토리 (EXTRA_DIRS / extraDirs) ---
             Set<String> extraDirsToCopy = resolveExtraDirs(projectBasedir, env);
