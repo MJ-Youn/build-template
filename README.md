@@ -22,6 +22,14 @@
 
 ---
 
+## 🔌 Gradle 배포 플러그인 (Distribution Plugin)
+
+> 💡 **알림**: 개별 프로젝트에 `scripts/`나 `docker/` 폴더를 복사하지 않고, Gradle 플러그인 1줄(`plugins { id 'io.github.mj-youn.distribution' }`)로 배포 패키징 및 파일 단위 `@Override`를 적용할 수 있는 커스텀 플러그인을 제공합니다.
+> 
+> 자세한 사용법 및 배포 가이드는 [**Distribution Gradle Plugin README**](distribution-gradle-plugin/README.md) 문서를 확인하세요.
+
+---
+
 ## 🛠️ 사용 가이드 (How to Use)
 
 이 프로젝트는 초기 설정을 자동화하는 스크립트(`init.sh`)를 제공합니다.
