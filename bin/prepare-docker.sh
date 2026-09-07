@@ -109,9 +109,22 @@ echo "   📄 사용된 docker-compose: $COMPOSE_SRC"
 # @appName@ 토큰 치환 후 복사
 sed "s/@appName@/$APP_NAME/g" "$COMPOSE_SRC" > "$DOCKER_DIST_DIR/docker-compose.yml"
 
-# 2. 스크립트 복사 (install_service.sh, uninstall_service.sh, bootstrap.sh, utils.sh)
+# 2. 스크립트 복사
+# 2-1. 배포 스크립트 (deploy/)
+mkdir -p "$DOCKER_DIST_DIR/deploy"
+for SRC_FILE in "scripts/deploy/install_service.sh" "scripts/deploy/uninstall_service.sh" "scripts/common/bootstrap.sh" "scripts/common/utils.sh"; do
+    FULL_SRC="$PROJECT_ROOT/$SRC_FILE"
+    if [ -f "$FULL_SRC" ]; then
+        sed -e "s|@appName@|$APP_NAME|g" \
+            -e "s|@dockerImage@|$FULL_IMAGE_NAME|g" \
+            "$FULL_SRC" > "$DOCKER_DIST_DIR/deploy/$(basename "$FULL_SRC")"
+        chmod +x "$DOCKER_DIST_DIR/deploy/$(basename "$FULL_SRC")"
+    fi
+done
+
+# 2-2. 운영 스크립트 (bin/)
 mkdir -p "$DOCKER_DIST_DIR/bin"
-for SRC_FILE in "scripts/install_service.sh" "scripts/uninstall_service.sh" "scripts/bootstrap.sh" "scripts/utils.sh"; do
+for SRC_FILE in "scripts/service/start.sh" "scripts/service/stop.sh" "scripts/service/status.sh" "scripts/common/bootstrap.sh" "scripts/common/utils.sh"; do
     FULL_SRC="$PROJECT_ROOT/$SRC_FILE"
     if [ -f "$FULL_SRC" ]; then
         sed -e "s|@appName@|$APP_NAME|g" \
@@ -129,7 +142,7 @@ if [ -d "$CONFIG_DIR" ]; then
 fi
 
 # 4. cron 폴더 복사
-CRON_DIR="$PROJECT_ROOT/scripts/cron"
+CRON_DIR="$PROJECT_ROOT/scripts/service/cron"
 if [ -d "$CRON_DIR" ]; then
     cp -r "$CRON_DIR" "$DOCKER_DIST_DIR/bin/cron"
 fi
@@ -185,7 +198,7 @@ docker pull ${FULL_IMAGE_NAME}
 
 \`\`\`bash
 cd /home/user/docker-dist
-sudo ./bin/install_service.sh
+sudo ./deploy/install_service.sh
 \`\`\`
 
 ### 4-b. 수동 실행 (docker compose 직접)

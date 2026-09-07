@@ -167,7 +167,7 @@
                             <overwrite>true</overwrite>
                             <resources>
                                 <resource>
-                                    <directory>config/${env}</directory>
+                                    <directory>config.profiles/${env}</directory>
                                     <filtering>false</filtering>
                                 </resource>
                             </resources>

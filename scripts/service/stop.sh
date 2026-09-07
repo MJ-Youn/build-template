@@ -10,7 +10,11 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # 부트스트랩 (유틸리티 로드 및 폴백)
-source "$SCRIPT_DIR/bootstrap.sh"
+if [ -f "$SCRIPT_DIR/bootstrap.sh" ]; then
+    source "$SCRIPT_DIR/bootstrap.sh"
+elif [ -f "$SCRIPT_DIR/../common/bootstrap.sh" ]; then
+    source "$SCRIPT_DIR/../common/bootstrap.sh"
+fi
 
 # --- [Constants & Variables] ---
 # .env 로드

@@ -11,15 +11,19 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # 부트스트랩 (유틸리티 로드 및 폴백)
-source "$SCRIPT_DIR/bootstrap.sh"
+if [ -f "$SCRIPT_DIR/bootstrap.sh" ]; then
+    source "$SCRIPT_DIR/bootstrap.sh"
+elif [ -f "$SCRIPT_DIR/../common/bootstrap.sh" ]; then
+    source "$SCRIPT_DIR/../common/bootstrap.sh"
+fi
 
 # --- [Constants & Variables] ---
 # @appName@은 Gradle 빌드 시 실제 프로젝트 이름으로 치환됨
 APP_NAME="@appName@"
 # 배포 방식에 따라 INSTALL_DIR 결정:
-# - Legacy 모드: 스크립트가 bin/ 하위에 있으므로 부모 디렉토리가 설치 루트
+# - Legacy 모드: 스크립트가 bin/ 또는 deploy/ 하위에 있으므로 부모 디렉토리가 설치 루트
 # - Docker 모드: 스크립트가 설치 루트에 직접 있으므로 SCRIPT_DIR 자체가 설치 루트
-if [ "$(basename "$SCRIPT_DIR")" = "bin" ]; then
+if [ "$(basename "$SCRIPT_DIR")" = "bin" ] || [ "$(basename "$SCRIPT_DIR")" = "deploy" ]; then
     INSTALL_DIR="$(dirname "$SCRIPT_DIR")"
 else
     INSTALL_DIR="$SCRIPT_DIR"

@@ -13,7 +13,7 @@
     - **일반 배포**: Jar + Config + Scripts가 포함된 Zip 패키지.
     - **Docker 배포**: Image(tar) + Docker Compose + Script가 통합된 Zip 패키지.
 2.  **🎨 환경별 덮어쓰기 (Overlay Build)**:
-    - 기본 설정(`scripts/`, `config/`) 위에 환경별 파일(`scripts/prod/`, `config/prod/`)을 덮어쓰는 구조.
+    - 기본 설정(`scripts/`, `config/`) 위에 환경별 파일(`scripts/prod/`, `config.profiles/prod/`)을 덮어쓰는 구조.
     - 소스 코드 변경 없이 파일 추가만으로 환경별 커스터마이징 가능.
 3.  **🪵 동적 로그 경로 설정**:
     - 빌드 시점(`scripts/.env`) 또는 배포 시점(사용자 입력)에 로그 경로 설정 가능.
@@ -65,7 +65,7 @@
 ```
 [1/3] 📥 Git Pull        → 최신 소스 코드 수신
 [2/3] 🔨 Maven Package  → 환경별 배포 패키지(ZIP) 빌드
-[3/3] 📦 AUTO 압축 해제   → bin/install_service.sh 자동 실행
+[3/3] 📦 AUTO 압축 해제   → deploy/install_service.sh 자동 실행
 ```
 
 ### 🚀 사용법
@@ -86,14 +86,14 @@
 | Git 저장소               | `.git` 폴더가 존재하면 자동으로 `git pull` 실행, 없으면 건너뜀 |
 | JDK                      | `./mvnw` 실행 가능 환경 필요                                |
 | `unzip`                  | 패키지 압축 해제에 필요                                        |
-| `bin/install_service.sh` | 빌드 패키지 내 포함된 설치 스크립트                            |
+| `deploy/install_service.sh` | 빌드 패키지 내 포함된 설치 스크립트                         |
 
 ### 📋 상세 동작
 
 1. **Git Pull**: 현재 디렉토리에 `.git` 폴더가 있으면 `git pull`을 실행하여 최신 코드를 반영합니다.
 2. **Maven 빌드**: `./mvnw package -Penv=<환경명>` 을 실행하여 배포 패키지를 생성합니다.
     - 결과물: `target/dist/{APP_NAME}-{version}-{env}.dist.zip`
-3. **압축 해제 및 설치**: 생성된 ZIP 파일을 자동으로 찾아 압축을 해제하고, 내부의 `bin/install_service.sh`를 실행합니다.
+3. **압축 해제 및 설치**: 생성된 ZIP 파일을 자동으로 찾아 압축을 해제하고, 내부의 `deploy/install_service.sh`를 실행합니다.
     - 압축 해제 경로: `target/dist/{ZIP파일명}/`
     - 기존 폴더가 있으면 자동으로 삭제 후 재생성
 
@@ -127,8 +127,8 @@
     - `image.tar`: Docker 이미지 (linux/amd64)
     - `docker-compose.yml`: 실행 설정 (표준 변수 사용)
     - `config/`: 운영 환경용 설정 파일 (Host Mount용)
-    - `install_service.sh`: 서비스 등록/실행 및 `.env` 파일 생성 스크립트 (Legacy/Docker 선택)
-    - `uninstall_service.sh`: 서비스 제거 스크립트
+    - `deploy/install_service.sh`: 서비스 등록/실행 및 `.env` 파일 생성 스크립트 (Legacy/Docker 선택)
+    - `deploy/uninstall_service.sh`: 서비스 제거 스크립트
     - `utils.sh`: 공통 스크립트
 
 **2. 배포 (Production Server)**
@@ -140,7 +140,7 @@ scp target/dist/{APP_NAME}-docker-prod.zip user@server:/home/user/
 # 2. 서버 접속 후 압축 해제 및 설치
 unzip {APP_NAME}-docker-prod.zip -d deploy
 cd deploy
-sudo ./install_service.sh
+sudo ./deploy/install_service.sh
 ```
 
 - **자동 수행**:
@@ -178,7 +178,7 @@ CI/CD 파이프라인을 통해 설정 파일만 배포하거나, scp로 전송�
 cd docker-dist
 
 # 2. 서비스 등록 (이미지는 레지스트리에서 자동 Pull 및 .env 구성)
-sudo ./install_service.sh
+sudo ./deploy/install_service.sh
 ```
 
 > ⚠️ **주의**: Private Registry를 사용하는 경우, 서버에서 `docker login`이 선행되어야 합니다.
@@ -201,7 +201,7 @@ Docker 없이 Java(JDK)만 설치된 서버에 배포하는 방식입니다.
 # 압축 해제 후 설치 스크립트 실행
 unzip {APP_NAME}-*.dist.zip -d {APP_NAME}
 cd {APP_NAME}
-sudo ./bin/install_service.sh
+sudo ./deploy/install_service.sh
 ```
 
 **3. 배포 (Server) — 자동화 스크립트 사용 (권장)**
@@ -286,20 +286,45 @@ curl -v http://localhost:8080/
 
 ---
 
+## 📂 Scripts 디렉토리 구조
+
+`/scripts` 디렉토리는 역할에 따라 명확히 하위 폴더로 구분되어 관리됩니다:
+
+- **`scripts/deploy/`** (배포/설치 및 제거)
+  - `install_service.sh`: 서비스 설치 및 Systemd/SysVinit 등록 스크립트
+  - `uninstall_service.sh`: 서비스 중지 및 제거 스크립트
+- **`scripts/service/`** (서비스 구동 및 런타임 운영)
+  - `start.sh`: 백그라운드 서비스 시작 스크립트
+  - `stop.sh`: 서비스 프로세스 종료 스크립트 (Graceful shutdown & Force kill)
+  - `status.sh`: 서비스 구동 상태, PID, 포트, 로그 경로 확인 스크립트
+  - `cron/`: 크론 및 헬스체크 작업
+- **`scripts/common/`** (공통 유틸리티)
+  - `bootstrap.sh`: 환경 로더 및 유틸리티 폴백
+  - `utils.sh`: 컬러 로깅 및 안전 경로 검증 함수
+  - `run_bash_tests.sh`: Bash 테스트 실행기
+
+> 💡 빌드(`package`) 시 `scripts/deploy` 및 `scripts/common`은 배포 아카이브의 `deploy/` 폴더로 패키징되며, `scripts/service` 및 `scripts/common`은 `bin/` 폴더로 패키징됩니다.
+
+---
+
 ## 🎨 고급 설정: 환경별 빌드 (Overlay)
 
-`scripts`와 `config` 폴더는 **"덮어쓰기 전략"** 을 따릅니다.
-환경별로 다른 설정이 필요하면, `prod` 폴더를 만들고 파일을 넣으세요.
+설정 파일(`config`)과 스크립트(`scripts`)는 **"덮어쓰기 전략"** 을 따릅니다.
+환경별로 다른 설정이 필요하면, `config.profiles/{env}/` 및 `scripts/{env}/` 폴더에 파일을 넣으세요.
 
 | 경로                               | 역할                              | 우선순위                            |
 | ---------------------------------- | --------------------------------- | ----------------------------------- |
-| `scripts/prod/.env` | **운영 환경 전용** (로그 경로 등) | 🥇 1순위 (Zip에 이 파일이 덮어써짐) |
-| `scripts/.env`      | **공통 기본값**                   | 🥈 2순위                            |
+| `config.profiles/prod/application-prod.yml` | **운영 환경 전용 애플리케이션 설정** | 🥇 1순위 (`config/application.yml`로 덮어써짐) |
+| `config.profiles/prod/log4j2-prod.yml`      | **운영 환경 전용 로깅 설정**       | 🥇 1순위 (`config/log4j2.yml`로 덮어써짐)     |
+| `config/application.yml`           | **공통 기본 설정**                | 🥈 2순위                            |
+| `config/log4j2.yml`                | **공통 기본 로깅 설정**           | 🥈 2순위                            |
+| `scripts/prod/.env`                | **운영 환경 전용 스크립트 환경변수** | 🥇 1순위 (Zip에 이 파일이 덮어써짐) |
+| `scripts/.env`                     | **공통 기본값**                   | 🥈 2순위                            |
 
-**예시: 운영 서버 로그 경로 변경**
+**예시: 운영 서버 설정 및 로그 경로 변경**
 
-1. `scripts/prod/.env` 생성
-2. 내용 작성: `LOG_PATH="/var/log/my-service"`
+1. `config.profiles/prod/application-prod.yml` 및 `config.profiles/prod/log4j2-prod.yml` 작성
+2. `scripts/prod/.env` 작성: `LOG_PATH="/var/log/my-service"`
 3. `./mvnw clean package -Pprod` 실행 시 자동으로 적용됨.
 
 ---
@@ -418,7 +443,7 @@ sequenceDiagram
 
     Dev->>Server: scp + unzip
     activate Server
-    Dev->>Server: sudo ./bin/install_service.sh
+    Dev->>Server: sudo ./deploy/install_service.sh
 
     Note over Server: 배포 방식 선택 (대화형)
 
@@ -467,7 +492,7 @@ sequenceDiagram
 
     Dev->>Server: scp + unzip
     activate Server
-    Dev->>Server: sudo ./install_service.sh
+    Dev->>Server: sudo ./deploy/install_service.sh
     Server->>Server: docker load (image.tar)
     Server->>Server: docker compose up -d
     Server->>Server: Systemd/SysVinit 서비스 등록
@@ -496,7 +521,7 @@ sequenceDiagram
     Dev->>Server: scp docker-dist/ 폴더 전송
     activate Server
     Server->>Registry: docker pull {image}:{tag}
-    Dev->>Server: sudo ./install_service.sh
+    Dev->>Server: sudo ./deploy/install_service.sh
     Server->>Server: docker compose up -d
     Server->>Server: Systemd/SysVinit 서비스 등록
     Server-->>Dev: 컨테이너 실행 완료

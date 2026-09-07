@@ -11,12 +11,16 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # 부트스트랩 (유틸리티 로드 및 폴백)
-source "$SCRIPT_DIR/bootstrap.sh"
+if [ -f "$SCRIPT_DIR/bootstrap.sh" ]; then
+    source "$SCRIPT_DIR/bootstrap.sh"
+elif [ -f "$SCRIPT_DIR/../common/bootstrap.sh" ]; then
+    source "$SCRIPT_DIR/../common/bootstrap.sh"
+fi
 
 # --- [Constants & Variables] ---
 # @appName@은 Gradle 빌드 시 실제 프로젝트 이름으로 치환됨
 APP_NAME="@appName@"
-if [ "$(basename "$SCRIPT_DIR")" = "bin" ]; then
+if [ "$(basename "$SCRIPT_DIR")" = "bin" ] || [ "$(basename "$SCRIPT_DIR")" = "deploy" ]; then
     PKG_ROOT="$(dirname "$SCRIPT_DIR")"
 else
     PKG_ROOT="$SCRIPT_DIR"
@@ -266,19 +270,45 @@ copy_legacy_files() {
     cp -f "$PKG_ROOT/libs/"*.jar "$DEST_DIR/libs/"
 
     # 2. Bin Scripts
-    # Legacy 실행에 필요한 스크립트만 명시적으로 복사
-    # (run_bash_tests.sh, bootstrap.sh 등 불필요한 파일 제외)
-    local LEGACY_SCRIPTS=("start.sh" "stop.sh" "status.sh" "uninstall_service.sh" "utils.sh" "bootstrap.sh")
-    for script in "${LEGACY_SCRIPTS[@]}"; do
-        if [ -f "$SCRIPT_DIR/$script" ]; then
+    # 서비스 실행에 필요한 스크립트 복사 (start.sh, stop.sh, status.sh 등)
+    local SERVICE_SRC=""
+    if [ -d "$PKG_ROOT/bin" ]; then
+        SERVICE_SRC="$PKG_ROOT/bin"
+    elif [ -d "$PKG_ROOT/scripts/service" ]; then
+        SERVICE_SRC="$PKG_ROOT/scripts/service"
+    else
+        SERVICE_SRC="$SCRIPT_DIR"
+    fi
+
+    local SERVICE_SCRIPTS=("start.sh" "stop.sh" "status.sh")
+    for script in "${SERVICE_SCRIPTS[@]}"; do
+        if [ -f "$SERVICE_SRC/$script" ]; then
+            cp -f "$SERVICE_SRC/$script" "$DEST_DIR/bin/"
+        elif [ -f "$SCRIPT_DIR/$script" ]; then
             cp -f "$SCRIPT_DIR/$script" "$DEST_DIR/bin/"
         fi
     done
 
     # cron 디렉토리 복사
-    if [ -d "$SCRIPT_DIR/cron" ]; then
+    if [ -d "$SERVICE_SRC/cron" ]; then
+        cp -rf "$SERVICE_SRC/cron" "$DEST_DIR/bin/"
+    elif [ -d "$SCRIPT_DIR/cron" ]; then
         cp -rf "$SCRIPT_DIR/cron" "$DEST_DIR/bin/"
     fi
+
+    # 관리 및 유틸리티 스크립트 복사 (uninstall_service.sh, utils.sh, bootstrap.sh)
+    local MGMT_SCRIPTS=("uninstall_service.sh" "utils.sh" "bootstrap.sh")
+    for script in "${MGMT_SCRIPTS[@]}"; do
+        if [ -f "$SCRIPT_DIR/$script" ]; then
+            cp -f "$SCRIPT_DIR/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/deploy/$script" ]; then
+            cp -f "$PKG_ROOT/deploy/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/bin/$script" ]; then
+            cp -f "$PKG_ROOT/bin/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/scripts/common/$script" ]; then
+            cp -f "$PKG_ROOT/scripts/common/$script" "$DEST_DIR/bin/"
+        fi
+    done
 
     # 4. Config
     cp -rf "$PKG_ROOT/config/"* "$DEST_DIR/config/"
@@ -574,18 +604,31 @@ copy_docker_files() {
     cp "$COMPOSE_SRC" "$DEST_DIR/"
 
     # 2. Bin Scripts
-    # Legacy 실행에 필요한 스크립트만 명시적으로 복사
-    # (run_bash_tests.sh, bootstrap.sh 등 불필요한 파일 제외)
-    local LEGACY_SCRIPTS=("uninstall_service.sh" "utils.sh" "bootstrap.sh")
-    for script in "${LEGACY_SCRIPTS[@]}"; do
+    # Docker 실행 및 관리에 필요한 스크립트 복사
+    local MGMT_SCRIPTS=("uninstall_service.sh" "utils.sh" "bootstrap.sh")
+    for script in "${MGMT_SCRIPTS[@]}"; do
         if [ -f "$SCRIPT_DIR/$script" ]; then
             cp -rf "$SCRIPT_DIR/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/deploy/$script" ]; then
+            cp -rf "$PKG_ROOT/deploy/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/bin/$script" ]; then
+            cp -rf "$PKG_ROOT/bin/$script" "$DEST_DIR/bin/"
+        elif [ -f "$PKG_ROOT/scripts/common/$script" ]; then
+            cp -rf "$PKG_ROOT/scripts/common/$script" "$DEST_DIR/bin/"
         fi
     done
 
     # cron 디렉토리 복사
-    if [ -d "$SCRIPT_DIR/cron" ]; then
-        cp -rf "$SCRIPT_DIR/cron" "$DEST_DIR/bin/"
+    local CRON_SRC=""
+    if [ -d "$PKG_ROOT/bin/cron" ]; then
+        CRON_SRC="$PKG_ROOT/bin/cron"
+    elif [ -d "$PKG_ROOT/scripts/service/cron" ]; then
+        CRON_SRC="$PKG_ROOT/scripts/service/cron"
+    elif [ -d "$SCRIPT_DIR/cron" ]; then
+        CRON_SRC="$SCRIPT_DIR/cron"
+    fi
+    if [ -n "$CRON_SRC" ]; then
+        cp -rf "$CRON_SRC" "$DEST_DIR/bin/"
     fi
 
     # config 폴더 복사 (Host Mount용)

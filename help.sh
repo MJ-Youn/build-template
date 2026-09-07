@@ -15,15 +15,15 @@ cat << 'EOF'
 
 [환경 지정 프로필 (-P...)]
   모든 배포 태스크에 환경(`dev`, `prod`, `local` 등)을 지정할 수 있습니다.
-  지정 시 `config/{env}/` 및 `scripts/{env}/` 내의 파일들이 오버레이(덮어쓰기) 됩니다.
+  지정 시 `config.profiles/{env}/` 및 `scripts/{env}/` 내의 파일들이 오버레이(덮어쓰기) 됩니다.
   예시: ./mvnw package -Pprod
 
 [배포 프로필/태스크 (Distribution Tasks)]
   📦 1. package
      - 일반 서버(Legacy / Docker 선택 가능) 배포용 Zip 생성
      - 산출물: target/dist/{APP_NAME}-{version}-{env}.dist.zip
-     - 포함 내용: JAR + Scripts + Config + docker/ (Dockerfile, docker-compose.yml)
-     - 서버 배포 시 install_service.sh를 실행하면 Legacy 또는 Docker 방식을 선택할 수 있습니다.
+     - 포함 내용: JAR + Scripts (deploy/, bin/) + Config + docker/ (Dockerfile, docker-compose.yml)
+     - 서버 배포 시 deploy/install_service.sh를 실행하면 Legacy 또는 Docker 방식을 선택할 수 있습니다.
      - 예시: ./mvnw package -Pprod
 
   🐳 2. dockerBuildOffline (Strategy 1 - 오프라인/폐쇄망 환경용)
