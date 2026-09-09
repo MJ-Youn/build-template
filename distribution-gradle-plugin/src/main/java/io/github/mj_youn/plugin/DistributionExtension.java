@@ -82,6 +82,8 @@ public class DistributionExtension {
 
     /**
      * 배포 패키지 루트에 함께 포함할 추가 디렉토리 목록을 반환합니다.
+     *
+     * @return 추가 디렉토리 목록
      */
     public List<String> getExtraDirs() {
         return extraDirs;
@@ -89,6 +91,9 @@ public class DistributionExtension {
 
     /**
      * 배포 패키지 루트에 함께 포함할 추가 디렉토리를 설정합니다.
+     *
+     * @param extraDirs
+     *            추가 디렉토리 목록
      */
     public void setExtraDirs(List<String> extraDirs) {
         this.extraDirs.clear();
@@ -99,6 +104,9 @@ public class DistributionExtension {
 
     /**
      * 배포 패키지 루트에 함께 포함할 추가 디렉토리를 추가합니다.
+     *
+     * @param dir
+     *            추가할 디렉토리 경로
      */
     public void extraDir(String dir) {
         this.extraDirs.add(dir);

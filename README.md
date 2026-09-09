@@ -36,7 +36,7 @@
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '1.1.5'
+    id 'io.github.mj-youn.distribution' version '1.1.6'
 }
 ```
 
@@ -44,6 +44,10 @@ plugins {
     ```bash
     ./gradlew package -Penv=dev    # 개발 환경 배포 Zip
     ./gradlew package -Penv=prod   # 운영 환경 배포 Zip
+    ```
+- **도움말(가이드) 확인**:
+    ```bash
+    ./gradlew distHelp             # 플러그인 배포 가이드 출력
     ```
 
 #### 🪶 Maven 프로젝트 (`pom.xml`)
@@ -54,7 +58,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>1.1.5</version>
+            <version>1.1.6</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -70,6 +74,78 @@ plugins {
     mvn clean package -Denv=dev    # 개발 환경 배포 Zip
     mvn clean package -Denv=prod   # 운영 환경 배포 Zip
     ```
+- **도움말(가이드) 확인**:
+    ```bash
+    mvn distribution:help          # 플러그인 배포 가이드 출력 (또는 mvn distribution:distHelp)
+    ```
+
+---
+
+### 💡 플러그인 도움말(Help) 및 사용 가이드 확인
+
+플러그인을 적용한 프로젝트에서는 터미널 명령어를 통해 언제든지 **배포 가이드 및 지원 명령어 목록**을 터미널에서 즉시 확인할 수 있습니다.
+
+#### 🐘 Gradle 환경
+Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하기 위해 **`distHelp`** 전용 태스크를 제공합니다.
+
+- **도움말 명령어**:
+  ```bash
+  # 💡 배포 플러그인 사용 가이드 및 지원 명령어 출력
+  ./gradlew distHelp
+
+  # 📦 플러그인이 제공하는 전체 배포 태스크 목록 확인
+  ./gradlew tasks --group=distribution
+  ```
+
+- **실행 결과 샘플**:
+  ```text
+  > Task :distHelp
+  ================================================================================
+  🚀 [Distribution Plugin] 빌드 및 배포 가이드
+  ================================================================================
+  [기본 명령어]
+    ./gradlew package -Penv=dev       : 개발 환경 배포 패키지(Zip) 생성
+    ./gradlew package -Penv=prod      : 운영 환경 배포 패키지(Zip) 생성
+    ./gradlew deployService -Penv=prod: 원스탑 배포 (빌드 + 압축해제 + 서비스 설치/구동)
+    ./gradlew initDeployScript        : 프로젝트 루트에 build_deploy.sh 자동 생성
+    ./build_deploy.sh -Penv=dev       : 쉘 스크립트 기반 원스탑 배포 (Git pull + deployService)
+
+  [환경 지정 옵션 (-Penv=...)]
+    지정 시 config.profiles/{env}/ 내 설정 파일들이 패키지 config/ 로 오버레이됩니다.
+  ================================================================================
+  ```
+
+#### 🪶 Maven 환경
+Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 호출합니다. 편의를 위해 `help`와 `distHelp` 두 Goal을 모두 지원합니다.
+
+- **도움말 명령어**:
+  ```bash
+  # 💡 배포 플러그인 사용 가이드 및 지원 명령어 출력
+  mvn distribution:help
+
+  # 💡 Gradle과 동일한 명령어 네이밍 지원 (help alias)
+  mvn distribution:distHelp
+  ```
+
+- **실행 결과 샘플**:
+  ```text
+  [INFO] --- distribution:1.1.6:help (default-cli) @ my-service ---
+  [INFO] ================================================================================
+  🚀 [Distribution Maven Plugin] 빌드 및 배포 가이드
+  ================================================================================
+  [기본 명령어]
+    mvn clean package -Denv=dev          : 개발 환경 배포 패키지(Zip) 생성
+    mvn clean package -Denv=prod         : 운영 환경 배포 패키지(Zip) 생성
+    mvn distribution:deploy -Denv=prod   : 원스탑 배포 (빌드 + 압축해제 + 서비스 설치/구동)
+    mvn distribution:initDeployScript    : 프로젝트 루트에 build_deploy.sh 자동 생성
+    ./build_deploy.sh -Denv=dev          : 쉘 스크립트 기반 원스탑 배포 (Git pull + distribution:deploy)
+
+  [환경 지정 옵션 (-Denv=...)]
+    지정 시 config.profiles/{env}/ 내 설정 파일들이 패키지 config/ 로 오버레이됩니다.
+  ================================================================================
+  ```
+
+---
 
 #### 🏷️ `appName` 옵션 설정 가이드 및 주의 사항 (선택 사항)
 
@@ -91,7 +167,7 @@ plugins {
 - **서버 운영 리소스 명칭을 통일하고 싶을 때**:
     - 🐧 **Linux Systemd 서비스명**: `/etc/systemd/system/{appName}.service` (`systemctl start {appName}`)
     - 📁 **기본 로그 저장 경로**: `/log/{appName}` (예: `/log/hdrms`)
-    - 🐳 **Docker 이미지 태그**: `{appName}:{version}` (예: `hdrms:1.1.5`)
+    - 🐳 **Docker 이미지 태그**: `{appName}:{version}` (예: `hdrms:1.1.6`)
     - 🐚 **프로세스 제어 콘솔 출력**: `🚀 [{appName}] 서비스를 시작합니다...`
 
 ##### 3) ⚠️ 설정 시 주의 사항

@@ -21,18 +21,20 @@ public class HelpMojo extends AbstractMojo {
   @Override
   public void execute() throws MojoExecutionException {
     String msg = """
-        ================================================================================
-        🚀 [Distribution Maven Plugin] 빌드 및 배포 가이드
-        ================================================================================
-        [기본 명령어]
-          mvn clean package -Denv=dev       : 개발 환경 배포 패키지(Zip) 생성
-          mvn clean package -Denv=prod      : 운영 환경 배포 패키지(Zip) 생성
-          mvn distribution:deploy -Denv=prod: 원스탑 배포 (빌드 + 압축해제 + 서비스 설치/구동)
+================================================================================
+🚀 [Distribution Maven Plugin] 빌드 및 배포 가이드
+================================================================================
+[기본 명령어]
+  mvn clean package -Denv=dev          : 개발 환경 배포 패키지(Zip) 생성
+  mvn clean package -Denv=prod         : 운영 환경 배포 패키지(Zip) 생성
+  mvn distribution:deploy -Denv=prod   : 원스탑 배포 (빌드 + 압축해제 + 서비스 설치/구동)
+  mvn distribution:initDeployScript    : 프로젝트 루트에 build_deploy.sh 자동 생성
+  ./build_deploy.sh -Denv=dev          : 쉘 스크립트 기반 원스탑 배포 (Git pull + distribution:deploy)
 
-        [환경 지정 옵션 (-Denv=...)]
-          지정 시 config.profiles/{env}/ 내 설정 파일들이 패키지 config/ 로 오버레이됩니다.
-        ================================================================================
-        """;
+[환경 지정 옵션 (-Denv=...)]
+  지정 시 config.profiles/{env}/ 내 설정 파일들이 패키지 config/ 로 오버레이됩니다.
+================================================================================
+""";
     getLog().info(msg);
   }
 }

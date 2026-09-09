@@ -2,6 +2,17 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🚀 [1.1.6] - 2026-09-09
+
+### ✨ 주요 개선 사항 (Features & Enhancements)
+- **원스탑 배포 시 `sudo` 권한 자동 승격 지원 (`deployService` / `distribution:deploy`)**
+  - 일반 유저 계정으로 원스탑 배포 명령어 또는 `build_deploy.sh`를 실행할 때, 내부 `install_service.sh`가 루트 권한(`EUID == 0`) 부족으로 즉시 종료(`코드: 1`)되던 문제 해결.
+  - Unix/Linux 환경에서 현재 실행 사용자가 root가 아닐 경우 자동으로 `sudo ./install_service.sh`로 승격하여 안전하게 서비스 설치/구동을 이어가도록 개선.
+- **Maven 플러그인 기능 확장 및 안내 일관성 확보**
+  - **`initDeployScript` Goal 신규 추가**: `mvn distribution:initDeployScript` 실행 시 프로젝트 루트에 배포 자동화 쉘 스크립트(`build_deploy.sh`) 자동 생성.
+  - **`distHelp` Goal 신규 추가**: Gradle과 명령어 통일성을 위해 `mvn distribution:distHelp`를 `help` alias로 지원.
+  - **도움말 가이드 서식 일치화**: Gradle(`distHelp`)과 Maven(`help`/`distHelp`)의 도움말 레이아웃, 항목 및 설명 문구를 100% 동일하게 통일.
+
 ---
 
 ## 🚀 [1.1.5] - 2026-09-07

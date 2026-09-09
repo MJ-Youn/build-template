@@ -15,6 +15,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -92,7 +93,17 @@ public class DistributionPlugin implements Plugin<Project> {
                 installScript.setExecutable(true, false);
 
                 try {
-                    ProcessBuilder pb = new ProcessBuilder("./install_service.sh");
+                    List<String> command = new ArrayList<>();
+                    boolean isWindows = System.getProperty("os.name", "").toLowerCase().contains("win");
+                    boolean isRoot = "root".equals(System.getProperty("user.name"));
+
+                    // Unix/Linux 환경이면서 root가 아닐 경우 sudo 사용
+                    if (!isWindows && !isRoot) {
+                        command.add("sudo");
+                    }
+                    command.add("./install_service.sh");
+
+                    ProcessBuilder pb = new ProcessBuilder(command);
                     pb.directory(installScript.getParentFile());
                     pb.inheritIO();
                     Process process = pb.start();

@@ -4,7 +4,7 @@
   <description>Maven distribution and packaging plugin with embedded scripts and @Override support</description>
   <groupId>io.github.mj-youn</groupId>
   <artifactId>distribution-maven-plugin</artifactId>
-  <version>1.1.5</version>
+  <version>1.1.6</version>
   <goalPrefix>distribution</goalPrefix>
   <isolatedRealm>false</isolatedRealm>
   <inheritedByDefault>true</inheritedByDefault>
@@ -134,6 +134,48 @@
       <instantiationStrategy>per-lookup</instantiationStrategy>
       <executionStrategy>once-per-lookup</executionStrategy>
       <threadSafe>true</threadSafe>
+    </mojo>
+    <mojo>
+      <goal>distHelp</goal>
+      <description>배포 플러그인 사용 가이드 및 명령어 안내를 출력합니다. (help alias)</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>false</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.DistHelpMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+    </mojo>
+    <mojo>
+      <goal>initDeployScript</goal>
+      <description>프로젝트 루트에 배포 자동화 쉘 스크립트(build_deploy.sh)를 생성합니다.</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.InitDeployScriptMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+      <parameters>
+        <parameter>
+          <name>basedir</name>
+          <type>java.io.File</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>프로젝트 루트 디렉토리</description>
+        </parameter>
+      </parameters>
+      <configuration>
+        <basedir default-value="${project.basedir}" />
+      </configuration>
     </mojo>
   </mojos>
 </plugin>
