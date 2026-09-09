@@ -82,9 +82,10 @@ fi
 echo ""
 
 # -----------------------------------------------------------------------------
+# -----------------------------------------------------------------------------
 # STEP 2. 빌드 도구 감지 및 배포 실행
 # -----------------------------------------------------------------------------
-echo -e "${CYAN}[2/2] 🔨 배포 빌드 및 서비스 실행 시작...${NC}"
+echo -e "${CYAN}[2/2] 🔨 배포 빌드 및 서비스 설치 시작...${NC}"
 
 # A. Gradle 프로젝트인 경우
 if [ -f "${SCRIPT_DIR}/gradlew" ] || [ -f "${SCRIPT_DIR}/build.gradle" ] || [ -f "${SCRIPT_DIR}/build.gradle.kts" ]; then
@@ -95,34 +96,34 @@ if [ -f "${SCRIPT_DIR}/gradlew" ] || [ -f "${SCRIPT_DIR}/build.gradle" ] || [ -f
         chmod +x "${GRADLEW}"
     fi
 
-    # 플러그인의 deployService 태스크 지원 여부 확인
-    if "${GRADLEW}" -p "${SCRIPT_DIR}" tasks --all 2>/dev/null | grep -q "deployService"; then
-        echo -e "${GREEN}✨ Distribution Plugin 감지: deployService 원스탑 배포를 실행합니다.${NC}"
-        "${GRADLEW}" -p "${SCRIPT_DIR}" clean deployService "-Penv=${ENV_VALUE}"
-    else
-        echo -e "${YELLOW}ℹ️  표준 package 빌드 후 수동 설치를 진행합니다.${NC}"
-        "${GRADLEW}" -p "${SCRIPT_DIR}" clean package "-Penv=${ENV_VALUE}"
+    echo -e "${GREEN}📦 Gradle 배포 패키지 빌드 시작 (clean package)...${NC}"
+    "${GRADLEW}" -p "${SCRIPT_DIR}" clean package "-Penv=${ENV_VALUE}"
 
-        # ZIP 탐색 (build/distributions 우선, build/dist 차선)
-        ZIP_FILE=$(find "${SCRIPT_DIR}/build/distributions" "${SCRIPT_DIR}/build/dist" -maxdepth 2 -name "*.zip" 2>/dev/null | sort | tail -n 1)
-        if [ -z "${ZIP_FILE}" ]; then
-            echo -e "${RED}❌ 빌드 결과물 ZIP 파일을 찾을 수 없습니다.${NC}"
-            exit 1
-        fi
+    # ZIP 탐색 (build/distributions 우선, build/dist 차선)
+    ZIP_FILE=$(find "${SCRIPT_DIR}/build/distributions" "${SCRIPT_DIR}/build/dist" -maxdepth 2 -name "*.zip" 2>/dev/null | sort | tail -n 1)
+    if [ -z "${ZIP_FILE}" ]; then
+        echo -e "${RED}❌ 빌드 결과물 ZIP 파일을 찾을 수 없습니다.${NC}"
+        exit 1
+    fi
 
-        EXTRACT_DIR="${SCRIPT_DIR}/build/distributions/unpacked"
-        rm -rf "${EXTRACT_DIR}"
-        mkdir -p "${EXTRACT_DIR}"
-        unzip -q "${ZIP_FILE}" -d "${EXTRACT_DIR}"
+    EXTRACT_DIR="${SCRIPT_DIR}/build/distributions/unpacked"
+    rm -rf "${EXTRACT_DIR}"
+    mkdir -p "${EXTRACT_DIR}"
+    echo -e "${CYAN}📂 배포 패키지 압축 해제 중: $(basename "${ZIP_FILE}")${NC}"
+    unzip -q "${ZIP_FILE}" -d "${EXTRACT_DIR}"
 
-        INSTALL_SCRIPT=$(find "${EXTRACT_DIR}" -name "install_service.sh" 2>/dev/null | head -n 1)
-        if [ -f "${INSTALL_SCRIPT}" ]; then
-            chmod +x "${INSTALL_SCRIPT}"
-            sudo "${INSTALL_SCRIPT}"
+    INSTALL_SCRIPT=$(find "${EXTRACT_DIR}" -name "install_service.sh" 2>/dev/null | head -n 1)
+    if [ -f "${INSTALL_SCRIPT}" ]; then
+        chmod +x "${INSTALL_SCRIPT}"
+        echo -e "${GREEN}🚀 서비스 설치 및 실행을 시작합니다...${NC}"
+        if [ "$EUID" -eq 0 ]; then
+            "${INSTALL_SCRIPT}"
         else
-            echo -e "${RED}❌ install_service.sh 를 찾을 수 없습니다.${NC}"
-            exit 1
+            sudo "${INSTALL_SCRIPT}"
         fi
+    else
+        echo -e "${RED}❌ install_service.sh 를 찾을 수 없습니다.${NC}"
+        exit 1
     fi
 
 # B. Maven 프로젝트인 경우
@@ -134,8 +135,35 @@ elif [ -f "${SCRIPT_DIR}/mvnw" ] || [ -f "${SCRIPT_DIR}/pom.xml" ]; then
         chmod +x "${MVNW}"
     fi
 
-    echo -e "${GREEN}✨ Maven Distribution Plugin: distribution:deploy 원스탑 배포를 실행합니다.${NC}"
-    "${MVNW}" -f "${SCRIPT_DIR}/pom.xml" clean distribution:deploy "-Denv=${ENV_VALUE}"
+    echo -e "${GREEN}📦 Maven 배포 패키지 빌드 시작 (clean package)...${NC}"
+    "${MVNW}" -f "${SCRIPT_DIR}/pom.xml" clean package "-Denv=${ENV_VALUE}"
+
+    # ZIP 탐색 (target 우선)
+    ZIP_FILE=$(find "${SCRIPT_DIR}/target" -maxdepth 2 -name "*.zip" 2>/dev/null | sort | tail -n 1)
+    if [ -z "${ZIP_FILE}" ]; then
+        echo -e "${RED}❌ 빌드 결과물 ZIP 파일을 찾을 수 없습니다.${NC}"
+        exit 1
+    fi
+
+    EXTRACT_DIR="${SCRIPT_DIR}/target/unpacked"
+    rm -rf "${EXTRACT_DIR}"
+    mkdir -p "${EXTRACT_DIR}"
+    echo -e "${CYAN}📂 배포 패키지 압축 해제 중: $(basename "${ZIP_FILE}")${NC}"
+    unzip -q "${ZIP_FILE}" -d "${EXTRACT_DIR}"
+
+    INSTALL_SCRIPT=$(find "${EXTRACT_DIR}" -name "install_service.sh" 2>/dev/null | head -n 1)
+    if [ -f "${INSTALL_SCRIPT}" ]; then
+        chmod +x "${INSTALL_SCRIPT}"
+        echo -e "${GREEN}🚀 서비스 설치 및 실행을 시작합니다...${NC}"
+        if [ "$EUID" -eq 0 ]; then
+            "${INSTALL_SCRIPT}"
+        else
+            sudo "${INSTALL_SCRIPT}"
+        fi
+    else
+        echo -e "${RED}❌ install_service.sh 를 찾을 수 없습니다.${NC}"
+        exit 1
+    fi
 
 else
     echo -e "${RED}❌ Gradle(gradlew) 또는 Maven(pom.xml) 프로젝트를 찾을 수 없습니다.${NC}"

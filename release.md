@@ -2,6 +2,16 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🚀 [1.1.7] - 2026-09-09
+
+### ✨ 주요 개선 사항 (Features & Enhancements)
+- **`build_deploy.sh` 원스탑 배포 파이프라인 구조 개선 (TTY & sudo 분리 실행)**
+  - Gradle/Maven 내부 자식 프로세스에서 `sudo` 실행 시 발생하는 비터미널(Non-TTY) 제약(`sudo: a terminal is required to read the password`) 및 exit code 1 비정상 종료 문제 원천 해결.
+  - **빌드(Build)**: 일반 유저 계정으로 안전하게 패키징(`clean package`)만 수행하여 빌드 캐시(`.gradle/`, `build/`) 권한 꼬임 방지.
+  - **설치(Deploy)**: 압축 해제 후 쉘 스크립트가 사용자의 터미널(TTY) 세션에서 직접 `sudo ./deploy/install_service.sh`를 실행하여 sudo 암호 입력창 및 대화형 메뉴(Legacy/Docker 선택)가 완벽하게 동작하도록 개선.
+
+---
+
 ## 🚀 [1.1.6] - 2026-09-09
 
 ### ✨ 주요 개선 사항 (Features & Enhancements)
