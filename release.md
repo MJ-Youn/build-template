@@ -2,6 +2,17 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🚀 [1.2.0] - 2026-09-11
+
+### ✨ 주요 개선 사항 (Features & Enhancements)
+- **Gradle Plugin Portal 배포 메타데이터 및 공개 저장소 표준화**
+  - 플러그인 심사 요건에 맞추어 `website` 및 `vcsUrl` 메타데이터를 공식 GitHub 공개 저장소(`https://github.com/MJ-Youn/build-template`)로 표준화.
+  - Gradle Plugin Portal(plugins.gradle.org) 공식 배포 및 소스코드/웹사이트 접근성 검증 보장.
+- **플러그인 버전 업데이트 (v1.2.0)**
+  - Gradle 및 Maven 배포 플러그인 전반의 최신 안정화 버전 1.2.0 릴리즈.
+
+---
+
 ## 🚀 [1.1.7] - 2026-09-09
 
 ### ✨ 주요 개선 사항 (Features & Enhancements)

@@ -4,12 +4,12 @@ plugins {
 }
 
 group = 'io.github.mj-youn'
-version = '1.1.7'
+version = '1.2.0'
 description = 'Gradle distribution packaging plugin with embedded scripts and file-level override'
 
 java {
     toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
+        languageVersion = JavaLanguageVersion.of(17)
     }
 }
 
@@ -26,8 +26,8 @@ dependencies {
 }
 
 gradlePlugin {
-    website = 'https://github.com/MJ-Youn/build-template/tree/gradle'
-    vcsUrl = 'https://github.com/MJ-Youn/build-template/tree/gradle'
+    website = 'https://github.com/MJ-Youn/build-template'
+    vcsUrl = 'https://github.com/MJ-Youn/build-template.git'
     plugins {
         distributionPlugin {
             id = 'io.github.mj-youn.distribution'
