@@ -36,7 +36,7 @@
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '1.2.1'
+    id 'io.github.mj-youn.distribution' version '1.2.2'
 }
 ```
 
@@ -58,7 +58,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>1.2.1</version>
+            <version>1.2.2</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -129,7 +129,7 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
 
 - **실행 결과 샘플**:
   ```text
-  [INFO] --- distribution:1.2.1:help (default-cli) @ my-service ---
+  [INFO] --- distribution:1.2.2:help (default-cli) @ my-service ---
   [INFO] ================================================================================
   🚀 [Distribution Maven Plugin] 빌드 및 배포 가이드
   ================================================================================
@@ -167,7 +167,7 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
 - **서버 운영 리소스 명칭을 통일하고 싶을 때**:
     - 🐧 **Linux Systemd 서비스명**: `/etc/systemd/system/{appName}.service` (`systemctl start {appName}`)
     - 📁 **기본 로그 저장 경로**: `/log/{appName}` (예: `/log/hdrms`)
-    - 🐳 **Docker 이미지 태그**: `{appName}:{version}` (예: `hdrms:1.2.1`)
+    - 🐳 **Docker 이미지 태그**: `{appName}:{version}` (예: `hdrms:1.2.2`)
     - 🐚 **프로세스 제어 콘솔 출력**: `🚀 [{appName}] 서비스를 시작합니다...`
 
 ##### 3) ⚠️ 설정 시 주의 사항

@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'io.github.mj-youn'
-version = '1.2.1'
+version = '1.2.2'
 description = 'Gradle distribution packaging plugin with embedded scripts and file-level override'
 
 java {

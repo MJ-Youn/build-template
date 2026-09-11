@@ -2,6 +2,17 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🚀 [1.2.2] - 2026-09-11
+
+### ✨ 주요 개선 사항 (Features & Enhancements)
+- **빌드 환경 호환성 개선 (Java Toolchain 제약 완화)**
+  - Gradle 및 Maven 플러그인의 엄격한 Toolchain 탐색 제약을 완화하고 `sourceCompatibility / targetCompatibility = 17`로 설정.
+  - 빌드 서버 환경의 다양한 JDK(Java 17, 21, 25 등)에서 충돌 없이 유연하게 컴파일 및 `publishToMavenLocal`을 수행할 수 있도록 개선.
+- **플러그인 버전 업데이트 (v1.2.2)**
+  - Gradle 및 Maven 배포 플러그인 전반의 최신 패치 버전 1.2.2 릴리즈.
+
+---
+
 ## 🚀 [1.2.1] - 2026-09-11
 
 ### 🐛 버그 수정 및 안정화 (Bug Fixes & Improvements)
