@@ -331,7 +331,7 @@ sequenceDiagram
     deactivate Server
 ```
 
-### ☸️ Kubernetes 배포 (`./gradlew k8sBuild`)
+### [지원 예정] ☸️ Kubernetes 배포 (`./gradlew k8sBuild`)
 
 ```mermaid
 sequenceDiagram

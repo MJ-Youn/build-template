@@ -2,6 +2,19 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🚀 [1.2.1] - 2026-09-11
+
+### 🐛 버그 수정 및 안정화 (Bug Fixes & Improvements)
+- **`install_service.sh` 배포 복사 및 권한 설정 보완**
+  - 설정 디렉토리 복사 시 `.env` 등 숨김 설정 파일이 누락되지 않도록 `cp -rf "$PKG_ROOT/config/."` 복사 로직 개선.
+  - 숨김 파일 포함 안전한 권한 부여를 위해 `find -type f / -type d` 방식으로 파일(644) 및 디렉토리(755) 권한 일괄 적용.
+- **`start.sh` JVM 옵션(`JAVA_OPTS`) 파라미터 전달 순서 정상화**
+  - `java -jar "$JAVA_OPTS"` 형태에서 `java "${JAVA_OPTS[@]}" -jar "$JAR_FILE"`로 수정하여 JVM 시스템 프로퍼티/옵션이 정상 적용되도록 개선.
+- **플러그인 버전 업데이트 (v1.2.1)**
+  - Gradle 및 Maven 배포 플러그인 전반의 최신 패치 버전 1.2.1 릴리즈.
+
+---
+
 ## 🚀 [1.2.0] - 2026-09-11
 
 ### ✨ 주요 개선 사항 (Features & Enhancements)
