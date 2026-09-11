@@ -158,15 +158,15 @@ start_application() {
             fi
             
             # exec로 프로세스 대체 (PID 1 유지) 및 su-exec로 권한 강등
-            exec su-exec "${APP_USER}" java -jar "${JAVA_OPTS[@]}" "$JAR_FILE" "${FINAL_APP_ARGS[@]}"
+            exec su-exec "${APP_USER}" java "${JAVA_OPTS[@]}" -jar "$JAR_FILE" "${FINAL_APP_ARGS[@]}"
         else
             log_info "${APP_USER}를 찾을 수 없어 기본 권한으로 실행합니다."
             # exec로 프로세스 대체 (PID 1 유지)
-            exec java -jar "${JAVA_OPTS[@]}" "$JAR_FILE" "${FINAL_APP_ARGS[@]}"
+            exec java "${JAVA_OPTS[@]}" -jar "$JAR_FILE" "${FINAL_APP_ARGS[@]}"
         fi
     else
         # 일반 환경: nohup을 사용하여 백그라운드에서 실행 유지
-        nohup java -jar "${JAVA_OPTS[@]}" "$JAR_FILE" "${FINAL_APP_ARGS[@]}" > /dev/null 2>&1 &
+        nohup java "${JAVA_OPTS[@]}" -jar "$JAR_FILE" "${FINAL_APP_ARGS[@]}" > /dev/null 2>&1 &
         PID=$!
 
         # PID 파일 디렉토리 확인 및 생성 (source 트리 등 대응)
@@ -189,7 +189,7 @@ start_application() {
         echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}LOG${NC}     : ${YELLOW}$LOG_PATH/${APP_NAME}.log${NC}"
         echo -e "${BOLD}${BLUE}╠════════════════════════════════════════════════════════════════╣${NC}"
         echo -e "${BOLD}${BLUE}║${NC} 📋 ${BOLD}COMMAND${NC} :${NC}"
-        echo -e "${BOLD}${BLUE}║${NC} nohup java -jar ${JAVA_OPTS[*]} \"$JAR_FILE\" ${FINAL_APP_ARGS[*]}"
+        echo -e "${BOLD}${BLUE}║${NC} nohup java ${JAVA_OPTS[*]} -jar \"$JAR_FILE\" ${FINAL_APP_ARGS[*]}"
         echo -e "${BOLD}${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
     fi
 }

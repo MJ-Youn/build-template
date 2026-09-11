@@ -457,8 +457,8 @@ copy_legacy_files() {
         fi
     done
 
-    # 4. Config
-    cp -rf "$PKG_ROOT/config/"* "$DEST_DIR/config/"
+    # 4. Config (숨김 파일 .env 포함 복사)
+    cp -rf "$PKG_ROOT/config/." "$DEST_DIR/config/"
 
     # 5. 추가 디렉토리 복사 (EXTRA_DIRS 설정 및 패키지 내 사용자 디렉토리 자동 감지)
     local CONFIGURED_EXTRA_DIRS="$EXTRA_DIRS"
@@ -498,7 +498,7 @@ copy_legacy_files() {
     # 권한 설정
     chmod 755 "$DEST_DIR/bin/"*.sh
     chmod 644 "$DEST_DIR/libs/"*.jar
-    chmod -R 644 "$DEST_DIR/config/"*
+    find "$DEST_DIR/config" -type f -exec chmod 644 {} +
     find "$DEST_DIR/config" -type d -exec chmod 755 {} +
 
     # 배포된 파일 소유권 설정 (현재 로그인 유저)
@@ -862,7 +862,7 @@ copy_docker_files() {
 
     # 권한 설정
     chmod 755 "$DEST_DIR/bin/"*.sh
-    chmod -R 644 "$DEST_DIR/config/"*
+    find "$DEST_DIR/config" -type f -exec chmod 644 {} +
     find "$DEST_DIR/config" -type d -exec chmod 755 {} +
 
     # 배포된 파일 소유권 설정 (현재 로그인 유저)
