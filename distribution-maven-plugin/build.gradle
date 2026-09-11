@@ -10,9 +10,8 @@ version = '1.2.1'
 description = 'Maven distribution packaging plugin with embedded scripts and @Override support'
 
 java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(25)
-    }
+    sourceCompatibility = JavaVersion.VERSION_17
+    targetCompatibility = JavaVersion.VERSION_17
     withJavadocJar()
     withSourcesJar()
 }
