@@ -1,6 +1,6 @@
 # 🚀 Spring Boot Build & Deploy Platform
 
-[English](#-overview-english) | [한국어](#-개요-korean)
+[🇺🇸 Read in English (Full Guide)](README_EN.md) | [🇰🇷 한국어](#-개요-korean)
 
 ---
 
