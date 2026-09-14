@@ -1,5 +1,35 @@
 # 🚀 Spring Boot Build & Deploy Platform
 
+[English](#-overview-english) | [한국어](#-개요-korean)
+
+---
+
+## 🇺🇸 Overview (English)
+
+> **A centralized build and deployment automation platform for Spring Boot applications.**  
+> Standardizes application distribution packages (`deploy`, `bin`, `config`, `lib`, `docker`) via Gradle and Maven plugins without copying boilerplate scripts into individual projects. Supports seamless **file-level `@Override`** and multi-environment profile overlays. ✨
+
+- **Gradle Plugin**: [`io.github.mj-youn.distribution`](distribution-gradle-plugin/README.md) ([Gradle Plugin Portal](https://plugins.gradle.org/plugin/io.github.mj-youn.distribution))
+- **Maven Plugin**: [`io.github.mj-youn:distribution-maven-plugin`](distribution-maven-plugin/README.md) ([Maven Central](https://central.sonatype.com/artifact/io.github.mj-youn/distribution-maven-plugin))
+
+### Quick Start (Gradle)
+```groovy
+plugins {
+    id 'io.github.mj-youn.distribution' version '1.2.2'
+}
+```
+```bash
+./gradlew package -Penv=dev    # Build development zip package
+./gradlew package -Penv=prod   # Build production zip package
+./gradlew distHelp             # Display plugin documentation & commands
+```
+
+For complete English documentation, see [**distribution-gradle-plugin/README.md**](distribution-gradle-plugin/README.md#-english).
+
+---
+
+## 🇰🇷 개요 (Korean)
+
 > **이 프로젝트는 Spring Boot 애플리케이션의 배포 체계를 표준화하기 위한 중앙 빌드/배포 플랫폼 허브입니다.**  
 > 이제는 복잡한 스크립트 파일들을 프로젝트마다 복사(Boilerplate)하여 분산 관리할 필요가 없습니다.  
 > **Gradle 플러그인**과 **Maven 플러그인**을 한 지붕 아래에서 단일 원본(SSOT)으로 관리하며, 개별 프로젝트에서는 **플러그인 선언 1줄**만으로 완벽한 표준 배포 환경을 구축할 수 있습니다. ✨

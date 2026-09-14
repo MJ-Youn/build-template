@@ -1,16 +1,108 @@
 # 🚀 Distribution Gradle Plugin (`io.github.mj-youn.distribution`)
 
+[English](#-english) | [한국어](#-korean)
+
+---
+
+## 🇺🇸 English
+
+> A Gradle plugin for Spring Boot applications that automates standardized distribution packaging (`deploy`, `bin`, `config`, `lib`, `docker`), provides embedded deployment script templates, and supports seamless **file-level `@Override`** for customized configurations. ✨
+
+- **Author**: MJ Yun (윤명준)
+- **Plugin ID**: `io.github.mj-youn.distribution`
+- **Gradle Plugin Portal**: [https://plugins.gradle.org/plugin/io.github.mj-youn.distribution](https://plugins.gradle.org/plugin/io.github.mj-youn.distribution)
+- **Source Repository**: [https://github.com/MJ-Youn/build-template](https://github.com/MJ-Youn/build-template)
+
+### 🌟 Key Features
+
+1. **📦 Zero-Configuration Deployment Infrastructure**:
+   - No need to manually duplicate `scripts/` or `docker/` directories across multiple projects.
+   - Standard deployment scripts (`install_service.sh`, `start.sh`, `stop.sh`, `status.sh`, `utils.sh`) and `Dockerfile` are embedded inside the plugin JAR and automatically bundled into the distribution package.
+2. **🧩 File-Level `@Override` Mechanism**:
+   - Easily customize scripts or Docker configurations by simply placing a file with the same relative path in your project (e.g., `scripts/service/start.sh`).
+   - The plugin automatically favors your local file (**@Override**) while keeping all other unmodified templates from the plugin.
+3. **🌐 Environment Profile Mapping**:
+   - Pass environment flags such as `-Penv=dev` or `-Penv=prod`. Configuration files from `config.profiles/${env}/` are automatically overlaid into the package's `config/` directory with suffixes stripped to standard file names.
+4. **📦 Standardized Distribution Package**:
+   - Packages everything into a single ready-to-deploy `.zip` archive containing executable Spring Boot JAR, service management scripts (Systemd / SysVinit / Docker), and environment configs.
+
+### 💻 Quick Start
+
+Add the plugin to your Spring Boot project's `build.gradle`:
+
+```groovy
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.2.0' // or your Spring Boot version
+    // ⭐️ Distribution Plugin
+    id 'io.github.mj-youn.distribution' version '1.2.2'
+}
+
+// (Optional) Plugin configuration
+distribution {
+    appName = 'my-custom-service'      // Service name (default: rootProject.name)
+    token 'customKey', 'customValue'  // Replaces @customKey@ tokens in scripts
+    extraDirs = ['flags', 'data']      // Extra project directories to bundle into zip root
+}
+```
+
+### 🚀 Tasks & Usage
+
+- **Display Plugin Help**:
+  ```bash
+  ./gradlew distHelp
+  ```
+- **Build Distribution Zip Package**:
+  ```bash
+  ./gradlew package -Penv=dev    # Build development package
+  ./gradlew package -Penv=prod   # Build production package
+  ```
+  The packaged zip file will be generated at: `build/distributions/{appName}-{version}.zip`.
+
+- **One-stop Build & Auto Deploy**:
+  ```bash
+  ./gradlew deployService -Penv=prod
+  ```
+
+### 📦 Output Package Structure
+
+```text
+📦 {appName}-{version}.zip
+├── 📁 deploy/                  # Service installation & uninstallation scripts
+│   ├── install_service.sh
+│   ├── uninstall_service.sh
+│   └── utils.sh / bootstrap.sh
+├── 📁 bin/                     # Service start/stop/status scripts
+│   ├── start.sh
+│   ├── stop.sh
+│   ├── status.sh
+│   └── cron/crond
+├── 📁 config/                  # Profile-applied application configuration
+│   ├── application.yml
+│   └── log4j2.yml
+├── 📁 lib/                     # Spring Boot executable JAR
+│   └── {appName}-{version}.jar
+└── 📁 docker/                  # Dockerfile & Docker Compose files
+    ├── Dockerfile
+    ├── docker-compose.yml
+    ├── dev/
+    └── prod/
+```
+
+---
+
+## 🇰🇷 Korean
+
 > Spring Boot 애플리케이션의 표준 빌드/배포 구조(`deploy`, `bin`, `config`, `lib`, `docker`)를 손쉽게 패키징하고,  
 > 배포 스크립트 템플릿 내장 및 프로젝트별 **파일 단위 @Override**를 완벽하게 지원하는 Gradle 커스텀 플러그인입니다. ✨
 
-- **Author**: MJ Yun
-- **JDK Requirement**: Java 25 이상
+- **Author**: 윤명준 (MJ Yun)
 - **Plugin ID**: `io.github.mj-youn.distribution`
 - **Gradle Plugin Portal**: [https://plugins.gradle.org/plugin/io.github.mj-youn.distribution](https://plugins.gradle.org/plugin/io.github.mj-youn.distribution)
 
 ---
 
-## 🌟 핵심 기능
+### 🌟 핵심 기능
 
 1. **배포 인프라 무설치 (Zero Configuration)**:
     - 각 프로젝트에 별도의 `scripts/`나 `docker/` 폴더를 복사해 둘 필요가 없습니다.
@@ -27,7 +119,7 @@
 
 ---
 
-## 📦 패키지 산출물 구조
+### 📦 패키지 산출물 구조
 
 생성된 아카이브(`.zip`)는 다음과 같은 표준 구조를 가집니다:
 
@@ -57,7 +149,7 @@
 
 ---
 
-## 💻 개별 프로젝트 적용 방법
+### 💻 개별 프로젝트 적용 방법
 
 개별 Spring Boot 프로젝트의 `build.gradle`에 플러그인을 선언합니다:
 
@@ -79,16 +171,16 @@ distribution {
 }
 ```
 
-### 🚀 빌드 및 배포 명령어 가이드
+#### 🚀 빌드 및 배포 명령어 가이드
 
-#### [기본 빌드 명령어]
+##### [기본 빌드 명령어]
 
 ```bash
 ./gradlew build           # 표준 빌드 수행 (JAR 빌드)
 ./gradlew clean           # 빌드 결과물 정리
 ```
 
-#### [환경 지정 옵션 (-Penv=...)]
+##### [환경 지정 옵션 (-Penv=...)]
 
 모든 배포 태스크에 환경(`dev`, `prod`, `local` 등)을 지정할 수 있습니다.  
 지정 시 `config.profiles/{env}/` 내의 파일들이 패키지 `config/`로 오버레이되며, 파일명 접미사(`-dev` 등)가 자동 제거됩니다.
@@ -98,7 +190,7 @@ distribution {
 ./gradlew package -Penv=prod
 ```
 
-#### [배포 태스크 (Distribution Tasks)]
+##### [배포 태스크 (Distribution Tasks)]
 
 - 💡 **`distHelp` (배포 도움말 가이드 출력)**
     - 터미널에 환경 변수, 지원 태스크 목록 및 실행 예시 가이드를 출력합니다.
@@ -129,21 +221,21 @@ distribution {
 
 ---
 
-## 🛠️ 플러그인 개발 및 배포 가이드
+### 🛠️ 플러그인 개발 및 배포 가이드
 
-### 1. 플러그인 로컬 빌드 및 로컬 저장소 배포 (테스트용)
+#### 1. 플러그인 로컬 빌드 및 로컬 저장소 배포 (테스트용)
 
 프로젝트 루트 디렉토리에서 실행합니다:
 
 ```bash
 # 로컬 컴파일 및 빌드 검증
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./gradlew :distribution-gradle-plugin:build
+./gradlew :distribution-gradle-plugin:build
 
 # 로컬 Maven 캐시(~/.m2/repository)에 배포하여 로컬 테스트에 사용
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./gradlew :distribution-gradle-plugin:publishToMavenLocal
+./gradlew :distribution-gradle-plugin:publishToMavenLocal
 ```
 
-### 2. Gradle Plugin Portal 공개 배포
+#### 2. Gradle Plugin Portal 공개 배포
 
 1. `~/.gradle/gradle.properties` 파일에 발급받은 API 키 등록:
     ```properties
@@ -152,5 +244,5 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./gradl
     ```
 2. 프로젝트 루트 디렉토리에서 배포 명령어 실행:
     ```bash
-    JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./gradlew :distribution-gradle-plugin:publishPlugins
+    ./gradlew :distribution-gradle-plugin:publishGradlePlugins
     ```

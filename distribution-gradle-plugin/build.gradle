@@ -30,8 +30,8 @@ gradlePlugin {
     plugins {
         distributionPlugin {
             id = 'io.github.mj-youn.distribution'
-            displayName = 'Gradle 빌드/배포 쉘'
-            description = 'Gradle distribution and packaging plugin with embedded scripts and @Override support'
+            displayName = 'Gradle Distribution & Packaging Plugin'
+            description = 'Gradle distribution and packaging plugin with embedded scripts and file-level override'
             tags.set(['distribution', 'deployment', 'packaging', 'spring-boot'])
             implementationClass = 'io.github.mj_youn.plugin.DistributionPlugin'
         }
