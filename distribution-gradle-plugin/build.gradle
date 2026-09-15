@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'io.github.mj-youn'
-version = '1.2.2'
+version = '2.0.0'
 description = 'Gradle distribution packaging plugin with embedded scripts and file-level override'
 
 java {
@@ -52,6 +52,9 @@ tasks.named('processResources') {
     }
     from("${rootProject.projectDir}/build_deploy.sh") {
         into 'template'
+    }
+    from("${rootProject.projectDir}/tomcat") {
+        into 'template/tomcat'
     }
 
     // template 리소스 내부 파일 목록(manifest)을 자동 생성하여 JAR 내장 시 리소스 추출을 완벽하게 보장

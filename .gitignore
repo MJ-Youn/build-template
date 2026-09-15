@@ -37,4 +37,4 @@ log/
 scripts/tail-log-*.sh
 
 # Ignore build output bin folder
-bin/
+/bin/

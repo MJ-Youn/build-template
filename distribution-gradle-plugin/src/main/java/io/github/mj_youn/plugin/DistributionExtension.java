@@ -15,7 +15,11 @@ import java.util.Map;
  * <pre>
  * distribution {
  *     appName = 'my-custom-service'
+ *     packageType = 'tomcat' // 'jar' (기본값) 또는 'tomcat'
+ *     tomcatVersion = '11.0.15'
+ *     httpPort = 8083
  *     token 'customKey', 'customValue'
+ *     extraDir 'webapps'
  * }
  * </pre>
  *
@@ -26,6 +30,9 @@ public class DistributionExtension {
 
     private final Project project;
     private String appName;
+    private String packageType = "jar";
+    private String tomcatVersion = "11.0.15";
+    private int httpPort = 443;
     private final Map<String, Object> extraTokens = new HashMap<>();
     private final List<String> extraDirs = new ArrayList<>();
 
@@ -57,6 +64,72 @@ public class DistributionExtension {
      */
     public void setAppName(String appName) {
         this.appName = appName;
+    }
+
+    /**
+     * 배포 패키지 유형('jar' 또는 'tomcat')을 반환합니다.
+     *
+     * @return 패키지 유형 (기본값: "jar")
+     */
+    public String getPackageType() {
+        return packageType;
+    }
+
+    /**
+     * 배포 패키지 유형을 설정합니다 ('jar' 또는 'tomcat').
+     *
+     * @param packageType
+     *            설정할 패키지 유형
+     */
+    public void setPackageType(String packageType) {
+        this.packageType = packageType;
+    }
+
+    /**
+     * 현재 설정된 패키지 유형이 톰캣 배포 모드인지 여부를 확인합니다.
+     *
+     * @return 톰캣 배포 모드 여부
+     */
+    public boolean isTomcat() {
+        return "tomcat".equalsIgnoreCase(packageType) || "war".equalsIgnoreCase(packageType);
+    }
+
+    /**
+     * 톰캣 배포 시 사용할 기본 톰캣 버전을 반환합니다.
+     *
+     * @return 톰캣 버전 (기본값: "11.0.15")
+     */
+    public String getTomcatVersion() {
+        return tomcatVersion;
+    }
+
+    /**
+     * 톰캣 배포 시 사용할 톰캣 버전을 설정합니다.
+     *
+     * @param tomcatVersion
+     *            톰캣 버전
+     */
+    public void setTomcatVersion(String tomcatVersion) {
+        this.tomcatVersion = tomcatVersion;
+    }
+
+    /**
+     * HTTP 서비스 포트 번호를 반환합니다.
+     *
+     * @return HTTP 포트 (기본값: 443)
+     */
+    public int getHttpPort() {
+        return httpPort;
+    }
+
+    /**
+     * HTTP 서비스 포트 번호를 설정합니다.
+     *
+     * @param httpPort
+     *            HTTP 포트 번호
+     */
+    public void setHttpPort(int httpPort) {
+        this.httpPort = httpPort;
     }
 
     /**
@@ -103,12 +176,14 @@ public class DistributionExtension {
     }
 
     /**
-     * 배포 패키지 루트에 함께 포함할 추가 디렉토리를 추가합니다.
+     * 배포 패키지 루트에 함께 포함할 추가 디렉토리를 하나 추가합니다.
      *
-     * @param dir
-     *            추가할 디렉토리 경로
+     * @param extraDir
+     *            추가 디렉토리 이름
      */
-    public void extraDir(String dir) {
-        this.extraDirs.add(dir);
+    public void extraDir(String extraDir) {
+        if (extraDir != null && !extraDir.trim().isEmpty()) {
+            this.extraDirs.add(extraDir.trim());
+        }
     }
 }

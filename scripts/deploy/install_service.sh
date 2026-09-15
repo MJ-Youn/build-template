@@ -44,8 +44,69 @@ EXISTING_SERVICE_FOUND=0
 OVERWRITE_EXISTING=""
 PREVIOUS_INSTALL_LOC=""
 PREVIOUS_LOG_PATH=""
+RUNTIME_ENGINE="${RUNTIME_ENGINE:-${TYPE:-}}"
+
+TARGET_CATALINA_HOME="${CATALINA_HOME:-}"
+SYSTEMD_EXTRA_ENV=""
+
+# CLI 인자 분석 (--type=..., --mode=..., --tomcat-home=...)
+for arg in "$@"; do
+    case "$arg" in
+        --type=*)
+            RUNTIME_ENGINE="${arg#*=}"
+            ;;
+        --mode=*)
+            DEPLOY_MODE="${arg#*=}"
+            ;;
+        --tomcat-home=*|--catalina-home=*)
+            TARGET_CATALINA_HOME="${arg#*=}"
+            ;;
+    esac
+done
 
 # --- [Functions] ---
+
+# @description 애플리케이션 런타임 엔진 선택 (jar / tomcat)
+select_runtime_engine() {
+    if [ -n "$RUNTIME_ENGINE" ]; then
+        log_info "지정된 런타임 엔진($RUNTIME_ENGINE)으로 진행합니다."
+        return 0
+    fi
+
+    local DEFAULT_ENGINE="jar"
+    local DEFAULT_INDEX=1
+    if [ -d "$PKG_ROOT/webapps/ROOT" ] || [ -d "$PKG_ROOT/tomcat" ]; then
+        DEFAULT_ENGINE="tomcat"
+        DEFAULT_INDEX=2
+    fi
+
+    log_step "애플리케이션 런타임 엔진 선택"
+    echo ""
+    echo -e "   ${BOLD}애플리케이션 런타임 엔진을 선택하세요:${NC}"
+    echo -e "   ${CYAN}1) Spring Boot Executable JAR${NC}  - 내장 톰캣 구동"
+    echo -e "   ${CYAN}2) Standalone Apache Tomcat${NC}    - 외장 톰캣 11 엔진 구동"
+    echo ""
+
+    while true; do
+        read -p "   선택 [1/2] (기본값: $DEFAULT_INDEX [자동 감지]): " ENGINE_INPUT
+        ENGINE_INPUT="${ENGINE_INPUT:-$DEFAULT_INDEX}"
+        case "$ENGINE_INPUT" in
+            1)
+                RUNTIME_ENGINE="jar"
+                log_info "Spring Boot Executable JAR 방식이 선택되었습니다."
+                break
+                ;;
+            2)
+                RUNTIME_ENGINE="tomcat"
+                log_info "Standalone Apache Tomcat 방식이 선택되었습니다."
+                break
+                ;;
+            *)
+                log_warning "잘못된 입력입니다. 1 또는 2를 입력해주세요."
+                ;;
+        esac
+    done
+}
 
 # @description 배포 방식 선택 (legacy / docker)
 select_deploy_mode() {
@@ -228,6 +289,9 @@ install_service() {
     # 배포 방식 선택
     select_deploy_mode
 
+    # 런타임 엔진 선택 (JAR vs Tomcat)
+    select_runtime_engine
+
     if [ "$DEPLOY_MODE" = "docker" ]; then
         install_docker_mode
     else
@@ -257,6 +321,11 @@ install_legacy_mode() {
 
     # 환경 설정 및 로그 경로
     configure_legacy_env
+
+    # Tomcat 모드인 경우 호스트 톰캣 환경 확인 및 설정
+    if [ "$RUNTIME_ENGINE" = "tomcat" ]; then
+        configure_tomcat_env
+    fi
 
     # 서비스 등록
     register_legacy_service
@@ -416,6 +485,16 @@ copy_legacy_files() {
         cp -f "$PKG_ROOT/lib/"*.jar "$DEST_DIR/libs/" 2>/dev/null || true
     fi
 
+    # 1-1. Webapps / Tomcat (Tomcat 배포 시)
+    if [ -d "$PKG_ROOT/webapps" ]; then
+        mkdir -p "$DEST_DIR/webapps"
+        cp -rf "$PKG_ROOT/webapps/"* "$DEST_DIR/webapps/" 2>/dev/null || true
+    fi
+    if [ -d "$PKG_ROOT/tomcat" ]; then
+        mkdir -p "$DEST_DIR/tomcat"
+        cp -rf "$PKG_ROOT/tomcat/"* "$DEST_DIR/tomcat/" 2>/dev/null || true
+    fi
+
     # 2. Bin Scripts
     # 서비스 실행에 필요한 스크립트 복사 (start.sh, stop.sh, status.sh 등)
     local SERVICE_SRC=""
@@ -560,6 +639,79 @@ configure_legacy_env() {
     create_tail_log_script
 }
 
+# @description Tomcat 호스트 환경 설정 및 CATALINA_HOME 검증
+configure_tomcat_env() {
+    log_header "Apache Tomcat 호스트 환경 설정 확인"
+
+    # 1. 기존 지정값 유효성 확인
+    if [ -n "$TARGET_CATALINA_HOME" ] && [ -f "$TARGET_CATALINA_HOME/bin/catalina.sh" ]; then
+        log_info "지정된 CATALINA_HOME 사용: $TARGET_CATALINA_HOME"
+    else
+        # 2. 호스트 톰캣 자동 탐색
+        local DETECTED_TOMCAT=""
+        local SEARCH_PATHS=(
+            "/usr/local/tomcat"
+            "/opt/tomcat"
+            "/opt/apache-tomcat"
+            "/usr/share/tomcat"
+        )
+        for p in "${SEARCH_PATHS[@]}"; do
+            if [ -d "$p" ] && [ -f "$p/bin/catalina.sh" ]; then
+                DETECTED_TOMCAT="$p"
+                break
+            fi
+        done
+        if [ -z "$DETECTED_TOMCAT" ]; then
+            for p in /opt/apache-tomcat-* /usr/local/apache-tomcat-*; do
+                if [ -d "$p" ] && [ -f "$p/bin/catalina.sh" ]; then
+                    DETECTED_TOMCAT="$p"
+                    break
+                fi
+            done
+        fi
+
+        echo ""
+        echo -e "   ${BOLD}호스트 서버의 Apache Tomcat 설치 경로(CATALINA_HOME)를 입력하세요:${NC}"
+        if [ -n "$DETECTED_TOMCAT" ]; then
+            echo -e "   (감지된 기본 경로: ${CYAN}$DETECTED_TOMCAT${NC})"
+        fi
+
+        while true; do
+            read -p "   Tomcat 경로 (기본값: ${DETECTED_TOMCAT:-/opt/tomcat}): " USER_TOMCAT_INPUT
+            USER_TOMCAT_INPUT="${USER_TOMCAT_INPUT:-${DETECTED_TOMCAT:-/opt/tomcat}}"
+
+            if [ -f "$USER_TOMCAT_INPUT/bin/catalina.sh" ]; then
+                TARGET_CATALINA_HOME="$USER_TOMCAT_INPUT"
+                log_success "유효한 Tomcat 설치 경로 확인 완료: $TARGET_CATALINA_HOME"
+                break
+            else
+                log_error "해당 경로에서 bin/catalina.sh 를 찾을 수 없습니다: $USER_TOMCAT_INPUT"
+                echo -e "   ${YELLOW}Tomcat이 설치된 올바른 디렉터리 경로를 다시 입력해 주세요.${NC}"
+            fi
+        done
+    fi
+
+    # 3. .env 환경 파일에 CATALINA_HOME 영구 저장
+    local ENV_FILE="$DEST_DIR/bin/.env"
+    if [ -f "$ENV_FILE" ]; then
+        if grep -q "^CATALINA_HOME=" "$ENV_FILE"; then
+            sed -i "/^CATALINA_HOME=/c\CATALINA_HOME="$TARGET_CATALINA_HOME"" "$ENV_FILE"
+        else
+            echo "CATALINA_HOME="$TARGET_CATALINA_HOME"" >> "$ENV_FILE"
+        fi
+        if grep -q "^CATALINA_BASE=" "$ENV_FILE"; then
+            sed -i "/^CATALINA_BASE=/c\CATALINA_BASE="$TARGET_CATALINA_HOME"" "$ENV_FILE"
+        else
+            echo "CATALINA_BASE="$TARGET_CATALINA_HOME"" >> "$ENV_FILE"
+        fi
+    fi
+
+    # 4. Systemd 서비스 파일에 주입할 환경변수 등록
+    SYSTEMD_EXTRA_ENV="Environment="CATALINA_HOME=$TARGET_CATALINA_HOME"
+Environment="CATALINA_BASE=$TARGET_CATALINA_HOME""
+    log_info "CATALINA_HOME 환경 설정이 완료되었습니다."
+}
+
 # @description Systemd 또는 SysVinit에 Legacy 서비스 등록
 register_legacy_service() {
     log_step "서비스 등록 및 시작..."
@@ -586,6 +738,7 @@ User=$REAL_USER
 Group=$SERVICE_GROUP
 Type=forking
 WorkingDirectory=$DEST_DIR
+$( [ -n "$SYSTEMD_EXTRA_ENV" ] && echo -e "$SYSTEMD_EXTRA_ENV" )
 ExecStart=$START_SCRIPT
 ExecStop=$STOP_SCRIPT
 PIDFile=$DEST_DIR/run/application.pid

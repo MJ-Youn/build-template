@@ -1,7 +1,7 @@
 #!/bin/bash
 # ==============================================================================
 # File: stop.sh
-# Description: 서비스 종료 스크립트
+# Description: 서비스 종료 스크립트 (JAR / Tomcat 하이브리드 지원)
 # Author: 윤명준 (MJ Yun)
 # Since: 2026-02-11
 # ==============================================================================
@@ -29,6 +29,8 @@ PID_FILE="${PID_FILE:-$SCRIPT_DIR/application.pid}"
 # @var STOP_TIMEOUT 종료 대기 시간 (초)
 STOP_TIMEOUT=${STOP_TIMEOUT:-10}
 
+APP_TYPE="@appType@"
+
 # --- [Functions] ---
 
 # @description 애플리케이션 종료 처리
@@ -52,24 +54,51 @@ stop_application() {
 
     log_step "애플리케이션을 종료합니다..."
 
+    # -------------------------------------------------------------
+    # 🐱 [호스트 환경] Tomcat 모드 종료 시도
+    # -------------------------------------------------------------
+    if [ "$APP_TYPE" = "tomcat" ] || [ -d "$PROJECT_ROOT/webapps/ROOT" ]; then
+        if [ -z "$CATALINA_HOME" ]; then
+            if [ -d "$PROJECT_ROOT/tomcat" ] && [ -f "$PROJECT_ROOT/tomcat/bin/catalina.sh" ]; then
+                CATALINA_HOME="$PROJECT_ROOT/tomcat"
+            elif [ -d "/usr/local/tomcat" ]; then
+                CATALINA_HOME="/usr/local/tomcat"
+            elif [ -d "/opt/tomcat" ]; then
+                CATALINA_HOME="/opt/tomcat"
+            elif [ -d "/opt/apache-tomcat" ]; then
+                CATALINA_HOME="/opt/apache-tomcat"
+            fi
+        fi
+
+        if [ -n "$CATALINA_HOME" ] && [ -f "$CATALINA_HOME/bin/catalina.sh" ]; then
+            export CATALINA_HOME
+            export CATALINA_BASE="${CATALINA_BASE:-$CATALINA_HOME}"
+            export CATALINA_PID="$PID_FILE"
+            log_info "Tomcat catalina.sh stop 명령을 호출합니다..."
+            "$CATALINA_HOME/bin/catalina.sh" stop $STOP_TIMEOUT -force 2>/dev/null || true
+        fi
+    fi
+
+    # -------------------------------------------------------------
+    # ☕ 일반 PID 확인 및 종료 처리 (Tomcat 및 JAR 공통)
+    # -------------------------------------------------------------
     if [ ! -f "$PID_FILE" ]; then
-        log_info "PID 파일을 찾을 수 없습니다 ($PID_FILE). 애플리케이션이 실행 중이지 않을 수 있습니다."
+        log_info "PID 파일을 찾을 수 없습니다 ($PID_FILE). 애플리케이션이 이미 종료되었을 수 있습니다."
         return 0
     fi
 
     PID=$(cat "$PID_FILE")
 
     if [ -z "$PID" ]; then
-        log_warning "PID 파일이 비어있습니다. 파일을 삭제합니다."
-        rm "$PID_FILE"
+        log_warning "PID 파일이 비어있습니다. 파일을 정리합니다."
+        rm -f "$PID_FILE"
         return 0
     fi
 
     if ps -p "$PID" > /dev/null 2>&1; then
-        kill "$PID"
+        kill "$PID" 2>/dev/null || true
         log_info "종료 신호(SIGTERM)를 보냈습니다 (PID: $PID)."
         
-        # 종료 대기 (최대 $STOP_TIMEOUT초)
         count=0
         while ps -p "$PID" > /dev/null 2>&1; do
             echo -n "."
@@ -78,16 +107,16 @@ stop_application() {
             if [ $count -ge $STOP_TIMEOUT ]; then
                 echo ""
                 log_warning "애플리케이션이 ${STOP_TIMEOUT}초 내에 응답하지 않아 강제 종료(SIGKILL)합니다."
-                kill -9 "$PID"
+                kill -9 "$PID" 2>/dev/null || true
                 break
             fi
         done
         echo ""
         log_success "애플리케이션이 종료되었습니다."
-        rm "$PID_FILE"
+        rm -f "$PID_FILE"
     else
         log_info "해당 PID($PID)의 프로세스가 존재하지 않습니다. PID 파일을 정리합니다."
-        rm "$PID_FILE"
+        rm -f "$PID_FILE"
     fi
 }
 
