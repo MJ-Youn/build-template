@@ -7,11 +7,15 @@
 - **JDK Requirement**: Java 25 이상
 - **GroupId**: `io.github.mj-youn`
 - **ArtifactId**: `distribution-maven-plugin`
-- **Version**: `1.1.5`
+- **Version**: `2.0.0`
 - **Goals**:
-    - `package`: 표준 배포 Zip 아카이브 생성
+    - `package`: 표준 배포 Zip 아카이브 생성 (JAR / Tomcat 통합 지원)
+    - `packageJar`: Spring Boot Executable JAR 배포 전용 Zip 아카이브 생성
+    - `packageTomcat`: Standalone Apache Tomcat 11 배포 전용 Zip 아카이브 생성 (Exploded WAR 포함)
     - `deploy`: 빌드(패키징) ➡️ Zip 자동 압축 해제 ➡️ `install_service.sh` 자동 실행 (원스탑 배포)
     - `help`: 배포 플러그인 도움말 및 사용 가이드 출력
+    - `distHelp`: 배포 플러그인 도움말 출력 (`help` alias)
+    - `initDeployScript`: 프로젝트 루트에 원클릭 배포 쉘 스크립트(`build_deploy.sh`) 자동 생성
 
 ---
 

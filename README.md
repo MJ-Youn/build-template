@@ -131,17 +131,35 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
   ```text
   > Task :distHelp
   ================================================================================
-  🚀 [Distribution Plugin] 빌드 및 배포 가이드
+  🚀 [Distribution Plugin 2.0.0] 빌드 및 배포 가이드
   ================================================================================
-  [기본 명령어]
-    ./gradlew package -Penv=dev       : 개발 환경 배포 패키지(Zip) 생성
-    ./gradlew package -Penv=prod      : 운영 환경 배포 패키지(Zip) 생성
-    ./gradlew deployService -Penv=prod: 원스탑 배포 (빌드 + 압축해제 + 서비스 설치/구동)
-    ./gradlew initDeployScript        : 프로젝트 루트에 build_deploy.sh 자동 생성
-    ./build_deploy.sh -Penv=dev       : 쉘 스크립트 기반 원스탑 배포 (Git pull + deployService)
 
-  [환경 지정 옵션 (-Penv=...)]
-    지정 시 config.profiles/{env}/ 내 설정 파일들이 패키지 config/ 로 오버레이됩니다.
+  [📦 JAR 모드 명령어 (Executable JAR 배포)]
+    ./gradlew packageJar -Penv=dev     : JAR 기반 배포 패키지(Zip) 생성
+    ./gradlew packageJar -Penv=prod    : JAR 기반 운영 패키지(Zip) 생성
+    ./gradlew deployJar -Penv=prod     : JAR 기반 원스탑 배포 (빌드 + 설치)
+
+  [🐱 Tomcat 모드 명령어 (Standalone Apache Tomcat 배포)]
+    ./gradlew packageTomcat -Penv=dev  : Tomcat 배포 패키지(Zip) 생성 (webapps/ROOT 포함)
+    ./gradlew packageTomcat -Penv=prod : Tomcat 운영 패키지(Zip) 생성
+    ./gradlew deployTomcat -Penv=prod  : Tomcat 원스탑 배포 (빌드 + 설치)
+
+  [⚡ 기본 명령어 (DSL packageType 설정 기반)]
+    ./gradlew package -Penv=dev        : 기본 설정(packageType) 기반 패키징
+    ./gradlew deployService -Penv=dev  : 기본 설정 기반 원스탑 배포
+
+  [🎛️ CLI 파라미터 옵션]
+    -Penv=dev|prod|local|test|stage    : 배포 환경 프로파일 지정
+    -Ptype=jar|tomcat                  : 배포 유형 CLI 오버라이드
+    -Pport=8443                        : HTTP 서비스 포트 지정
+    -PtomcatVersion=11.0.15            : Apache Tomcat 버전 지정
+
+  [🛠️ DSL 설정 (build.gradle)]
+    distribution {
+        packageType = 'jar'            // 기본 배포 유형: 'jar' 또는 'tomcat'
+        httpPort    = 8080
+        tomcatVersion = '11.0.15'
+    }
   ================================================================================
   ```
 
@@ -161,17 +179,29 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
   ```text
   [INFO] --- distribution:2.0.0:help (default-cli) @ my-service ---
   [INFO] ================================================================================
-  🚀 [Distribution Maven Plugin] 빌드 및 배포 가이드
+  🚀 [Distribution Maven Plugin 2.0.0] 빌드 및 배포 가이드
   ================================================================================
-  [기본 명령어]
-    mvn clean package -Denv=dev          : 개발 환경 배포 패키지(Zip) 생성
-    mvn clean package -Denv=prod         : 운영 환경 배포 패키지(Zip) 생성
-    mvn distribution:deploy -Denv=prod   : 원스탑 배포 (빌드 + 압축해제 + 서비스 설치/구동)
-    mvn distribution:initDeployScript    : 프로젝트 루트에 build_deploy.sh 자동 생성
-    ./build_deploy.sh -Denv=dev          : 쉘 스크립트 기반 원스탑 배포 (Git pull + distribution:deploy)
 
-  [환경 지정 옵션 (-Denv=...)]
-    지정 시 config.profiles/{env}/ 내 설정 파일들이 패키지 config/ 로 오버레이됩니다.
+  [📦 JAR 모드 명령어 (Executable JAR 배포)]
+    mvn distribution:packageJar -Denv=dev    : JAR 기반 배포 패키지(Zip) 생성
+    mvn distribution:packageJar -Denv=prod   : JAR 기반 운영 패키지(Zip) 생성
+    mvn distribution:deploy -Denv=prod       : JAR 원스탑 배포 (빌드 + 설치)
+
+  [🐱 Tomcat 모드 명령어 (Standalone Apache Tomcat 배포)]
+    mvn distribution:packageTomcat -Denv=dev : Tomcat 배포 패키지(Zip) 생성
+    mvn distribution:packageTomcat -Denv=prod: Tomcat 운영 패키지(Zip) 생성
+    mvn distribution:deploy -DpackageType=tomcat -Denv=prod : Tomcat 원스탑 배포
+
+  [⚡ 기본 명령어 (DSL packageType 설정 기반)]
+    mvn clean package -Denv=dev             : 기본 설정(packageType) 기반 패키지
+    mvn distribution:deploy -Denv=dev       : 기본 설정 기반 원스탑 배포
+
+  [🎛️ CLI 파라미터 옵션]
+    -Denv=dev|prod|local|test|stage         : 배포 환경 프로파일 지정
+    -DpackageType=jar|tomcat                : 배포 유형 CLI 오버라이드
+    -Dtype=jar|tomcat                       : 배포 유형 CLI 오버라이드 (alias)
+    -DhttpPort=8443                         : HTTP 서비스 포트 지정
+    -DtomcatVersion=11.0.15                 : Apache Tomcat 버전 지정
   ================================================================================
   ```
 
@@ -234,9 +264,12 @@ mvn distribution:help
 ### 🔄 실행 흐름
 
 ```
-[1/3] 🔨 Package         → 환경별 배포 패키지(ZIP) 자동 조립 (Jar + Scripts + Dockerfile)
+[1/3] 🔨 Package         → 환경별 배포 패키지(ZIP) 자동 조립
+                           - JAR 모드 : Jar + Scripts + Dockerfile
+                           - Tomcat 모드 : webapps/ROOT(Exploded WAR) + tomcat/ 설정 + Scripts
 [2/3] 📦 AUTO 압축 해제   → 빌드 디렉토리에 산출물 Zip 자동 해제
 [3/3] 🚀 서비스 구동     → deploy/install_service.sh 자동 실행 (서비스 등록 및 백그라운드 구동)
+                           - Tomcat 모드 : CATALINA_HOME 경로 입력 → .env + Systemd 자동 주입
 ```
 
 ### 💻 실행 명령어
@@ -244,15 +277,25 @@ mvn distribution:help
 #### 🐘 Gradle 프로젝트
 
 ```bash
-./gradlew deployService -Penv=dev    # 개발 환경 빌드 & 즉시 서비스 설치/구동
-./gradlew deployService -Penv=prod   # 운영 환경 빌드 & 즉시 서비스 설치/구동
+# JAR 배포
+./gradlew deployJar -Penv=dev        # JAR 개발 환경 빌드 & 즉시 서비스 설치/구동
+./gradlew deployJar -Penv=prod       # JAR 운영 환경 빌드 & 즉시 서비스 설치/구동
+
+# Tomcat 배포
+./gradlew deployTomcat -Penv=dev     # Tomcat 개발 환경 빌드 & 즉시 서비스 설치/구동
+./gradlew deployTomcat -Penv=prod    # Tomcat 운영 환경 빌드 & 즉시 서비스 설치/구동
+
+# 기본 배포 (DSL packageType 기준)
+./gradlew deployService -Penv=prod   # 기본 설정 기반 원스탑 배포
 ```
 
 #### 🪶 Maven 프로젝트
 
 ```bash
-mvn distribution:deploy -Denv=dev    # 개발 환경 빌드 & 즉시 서비스 설치/구동
-mvn distribution:deploy -Denv=prod   # 운영 환경 빌드 & 즉시 서비스 설치/구동
+# JAR 배포
+mvn distribution:deploy -Denv=prod              # JAR 기본 원스탑 배포
+# Tomcat 배포
+mvn distribution:deploy -DpackageType=tomcat -Denv=prod  # Tomcat 원스탑 배포
 ```
 
 ### 📋 상세 동작
@@ -358,9 +401,16 @@ Docker 없이 Java(JDK)만 설치된 서버에 배포하는 방식입니다.
 
 **1. 빌드 (Development PC)**
 
-- **Gradle**: `./gradlew package -Penv=prod`
-- **Maven**: `mvn clean package -Denv=prod`
+🔸 **JAR 배포 (Executable JAR)**
+- **Gradle**: `./gradlew packageJar -Penv=prod` (또는 `package -Ptype=jar`)
+- **Maven**: `mvn distribution:packageJar -Denv=prod` (또는 `package -DpackageType=jar`)
 - **결과물**: `build/distributions/{APP_NAME}-{version}.zip` 또는 `target/{APP_NAME}-{version}.zip`
+
+🔸 **Tomcat 배포 (Standalone Apache Tomcat)**
+- **Gradle**: `./gradlew packageTomcat -Penv=prod` (또는 `package -Ptype=tomcat`)
+- **Maven**: `mvn distribution:packageTomcat -Denv=prod` (또는 `package -DpackageType=tomcat`)
+- **결과물**: `build/distributions/{APP_NAME}-{version}.zip` (내부: `webapps/ROOT/`, `tomcat/conf/`)
+- **사전 조건**: `Application.java`가 `SpringBootServletInitializer`를 상속해야 합니다.
 
 **2. 배포 (Server) — 수동 아카이브 전송 시**
 

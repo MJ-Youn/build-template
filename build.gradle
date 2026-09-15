@@ -483,6 +483,13 @@ tasks.named('help') {
     }
 }
 
+// distHelp 태스크 별칭 지원 (플러그인 사용자 습관 호환 및 가이드 제공)
+task distHelp {
+    group = 'help'
+    description = '빌드 및 배포 가이드를 출력합니다. (help 태스크 호출)'
+    dependsOn 'help'
+}
+
 // 🌐 Gradle 플러그인(Gradle Plugin Portal) 배포 태스크
 task publishGradlePlugins {
     group = 'publishing'

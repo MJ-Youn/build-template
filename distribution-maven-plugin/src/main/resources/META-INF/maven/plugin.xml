@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plugin>
   <name>Distribution Maven Plugin</name>
-  <description>Maven distribution and packaging plugin with JAR/Tomcat dual deployment support (v2.0.0)</description>
+  <description>Maven distribution and packaging plugin with JAR/Tomcat dual deployment support
+    (v2.0.0)</description>
   <groupId>io.github.mj-youn</groupId>
   <artifactId>distribution-maven-plugin</artifactId>
   <version>2.0.0</version>
@@ -20,6 +21,126 @@
       <inheritedByDefault>true</inheritedByDefault>
       <phase>package</phase>
       <implementation>io.github.mj_youn.plugin.DistributionMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+      <parameters>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>MavenProject 인스턴스</description>
+        </parameter>
+        <parameter>
+          <name>appName</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>패키징 및 스크립트 치환에 사용할 애플리케이션 이름</description>
+        </parameter>
+        <parameter>
+          <name>env</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>활성화할 배포 프로파일 환경 (기본값: dev)</description>
+        </parameter>
+        <parameter>
+          <name>outputDirectory</name>
+          <type>java.io.File</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>패키지 산출물 디렉토리 (기본값: target)</description>
+        </parameter>
+        <parameter>
+          <name>extraDirs</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>배포 패키지 루트에 함께 포함할 추가 디렉토리 목록 (공백 또는 콤마 구분)</description>
+        </parameter>
+      </parameters>
+      <configuration>
+        <project default-value="${project}" />
+        <appName default-value="${project.artifactId}" />
+        <env default-value="${env}" />
+        <extraDirs implementation="java.lang.String">${extraDirs}</extraDirs>
+        <outputDirectory default-value="${project.build.directory}" />
+      </configuration>
+    </mojo>
+    <mojo>
+      <goal>packageJar</goal>
+      <description>Spring Boot Executable JAR 배포 전용 Zip 패키지를 생성합니다. (packageType=jar 고정)</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <phase>package</phase>
+      <implementation>io.github.mj_youn.plugin.PackageJarMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+      <parameters>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>MavenProject 인스턴스</description>
+        </parameter>
+        <parameter>
+          <name>appName</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>패키징 및 스크립트 치환에 사용할 애플리케이션 이름</description>
+        </parameter>
+        <parameter>
+          <name>env</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>활성화할 배포 프로파일 환경 (기본값: dev)</description>
+        </parameter>
+        <parameter>
+          <name>outputDirectory</name>
+          <type>java.io.File</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>패키지 산출물 디렉토리 (기본값: target)</description>
+        </parameter>
+        <parameter>
+          <name>extraDirs</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>배포 패키지 루트에 함께 포함할 추가 디렉토리 목록 (공백 또는 콤마 구분)</description>
+        </parameter>
+      </parameters>
+      <configuration>
+        <project default-value="${project}" />
+        <appName default-value="${project.artifactId}" />
+        <env default-value="${env}" />
+        <extraDirs implementation="java.lang.String">${extraDirs}</extraDirs>
+        <outputDirectory default-value="${project.build.directory}" />
+      </configuration>
+    </mojo>
+    <mojo>
+      <goal>packageTomcat</goal>
+      <description>Standalone Apache Tomcat 11 배포 전용 Zip 패키지를 생성합니다. (packageType=tomcat 고정)</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <phase>package</phase>
+      <implementation>io.github.mj_youn.plugin.PackageTomcatMojo</implementation>
       <language>java</language>
       <instantiationStrategy>per-lookup</instantiationStrategy>
       <executionStrategy>once-per-lookup</executionStrategy>
