@@ -1,0 +1,24 @@
+services:
+  app:
+    image: ${DOCKER_IMAGE:-@appName@:latest}
+    container_name: ${APP_NAME:-@appName@}
+    ports:
+      - "${HTTP_PORT:-@httpPort@}:@httpPort@"
+    volumes:
+      # 1. 실행 소스 마운트 (호스트에서 코드 변경 시 즉시 반영 가능)
+      - ${DEST_DIR:-.}/webapps/ROOT:/usr/local/tomcat/webapps/ROOT
+      # 2. 톰캣 설정 마운트 (server.xml, context.xml, logging.properties를 호스트에서 자유롭게 수정 가능)
+      - ${DEST_DIR:-.}/tomcat/conf/server.xml:/usr/local/tomcat/conf/server.xml
+      - ${DEST_DIR:-.}/tomcat/conf/context.xml:/usr/local/tomcat/conf/context.xml
+      - ${DEST_DIR:-.}/tomcat/conf/logging.properties:/usr/local/tomcat/conf/logging.properties
+      # 3. 스프링 애플리케이션 외부 설정 마운트 (톰캣 WorkingDir 기준 /usr/local/tomcat/config)
+      - ${DEST_DIR:-.}/config:/usr/local/tomcat/config
+      # 4. 톰캣 엔진 로그 마운트 (catalina.out 등)
+      - ${LOG_PATH:-./log}/tomcat:/usr/local/tomcat/logs
+      # 5. 서비스 애플리케이션 로그 마운트
+      - ${LOG_PATH:-./log}/app:/log
+    environment:
+      - TZ=Asia/Seoul
+      - APP_UID=${APP_UID:-1000}
+      - APP_GID=${APP_GID:-1000}
+    restart: unless-stopped

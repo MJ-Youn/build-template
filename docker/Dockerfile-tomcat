@@ -1,0 +1,57 @@
+# ==============================================================================
+# 🐱 Apache Tomcat Standalone 배포용 Dockerfile
+# Base: Eclipse Temurin OpenJDK 25 Alpine + Apache Tomcat @tomcatVersion@
+# 포트: @httpPort@
+# 실행: webapps/ROOT (Exploded WAR) + tomcat/conf + catalina.sh run
+# ==============================================================================
+FROM eclipse-temurin:25-jdk-alpine
+
+ARG TOMCAT_MAJOR=11
+ARG TOMCAT_VERSION=@tomcatVersion@
+ARG APP_NAME="@appName@"
+
+ENV CATALINA_HOME=/usr/local/tomcat
+ENV PATH=$CATALINA_HOME/bin:$PATH
+
+# 필수 유틸리티 설치 (bash, curl, shadow, su-exec, tzdata)
+RUN apk add --no-cache bash curl shadow su-exec tzdata
+
+# Apache Tomcat 바이너리 다운로드 및 설치
+RUN mkdir -p "$CATALINA_HOME" && \
+    curl -fSL "https://archive.apache.org/dist/tomcat/tomcat-${TOMCAT_MAJOR}/v${TOMCAT_VERSION}/bin/apache-tomcat-${TOMCAT_VERSION}.tar.gz" \
+    | tar -xz --strip-components=1 -C "$CATALINA_HOME" && \
+    rm -rf "$CATALINA_HOME/webapps/"* && \
+    rm -rf "$CATALINA_HOME/bin/"*.bat
+
+# APP_NAME 기반 비루트 계정 생성 (기본 UID/GID: 1000)
+RUN CLEAN_APP_NAME=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g') && \
+    APP_USER="${CLEAN_APP_NAME}user" && \
+    addgroup -g 1000 ${APP_USER} && adduser -u 1000 -G ${APP_USER} -S ${APP_USER}
+
+WORKDIR $CATALINA_HOME
+
+# 톰캣 커스텀 설정 및 환경 스크립트 복사
+COPY tomcat/conf/ $CATALINA_HOME/conf/
+COPY tomcat/bin/setenv.sh $CATALINA_HOME/bin/setenv.sh
+RUN chmod +x $CATALINA_HOME/bin/*.sh
+
+# 스프링 외부 설정 및 로그 디렉토리 생성
+RUN mkdir -p $CATALINA_HOME/config /log && \
+    CLEAN_APP_NAME=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g') && \
+    APP_USER="${CLEAN_APP_NAME}user" && \
+    chown -R ${APP_USER}:${APP_USER} $CATALINA_HOME /log
+
+# 기본 실행 소스(Exploded WAR) 및 외부 설정 복사
+COPY webapps/ROOT/ $CATALINA_HOME/webapps/ROOT/
+COPY config/ $CATALINA_HOME/config/
+
+# 소유권 최종 부여
+RUN CLEAN_APP_NAME=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g') && \
+    APP_USER="${CLEAN_APP_NAME}user" && \
+    chown -R ${APP_USER}:${APP_USER} $CATALINA_HOME/webapps
+
+# 서비스 포트 노출
+EXPOSE @httpPort@
+
+# Tomcat 실행
+ENTRYPOINT ["catalina.sh", "run"]

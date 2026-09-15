@@ -116,6 +116,24 @@ public class DistributionPlugin implements Plugin<Project> {
                 }
             });
         });
+
+        // 9. 'initDocker' 태스크 등록 (배포 유형에 맞는 Dockerfile & docker-compose.yml 생성)
+        project.getTasks().register("initDocker", task -> {
+            task.setGroup("distribution");
+            task.setDescription("프로젝트의 docker/ 디렉토리에 배포 유형(JAR 또는 Tomcat)에 맞는 샘플 Dockerfile 및 docker-compose.yml을 생성합니다.");
+            task.doLast(t -> {
+                String packageType = resolvePackageType(project, extension, null);
+                Map<String, Object> tokens = createReplaceTokens(project, extension, packageType);
+                initDockerFiles(project, packageType, tokens);
+            });
+        });
+
+        // 10. 'showDocker' 태스크 등록 (JAR vs Tomcat Dockerfile 차이점 콘솔 출력)
+        project.getTasks().register("showDocker", task -> {
+            task.setGroup("distribution");
+            task.setDescription("JAR 배포와 Tomcat 배포의 Docker 컨테이너 구조 및 Dockerfile 차이점을 콘솔에서 확인합니다.");
+            task.doLast(t -> printDockerComparisonGuide(project));
+        });
     }
 
     private void registerDeployTask(Project project, String taskName, String description, TaskProvider<Zip> zipTaskProvider) {
@@ -210,6 +228,10 @@ public class DistributionPlugin implements Plugin<Project> {
 
 [🔧 유틸리티]
   ./gradlew initDeployScript         : 프로젝트 루트에 build_deploy.sh 자동 생성
+  ./gradlew initDocker               : 배포 유형(기본 설정)에 맞는 Dockerfile & docker-compose 생성
+  ./gradlew initDocker -Ptype=jar    : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
+  ./gradlew initDocker -Ptype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
+  ./gradlew showDocker               : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
   ./gradlew distHelp                 : 이 도움말 출력
   ./build_deploy.sh                  : 쉘 스크립트 기반 원스탑 배포
 
@@ -713,5 +735,131 @@ build.gradle에 providedRuntime 'org.springframework.boot:spring-boot-starter-to
         } catch (IOException e) {
             throw new RuntimeException("내장 템플릿 추출 실패: " + e.getMessage(), e);
         }
+    }
+
+    /**
+     * Docker 관련 템플릿(Dockerfile, docker-compose.yml)을 프로젝트의 docker/ 디렉토리에 생성합니다.
+     *
+     * @param project     Gradle 프로젝트 인스턴스
+     * @param packageType 배포 유형 ("jar" 또는 "tomcat")
+     * @param tokens      토큰 치환 맵
+     */
+    private void initDockerFiles(Project project, String packageType, Map<String, Object> tokens) {
+        boolean isTomcat = "tomcat".equalsIgnoreCase(packageType) || "war".equalsIgnoreCase(packageType);
+        File dockerDir = project.file("docker");
+        if (!dockerDir.exists()) {
+            dockerDir.mkdirs();
+        }
+
+        try {
+            // 1. 배포 타입에 맞는 주 Dockerfile 및 docker-compose.yml 생성
+            String activeDockerTemplate = isTomcat ? "template/docker/Dockerfile-tomcat" : "template/docker/Dockerfile-jar";
+            String activeComposeTemplate = isTomcat ? "template/docker/docker-compose-tomcat.yml" : "template/docker/docker-compose-jar.yml";
+
+            File activeDockerFile = new File(dockerDir, "Dockerfile");
+            File activeComposeFile = new File(dockerDir, "docker-compose.yml");
+
+            copyTemplateResource(activeDockerTemplate, activeDockerFile, tokens);
+            copyTemplateResource(activeComposeTemplate, activeComposeFile, tokens);
+
+            // 2. 두 형식 비교/참고용 개별 샘플 파일도 함께 생성
+            File jarDockerFile = new File(dockerDir, "Dockerfile-jar");
+            File tomcatDockerFile = new File(dockerDir, "Dockerfile-tomcat");
+            File jarComposeFile = new File(dockerDir, "docker-compose-jar.yml");
+            File tomcatComposeFile = new File(dockerDir, "docker-compose-tomcat.yml");
+
+            copyTemplateResource("template/docker/Dockerfile-jar", jarDockerFile, tokens);
+            copyTemplateResource("template/docker/Dockerfile-tomcat", tomcatDockerFile, tokens);
+            copyTemplateResource("template/docker/docker-compose-jar.yml", jarComposeFile, tokens);
+            copyTemplateResource("template/docker/docker-compose-tomcat.yml", tomcatComposeFile, tokens);
+
+            project.getLogger().lifecycle("================================================================");
+            project.getLogger().lifecycle("🐳 [Distribution] Docker 설정 템플릿 생성 완료 (배포 유형: {})", packageType.toUpperCase());
+            project.getLogger().lifecycle("   - 활성 Dockerfile      : {}", activeDockerFile.getAbsolutePath());
+            project.getLogger().lifecycle("   - 활성 docker-compose  : {}", activeComposeFile.getAbsolutePath());
+            project.getLogger().lifecycle("   - JAR 배포용 샘플     : {}", jarDockerFile.getName());
+            project.getLogger().lifecycle("   - Tomcat 배포용 샘플  : {}", tomcatDockerFile.getName());
+            project.getLogger().lifecycle("================================================================");
+
+            // 생성 직후 터미널에 두 형식의 차이점 요약 가이드 즉시 출력
+            printDockerComparisonGuide(project);
+
+        } catch (IOException e) {
+            throw new RuntimeException("Docker 템플릿 생성 실패: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * 클래스패스 템플릿 리소스를 읽어 토큰을 치환한 후 대상 파일에 저장합니다.
+     *
+     * @param resourcePath 클래스패스 리소스 경로
+     * @param targetFile   저장할 대상 파일
+     * @param tokens       치환할 키-값 맵
+     * @throws IOException 입출력 예외 발생 시
+     */
+    private void copyTemplateResource(String resourcePath, File targetFile, Map<String, Object> tokens) throws IOException {
+        InputStream stream = getClass().getClassLoader().getResourceAsStream(resourcePath);
+        if (stream == null) {
+            throw new IOException("클래스패스 템플릿을 찾을 수 없습니다: " + resourcePath);
+        }
+        try (stream) {
+            String content = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            if (tokens != null) {
+                for (Map.Entry<String, Object> entry : tokens.entrySet()) {
+                    String placeholder = "@" + entry.getKey() + "@";
+                    content = content.replace(placeholder, String.valueOf(entry.getValue()));
+                }
+            }
+            if (targetFile.getParentFile() != null) {
+                targetFile.getParentFile().mkdirs();
+            }
+            Files.writeString(targetFile.toPath(), content, StandardCharsets.UTF_8);
+        }
+    }
+
+    /**
+     * JAR 배포 vs Tomcat 배포의 Dockerfile 아키텍처 비교 가이드를 콘솔에 출력합니다.
+     *
+     * @param project Gradle 프로젝트 인스턴스
+     */
+    private void printDockerComparisonGuide(Project project) {
+        String guide = """
+================================================================================
+🐳 [Distribution 2.0.1] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
+================================================================================
+
+┌─────────────────┬──────────────────────────────────┬──────────────────────────────────┐
+│ 비교 항목       │ 📦 JAR 모드 (Executable JAR)     │ 🐱 Tomcat 모드 (Standalone Tomcat)│
+├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
+│ 베이스 이미지   │ eclipse-temurin:25-jdk-alpine    │ eclipse-temurin:25-jdk-alpine +  │
+│                 │                                  │ Apache Tomcat 바이너리 자동 설치 │
+├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
+│ 빌드 산출물     │ build/libs/*.jar                 │ build/exploded-webapps/ROOT/     │
+│                 │ (Spring Boot 실행 가능 단일 JAR) │ (또는 ROOT.war)                  │
+├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
+│ 컨테이너 복사   │ COPY libs/ /app/libs/            │ COPY webapps/ROOT/ .../webapps/ROOT/
+│                 │ COPY config/ /app/config/        │ COPY tomcat/conf/ .../conf/      │
+│                 │ COPY bin/ /app/bin/              │ COPY tomcat/bin/setenv.sh .../   │
+│                 │                                  │ COPY config/ .../config/         │
+├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
+│ 실행 엔트리포인트│ ENTRYPOINT ["/app/bin/start.sh"] │ ENTRYPOINT ["catalina.sh", "run"]│
+├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
+│ 주요 볼륨 마운트│ -v ./config:/app/config          │ -v ./webapps/ROOT:.../ROOT       │
+│                 │ -v ./log:/log                    │ -v ./tomcat/conf:.../conf        │
+│                 │                                  │ -v ./config:.../config           │
+│                 │                                  │ -v ./log/tomcat:.../logs         │
+├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
+│ 주요 용도 및 장점│ 경량 마이크로서비스, 빠른 기동,   │ 엔터프라이즈 레거시 호환, JNDI/Datasource,
+│                 │ 단일 패키지 배포 표준            │ 외부 설정 동적 튜닝, Exploded 무중단 갱신
+└─────────────────┴──────────────────────────────────┴──────────────────────────────────┘
+
+[💡 사용 명령어]
+  1. 현재 설정 기반 생성 : ./gradlew initDocker
+  2. JAR 배포용 강제 생성 : ./gradlew initDocker -Ptype=jar
+  3. Tomcat용 강제 생성  : ./gradlew initDocker -Ptype=tomcat
+  4. 본 비교 가이드 재출력: ./gradlew showDocker
+================================================================================
+""";
+        project.getLogger().lifecycle(guide);
     }
 }

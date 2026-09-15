@@ -16,8 +16,12 @@ build_template (루트 / SSOT)
 │   ├── service/                # start.sh, stop.sh, status.sh, cron/
 │   └── common/                 # bootstrap.sh, utils.sh, run_bash_tests.sh
 ├── 📁 docker/                   # ⭐️ 유일한 마스터 Docker 원본 (SSOT)
-│   ├── Dockerfile
-│   ├── docker-compose.yml
+│   ├── Dockerfile              # 기본 활성 Dockerfile (JAR 기반 기본값)
+│   ├── Dockerfile-jar          # 📦 JAR 배포 전용 Dockerfile 템플릿
+│   ├── Dockerfile-tomcat       # 🐱 Apache Tomcat 배포 전용 Dockerfile 템플릿
+│   ├── docker-compose.yml      # 기본 활성 docker-compose.yml
+│   ├── docker-compose-jar.yml  # JAR 배포 전용 docker-compose
+│   ├── docker-compose-tomcat.yml # Tomcat 배포 전용 docker-compose
 │   ├── dev/
 │   └── prod/
 ├── 📁 tomcat/                   # ⭐️ 유일한 마스터 Tomcat 설정 원본 (SSOT, v2.0.0 신규)
@@ -36,7 +40,9 @@ build_template (루트 / SSOT)
 │   │   ├── DeployMojo.java             # deploy goal (원스탑 자동 배포)
 │   │   ├── HelpMojo.java               # help goal (배포 가이드 출력)
 │   │   ├── DistHelpMojo.java           # distHelp goal (help alias)
-│   │   └── InitDeployScriptMojo.java   # initDeployScript goal (build_deploy.sh 생성)
+│   │   ├── InitDeployScriptMojo.java   # initDeployScript goal (build_deploy.sh 생성)
+│   │   ├── InitDockerMojo.java         # initDocker goal (Dockerfile/compose 자동 생성)
+│   │   └── ShowDockerMojo.java         # showDocker goal (JAR vs Tomcat 비교 가이드)
 │   ├── src/main/resources/META-INF/maven/plugin.xml # Maven 플러그인 디스크립터
 │   └── build.gradle                    # Sonatype Central Portal 배포 및 GPG 서명 설정
 ├── 📄 build_deploy.sh           # ⭐️ 원클릭 로컬/원격 자동 빌드/배포 스크립트 마스터 원본
@@ -170,6 +176,9 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 ./gradlew packageTomcat -Penv=dev # Tomcat 배포 Zip 생성 (webapps/ROOT 포함)
 ./gradlew deployJar -Penv=dev     # 원스탑 JAR 배포 및 구동
 ./gradlew initDeployScript        # build_deploy.sh 자동 생성
+./gradlew initDocker              # 배포 유형에 맞는 Dockerfile & docker-compose 자동 생성
+./gradlew initDocker -Ptype=tomcat # Tomcat 전용 Dockerfile 생성
+./gradlew showDocker              # 🐳 JAR vs Tomcat Dockerfile 아키텍처 비교 가이드 출력
 
 # 🪶 Maven 환경
 mvn distribution:help             # ⭐️ 배포 플러그인 v2.0.1 전용 가이드 출력 (또는 distHelp)
@@ -177,6 +186,8 @@ mvn distribution:packageJar -Denv=dev
 mvn distribution:packageTomcat -Denv=dev
 mvn distribution:deploy -Denv=dev
 mvn distribution:initDeployScript
+mvn distribution:initDocker -Dtype=tomcat
+mvn distribution:showDocker
 ```
 
 ---

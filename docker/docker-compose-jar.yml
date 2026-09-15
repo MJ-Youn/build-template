@@ -1,0 +1,16 @@
+services:
+  app:
+    image: ${DOCKER_IMAGE:-@appName@:latest}
+    container_name: ${APP_NAME:-@appName@}
+    ports:
+      - "${HTTP_PORT:-@httpPort@}:@httpPort@"
+    volumes:
+      # 호스트 로그 및 외부 설정 마운트
+      - ${LOG_PATH:-./log}:${CONTAINER_LOG_PATH:-/log}
+      - ${DEST_DIR:-.}/config:/app/config
+    environment:
+      - TZ=Asia/Seoul
+      - APP_UID=${APP_UID:-1000}
+      - APP_GID=${APP_GID:-1000}
+      - LOG_PATH=${CONTAINER_LOG_PATH:-/log}
+    restart: unless-stopped

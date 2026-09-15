@@ -160,6 +160,15 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
         httpPort    = 8080
         tomcatVersion = '11.0.15'
     }
+
+  [🔧 유틸리티]
+    ./gradlew initDeployScript         : 프로젝트 루트에 build_deploy.sh 자동 생성
+    ./gradlew initDocker               : 배포 유형에 맞는 Dockerfile & docker-compose 생성
+    ./gradlew initDocker -Ptype=jar    : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
+    ./gradlew initDocker -Ptype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
+    ./gradlew showDocker               : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
+    ./gradlew distHelp                 : 이 도움말 출력
+    ./build_deploy.sh                  : 쉘 스크립트 기반 원스탑 배포
   ================================================================================
   ```
 
@@ -202,6 +211,15 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
     -Dtype=jar|tomcat                       : 배포 유형 CLI 오버라이드 (alias)
     -DhttpPort=8443                         : HTTP 서비스 포트 지정
     -DtomcatVersion=11.0.15                 : Apache Tomcat 버전 지정
+
+  [🔧 유틸리티]
+    mvn distribution:initDeployScript       : 프로젝트 루트에 build_deploy.sh 자동 생성
+    mvn distribution:initDocker             : 배포 유형에 맞는 Dockerfile & docker-compose 생성
+    mvn distribution:initDocker -Dtype=jar  : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
+    mvn distribution:initDocker -Dtype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
+    mvn distribution:showDocker             : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
+    mvn distribution:help                   : 이 도움말 출력 (또는 mvn distribution:distHelp)
+    ./build_deploy.sh                       : 쉘 스크립트 기반 원스탑 배포
   ================================================================================
   ```
 
@@ -314,6 +332,37 @@ mvn distribution:deploy -DpackageType=tomcat -Denv=prod  # Tomcat 원스탑 배�
 > - `install_service.sh` 실행 시 혹은 `docker-compose up` 시 서버 측 `config/` 폴더가 컨테이너 내부로 바인드 마운트되어, **이미지 재빌드 없이 `application.yml`, `log4j2.yml` 등을 런타임에 즉시 변경**할 수 있습니다.
 > - 초기 설치 시 빈 마운트로 인한 파일 유실을 막기 위해 이미지에서 초기 설정 파일들을 자동으로 추출(Seed)하는 방어 로직이 내장되어 있습니다.
 > - 자체 문자열 치환(`@VAR@`) 대신 표준 **Docker Compose `.env` 파일** 환경변수를 사용하여 `docker-compose up` 명령어 단독 실행 시에도 완벽하게 동작합니다.
+
+### 🐳 Docker 템플릿 생성 및 아키텍처 비교 (`initDocker` & `showDocker`)
+
+v2.0.1부터 Spring Boot **JAR 배포**와 **Standalone Apache Tomcat 배포**에 각각 최적화된 샘플 `Dockerfile` 및 `docker-compose.yml`을 프로젝트에 즉시 생성하고 차이점을 터미널에서 확인할 수 있습니다.
+
+#### 1) 명령어 사용법
+```bash
+# 🐘 Gradle 환경
+./gradlew initDocker               # 현재 프로젝트 설정(packageType)에 맞는 Dockerfile 생성
+./gradlew initDocker -Ptype=jar    # JAR 배포 전용 Dockerfile 생성 (libs/ + bin/start.sh)
+./gradlew initDocker -Ptype=tomcat # Tomcat 배포 전용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
+./gradlew showDocker               # JAR vs Tomcat Dockerfile 아키텍처 비교 가이드 콘솔 출력
+
+# 🪶 Maven 환경
+mvn distribution:initDocker               # 현재 설정에 맞는 Dockerfile 생성
+mvn distribution:initDocker -Dtype=jar    # JAR 배포 전용 Dockerfile 생성
+mvn distribution:initDocker -Dtype=tomcat # Tomcat 배포 전용 Dockerfile 생성
+mvn distribution:showDocker               # JAR vs Tomcat Dockerfile 비교 콘솔 출력
+```
+
+#### 2) JAR vs Tomcat Docker 아키텍처 비교
+| 비교 항목 | 📦 JAR 모드 (Executable JAR) | 🐱 Tomcat 모드 (Standalone Tomcat) |
+| :--- | :--- | :--- |
+| **베이스 이미지** | `eclipse-temurin:25-jdk-alpine` | `eclipse-temurin:25-jdk-alpine` + Apache Tomcat 바이너리 |
+| **빌드 산출물** | `libs/*.jar` (단일 실행 JAR) | `exploded-webapps/ROOT/` (Exploded WAR) |
+| **컨테이너 복사** | `libs/`, `config/`, `bin/` | `webapps/ROOT/`, `tomcat/conf/`, `tomcat/bin/setenv.sh`, `config/` |
+| **실행 엔트리포인트** | `ENTRYPOINT ["/app/bin/start.sh"]` | `ENTRYPOINT ["catalina.sh", "run"]` |
+| **주요 볼륨 마운트** | `-v ./config:/app/config`, `-v ./log:/log` | `-v ./webapps/ROOT:.../ROOT`<br>`-v ./tomcat/conf:.../conf`<br>`-v ./config:.../config`<br>`-v ./log/tomcat:.../logs` |
+| **주요 특징** | 경량 마이크로서비스, 빠른 기동, 단일 패키지 배포 표준 | 엔터프라이즈 레거시 호환, JNDI/Datasource, Exploded 핫 리로드 |
+
+---
 
 ### 🐳 Docker 배포 1: 로컬 빌드 (Standard)
 

@@ -298,5 +298,95 @@
         <basedir default-value="${project.basedir}" />
       </configuration>
     </mojo>
+    <mojo>
+      <goal>initDocker</goal>
+      <description>프로젝트의 docker/ 디렉토리에 배포 유형(JAR 또는 Tomcat)에 맞는 샘플 Dockerfile 및 docker-compose.yml을 생성합니다.</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.InitDockerMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+      <parameters>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>MavenProject 인스턴스</description>
+        </parameter>
+        <parameter>
+          <name>basedir</name>
+          <type>java.io.File</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>프로젝트 루트 디렉토리</description>
+        </parameter>
+        <parameter>
+          <name>packageType</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>기본 배포 유형 (jar 또는 tomcat)</description>
+        </parameter>
+        <parameter>
+          <name>type</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>배포 유형 CLI 오버라이드</description>
+        </parameter>
+        <parameter>
+          <name>appName</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>애플리케이션 이름</description>
+        </parameter>
+        <parameter>
+          <name>httpPort</name>
+          <type>int</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>HTTP 서비스 포트</description>
+        </parameter>
+        <parameter>
+          <name>tomcatVersion</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Tomcat 버전</description>
+        </parameter>
+      </parameters>
+      <configuration>
+        <project default-value="${project}" />
+        <basedir default-value="${project.basedir}" />
+        <packageType default-value="jar">${packageType}</packageType>
+        <type implementation="java.lang.String">${type}</type>
+        <appName default-value="${project.artifactId}" />
+        <httpPort default-value="8080">${httpPort}</httpPort>
+        <tomcatVersion default-value="11.0.15">${tomcatVersion}</tomcatVersion>
+      </configuration>
+    </mojo>
+    <mojo>
+      <goal>showDocker</goal>
+      <description>JAR 배포와 Tomcat 배포의 Docker 컨테이너 구조 및 Dockerfile 차이점을 콘솔에서 확인합니다.</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>false</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.ShowDockerMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+    </mojo>
   </mojos>
 </plugin>
