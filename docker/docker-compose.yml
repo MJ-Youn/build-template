@@ -3,7 +3,7 @@ services:
     image: ${DOCKER_IMAGE:-app:latest}
     container_name: ${APP_NAME:-app}
     ports:
-      - "8080:8080"
+      - "${HTTP_PORT:-@httpPort@}:@httpPort@"
     volumes:
       - ${LOG_PATH:-./log}:${CONTAINER_LOG_PATH:-/log} # host path : container path
       - ${DEST_DIR:-.}/config:/app/config

@@ -581,7 +581,7 @@ copy_legacy_files() {
     find "$DEST_DIR/config" -type d -exec chmod 755 {} +
 
     # 배포된 파일 소유권 설정 (현재 로그인 유저)
-    chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR/bin" "$DEST_DIR/libs" "$DEST_DIR/config"
+    chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR"
 
     # .env 보안 권한 (640, $REAL_USER:$SERVICE_GROUP)
     if [ -f "$DEST_DIR/bin/.env" ]; then
@@ -1019,7 +1019,8 @@ copy_docker_files() {
     find "$DEST_DIR/config" -type d -exec chmod 755 {} +
 
     # 배포된 파일 소유권 설정 (현재 로그인 유저)
-    chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR/bin" "$DEST_DIR/config"
+    [ -f "$DEST_DIR/docker-compose.yml" ] && chmod 644 "$DEST_DIR/docker-compose.yml"
+    chown -R $REAL_USER:$SERVICE_GROUP "$DEST_DIR"
 
     log_success "파일 복사 및 권한 설정 완료."
 }
@@ -1061,6 +1062,7 @@ APP_UID=$REAL_UID
 APP_GID=$REAL_GID
 
 APP_NAME=$APP_NAME
+HTTP_PORT=${HTTP_PORT:-@httpPort@}
 
 # [호스트 환경] 로그 및 설치 디렉토리 (Legacy 모드 로그 경로 겸용)
 LOG_PATH=$LOG_PATH

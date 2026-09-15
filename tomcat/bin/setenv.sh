@@ -13,21 +13,38 @@ JAVA_OPTS="$JAVA_OPTS -Duser.timezone=Asia/Seoul -Dfile.encoding=UTF-8"
 # Spring Boot 외부 설정 경로 및 Log4j2 설정 파일 지정
 # 1. 컨테이너 환경: /app/config
 # 2. 호스트 환경: CATALINA_BASE 기준 config
+CONFIG_DIR=""
 if [ -d "/app/config" ]; then
-    JAVA_OPTS="$JAVA_OPTS -Dspring.config.additional-location=file:/app/config/"
-    if [ -f "/app/config/log4j2.yml" ]; then
-        JAVA_OPTS="$JAVA_OPTS -Dlog4j2.configurationFile=file:/app/config/log4j2.yml"
-    fi
+    CONFIG_DIR="/app/config"
 elif [ -d "$CATALINA_BASE/../config" ]; then
-    JAVA_OPTS="$JAVA_OPTS -Dspring.config.additional-location=file:$CATALINA_BASE/../config/"
-    if [ -f "$CATALINA_BASE/../config/log4j2.yml" ]; then
-        JAVA_OPTS="$JAVA_OPTS -Dlog4j2.configurationFile=file:$CATALINA_BASE/../config/log4j2.yml"
-    fi
+    CONFIG_DIR="$CATALINA_BASE/../config"
 elif [ -d "$CATALINA_BASE/config" ]; then
-    JAVA_OPTS="$JAVA_OPTS -Dspring.config.additional-location=file:$CATALINA_BASE/config/"
-    if [ -f "$CATALINA_BASE/config/log4j2.yml" ]; then
-        JAVA_OPTS="$JAVA_OPTS -Dlog4j2.configurationFile=file:$CATALINA_BASE/config/log4j2.yml"
+    CONFIG_DIR="$CATALINA_BASE/config"
+fi
+
+if [ -n "$CONFIG_DIR" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Dspring.config.additional-location=file:$CONFIG_DIR/"
+    # Log4j2 설정 파일 자동 감지 (log4j2.yml 또는 log4j2-*.yml)
+    if [ -f "$CONFIG_DIR/log4j2.yml" ]; then
+        JAVA_OPTS="$JAVA_OPTS -Dlog4j2.configurationFile=file:$CONFIG_DIR/log4j2.yml"
+    else
+        LOG4J_CONF=$(ls "$CONFIG_DIR"/log4j2*.yml 2>/dev/null | head -n 1)
+        if [ -n "$LOG4J_CONF" ]; then
+            JAVA_OPTS="$JAVA_OPTS -Dlog4j2.configurationFile=file:$LOG4J_CONF"
+        fi
     fi
 fi
+
+# Log4j2 로그 출력 경로(log.path) 및 애플리케이션 이름(app.name) 주입
+if [ -d "/log" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Dlog.path=/log"
+elif [ -n "$LOG_PATH" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Dlog.path=$LOG_PATH"
+elif [ -d "$CATALINA_BASE/logs" ]; then
+    JAVA_OPTS="$JAVA_OPTS -Dlog.path=$CATALINA_BASE/logs"
+else
+    JAVA_OPTS="$JAVA_OPTS -Dlog.path=$CATALINA_HOME/logs"
+fi
+JAVA_OPTS="$JAVA_OPTS -Dapp.name=@appName@"
 
 export JAVA_OPTS
