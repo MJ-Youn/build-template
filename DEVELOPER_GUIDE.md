@@ -140,39 +140,39 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 
 ---
 
-### ⚠️ [중요] 루트 프로젝트(관리자) vs 개별 프로젝트(사용자) 실행 환경 구분
+### ⚠️ [중요] 루트 프로젝트(플러그인 개발자) vs 개별 프로젝트(사용자) 실행 환경 구분
 
-이 저장소는 **플러그인 자체를 개발하는 저장소(멀티모듈)**이므로, 루트 디렉토리에서 실행하는 명령어와 플러그인을 적용한 개별 프로젝트에서 실행하는 명령어가 다릅니다:
+이 저장소는 **플러그인 자체를 개발/유지보수하는 저장소(멀티모듈)**이므로, 루트 디렉토리에서 실행하는 명령어와 플러그인을 적용한 개별 프로젝트에서 실행하는 명령어가 명확히 다릅니다:
 
-#### ① 루트 저장소(`build_template/`) 관리자 명령어
-루트 프로젝트는 플러그인 개발/빌드/배포 및 레거시 데모 프로젝트(`build_test`) 역할을 수행합니다:
+#### ① 루트 저장소(`build_template/`) 개발자/관리자 명령어
+루트 디렉토리에서는 플러그인 로컬 빌드/설치, 테스트, 그리고 공식 저장소 퍼블릭 배포를 수행합니다:
 
 ```bash
-# 플러그인 가이드 확인 (루트 프로젝트용)
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./gradlew distHelp
-# (또는 ./gradlew help)
+# 1. 플러그인 로컬 빌드 및 로컬 Maven 캐시(~/.m2/repository)에 설치 (로컬 테스트 전 필수)
+./gradlew :distribution-gradle-plugin:publishToMavenLocal
+./gradlew :distribution-maven-plugin:publishToMavenLocal
 
-# 두 플러그인 로컬 Maven 캐시에 빌드 및 설치 (테스트 전 필수)
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./gradlew :distribution-gradle-plugin:publishToMavenLocal
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./gradlew :distribution-maven-plugin:publishToMavenLocal
+# 2. 공식 퍼블릭 저장소 원클릭 동시 배포 (Gradle Plugin Portal + Sonatype Central Portal)
+./gradlew publishAllPlugins
 
-# 퍼블릭 공식 배포 (Gradle Portal + Sonatype Central)
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./gradlew publishAllPlugins
+# (참고) 루트 데모 프로젝트 빌드 가이드 확인
+# ※ 루트의 distHelp는 개발 편의를 위해 루트 help 태스크로 연결된 '별칭(Alias)'입니다.
+./gradlew help       # (또는 ./gradlew distHelp)
 ```
 
 #### ② 플러그인이 적용된 개별 Spring Boot 프로젝트 사용자 명령어
-`plugins { id 'io.github.mj-youn.distribution' version '2.0.1' }`를 적용한 하위 프로젝트에서 실행하는 명령어:
+`plugins { id 'io.github.mj-youn.distribution' version '2.0.1' }`를 적용한 실제 프로젝트에서 실행하는 명령어:
 
 ```bash
-# Gradle 환경
-./gradlew distHelp                # 배포 플러그인 가이드 출력
+# 🐘 Gradle 환경
+./gradlew distHelp                # ⭐️ 배포 플러그인 v2.0.1 전용 가이드 출력
 ./gradlew packageJar -Penv=dev    # JAR 배포 Zip 생성
 ./gradlew packageTomcat -Penv=dev # Tomcat 배포 Zip 생성 (webapps/ROOT 포함)
 ./gradlew deployJar -Penv=dev     # 원스탑 JAR 배포 및 구동
 ./gradlew initDeployScript        # build_deploy.sh 자동 생성
 
-# Maven 환경
-mvn distribution:help             # 배포 플러그인 가이드 출력
+# 🪶 Maven 환경
+mvn distribution:help             # ⭐️ 배포 플러그인 v2.0.1 전용 가이드 출력 (또는 distHelp)
 mvn distribution:packageJar -Denv=dev
 mvn distribution:packageTomcat -Denv=dev
 mvn distribution:deploy -Denv=dev
@@ -181,19 +181,7 @@ mvn distribution:initDeployScript
 
 ---
 
-### 1) 서브모듈 컴파일 및 로컬 배포 (`publishToMavenLocal`)
-
-로컬 테스트를 위해 로컬 Maven 캐시(`~/.m2/repository`)에 두 플러그인을 설치합니다:
-
-```bash
-# 🐘 Gradle 플러그인 로컬 빌드 및 설치
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./gradlew :distribution-gradle-plugin:publishToMavenLocal
-
-# 🪶 Maven 플러그인 로컬 빌드 및 설치
-JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./gradlew :distribution-maven-plugin:publishToMavenLocal
-```
-
-### 2) 로컬 샘플 프로젝트에서 플러그인 동작 검증 시나리오
+### 1) 로컬 샘플 프로젝트에서 플러그인 동작 검증 시나리오
 
 로컬 캐시에 설치된 `2.0.1` 플러그인을 독립된 샘플 프로젝트에서 테스트합니다:
 

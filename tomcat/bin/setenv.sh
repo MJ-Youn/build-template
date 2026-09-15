@@ -14,12 +14,15 @@ JAVA_OPTS="$JAVA_OPTS -Duser.timezone=Asia/Seoul -Dfile.encoding=UTF-8"
 # 1. 컨테이너 환경: /app/config
 # 2. 호스트 환경: CATALINA_BASE 기준 config
 CONFIG_DIR=""
-if [ -d "/app/config" ]; then
+# 1. 톰캣 WorkingDir 기준 config (컨테이너 및 로컬 배포 기본)
+if [ -d "$CATALINA_HOME/config" ]; then
+    CONFIG_DIR="$CATALINA_HOME/config"
+elif [ -d "$CATALINA_BASE/config" ]; then
+    CONFIG_DIR="$CATALINA_BASE/config"
+elif [ -d "/app/config" ]; then
     CONFIG_DIR="/app/config"
 elif [ -d "$CATALINA_BASE/../config" ]; then
     CONFIG_DIR="$CATALINA_BASE/../config"
-elif [ -d "$CATALINA_BASE/config" ]; then
-    CONFIG_DIR="$CATALINA_BASE/config"
 fi
 
 if [ -n "$CONFIG_DIR" ]; then

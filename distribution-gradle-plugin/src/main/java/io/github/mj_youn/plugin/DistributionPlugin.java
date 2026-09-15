@@ -38,6 +38,9 @@ public class DistributionPlugin implements Plugin<Project> {
     private static final String DEFAULT_ENV = "dev";
     private static final List<String> ENVIRONMENTS = List.of("dev", "prod", "local", "test", "stage");
 
+    /**
+     * DistributionPlugin 기본 생성자입니다.
+     */
     public DistributionPlugin() {}
 
     @Override

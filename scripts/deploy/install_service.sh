@@ -1261,14 +1261,21 @@ DEST_DIR="DEST_DIR_PLACEHOLDER"
 if [ -f "$DEST_DIR/.env" ]; then
     source "$DEST_DIR/.env"
 fi
-LOG_FILE="$LOG_PATH/${APP_NAME}.log"
 
-if [ -f "$LOG_FILE" ]; then
+# 로그 파일 경로 탐색 (app 디렉토리 우선 -> 루트 디렉토리 순)
+LOG_FILE=""
+if [ -f "$LOG_PATH/app/${APP_NAME}.log" ]; then
+    LOG_FILE="$LOG_PATH/app/${APP_NAME}.log"
+elif [ -f "$LOG_PATH/${APP_NAME}.log" ]; then
+    LOG_FILE="$LOG_PATH/${APP_NAME}.log"
+fi
+
+if [ -n "$LOG_FILE" ] && [ -f "$LOG_FILE" ]; then
     echo "로그 파일($LOG_FILE)을 추적합니다..."
     tail -F -n 1000 "$LOG_FILE"
 else
     echo "로그 파일이 아직 생성되지 않았거나 경로가 다릅니다."
-    echo "Docker 컨테이너 로그를 확인합니다..."
+    echo "Docker 컨테이너 콘솔 로그를 확인합니다..."
     docker logs -f --tail 1000 ${APP_NAME}
 fi
 EOF
@@ -1282,13 +1289,20 @@ DEST_DIR="DEST_DIR_PLACEHOLDER"
 if [ -f "$DEST_DIR/bin/.env" ]; then
     source "$DEST_DIR/bin/.env"
 fi
-LOG_FILE="$LOG_PATH/${APP_NAME}.log"
 
-if [ ! -f "$LOG_FILE" ]; then
-    echo "로그 파일을 찾을 수 없습니다: $LOG_FILE"
+LOG_FILE=""
+if [ -f "$LOG_PATH/app/${APP_NAME}.log" ]; then
+    LOG_FILE="$LOG_PATH/app/${APP_NAME}.log"
+elif [ -f "$LOG_PATH/${APP_NAME}.log" ]; then
+    LOG_FILE="$LOG_PATH/${APP_NAME}.log"
+fi
+
+if [ -z "$LOG_FILE" ] || [ ! -f "$LOG_FILE" ]; then
+    echo "로그 파일을 찾을 수 없습니다: $LOG_PATH/${APP_NAME}.log 또는 $LOG_PATH/app/${APP_NAME}.log"
     echo "서비스가 실행 중인지 확인해주세요."
     exit 1
 fi
+echo "로그 파일($LOG_FILE)을 추적합니다..."
 tail -F -n 1000 "$LOG_FILE"
 EOF
     fi
