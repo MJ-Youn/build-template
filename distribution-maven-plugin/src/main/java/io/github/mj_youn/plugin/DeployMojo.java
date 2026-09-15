@@ -110,15 +110,4 @@ public class DeployMojo extends DistributionMojo {
         }
     }
 
-    private void deleteRecursively(File file) {
-        if (file.isDirectory()) {
-            File[] children = file.listFiles();
-            if (children != null) {
-                for (File child : children) {
-                    deleteRecursively(child);
-                }
-            }
-        }
-        file.delete();
-    }
 }

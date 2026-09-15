@@ -6,8 +6,8 @@ plugins {
 }
 
 group = 'io.github.mj-youn'
-version = '1.2.2'
-description = 'Maven distribution packaging plugin with embedded scripts and @Override support'
+version = '2.0.0'
+description = 'Maven distribution packaging plugin with JAR/Tomcat dual deployment support'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_17
@@ -63,6 +63,9 @@ tasks.named('processResources') {
     from("${rootProject.projectDir}/build_deploy.sh") {
         into 'template'
     }
+    from("${rootProject.projectDir}/tomcat") {
+        into 'template/tomcat'
+    }
 
     // template 리소스 내부 파일 목록(manifest)을 자동 생성
     doLast {
@@ -75,7 +78,7 @@ tasks.named('processResources') {
                 filesList << relative
             }
             manifestFile.text = filesList.join('\n')
-            println "📋 [Maven Plugin] 템플릿 매니페스트 생성 완료 (${filesList.size()}개 파일 - 루트 단일 원본 동기화)"
+            println "📋 [Maven Plugin v2.0.0] 템플릿 매니페스트 생성 완료 (${filesList.size()}개 파일 - JAR/Tomcat 통합 원본 동기화)"
         }
     }
 }
