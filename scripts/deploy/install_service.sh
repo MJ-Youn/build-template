@@ -631,10 +631,12 @@ configure_legacy_env() {
 
     log_info "로그 경로: $LOG_PATH"
 
-    mkdir -p "$LOG_PATH"
+    # 호스트 로그 디렉토리 및 서브 디렉토리(app, tomcat) 사전 생성
+    # Docker 데몬이 root 권한으로 하위 디렉토리를 자동 생성하는 것을 방지
+    mkdir -p "$LOG_PATH" "$LOG_PATH/app" "$LOG_PATH/tomcat"
     chown -R $REAL_USER:$SERVICE_GROUP "$LOG_PATH"
-    chmod 755 "$LOG_PATH"
-    log_success "로그 디렉토리 준비 완료."
+    chmod -R 775 "$LOG_PATH"
+    log_success "로그 디렉토리 준비 완료 ($LOG_PATH/app, tomcat)."
 
     create_tail_log_script
 }
@@ -1031,10 +1033,12 @@ configure_docker_env() {
 
     log_info "로그 경로: $LOG_PATH"
 
-    mkdir -p "$LOG_PATH"
+    # 호스트 로그 디렉토리 및 서브 디렉토리(app, tomcat) 사전 생성
+    # Docker 데몬이 root 권한으로 하위 디렉토리를 자동 생성하는 것을 방지
+    mkdir -p "$LOG_PATH" "$LOG_PATH/app" "$LOG_PATH/tomcat"
     chown -R $REAL_USER:$SERVICE_GROUP "$LOG_PATH"
-    chmod 755 "$LOG_PATH"
-    log_success "로그 디렉토리 준비 완료."
+    chmod -R 775 "$LOG_PATH"
+    log_success "로그 디렉토리 준비 완료 ($LOG_PATH/app, tomcat)."
 
     create_tail_log_script
 }
