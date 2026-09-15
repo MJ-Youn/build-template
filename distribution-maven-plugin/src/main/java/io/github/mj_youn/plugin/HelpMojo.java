@@ -5,10 +5,11 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Mojo;
 
 /**
- * Maven 배포 플러그인의 사용 가이드 및 명령어 안내를 출력하는 Goal입니다.
+ * Maven 배포 플러그인 v2.0.0의 사용 가이드 및 명령어 안내를 출력하는 Goal입니다.
  *
  * @author MJ Yun
  * @since 2026. 09. 07.
+ * @version 2.0.0
  */
 @Mojo(name = "help", requiresProject = false, threadSafe = true)
 public class HelpMojo extends AbstractMojo {
@@ -22,17 +23,45 @@ public class HelpMojo extends AbstractMojo {
   public void execute() throws MojoExecutionException {
     String msg = """
 ================================================================================
-🚀 [Distribution Maven Plugin] 빌드 및 배포 가이드
+🚀 [Distribution Maven Plugin 2.0.0] 빌드 및 배포 가이드
 ================================================================================
-[기본 명령어]
-  mvn clean package -Denv=dev          : 개발 환경 배포 패키지(Zip) 생성
-  mvn clean package -Denv=prod         : 운영 환경 배포 패키지(Zip) 생성
-  mvn distribution:deploy -Denv=prod   : 원스탑 배포 (빌드 + 압축해제 + 서비스 설치/구동)
-  mvn distribution:initDeployScript    : 프로젝트 루트에 build_deploy.sh 자동 생성
-  ./build_deploy.sh -Denv=dev          : 쉘 스크립트 기반 원스탑 배포 (Git pull + distribution:deploy)
 
-[환경 지정 옵션 (-Denv=...)]
-  지정 시 config.profiles/{env}/ 내 설정 파일들이 패키지 config/ 로 오버레이됩니다.
+[📦 JAR 모드 명령어 (Executable JAR 배포)]
+  mvn distribution:packageJar -Denv=dev    : JAR 기반 배포 패키지(Zip) 생성
+  mvn distribution:packageJar -Denv=prod   : JAR 기반 운영 패키지(Zip) 생성
+  mvn distribution:deploy -Denv=prod       : JAR 원스탑 배포 (빌드 + 설치)
+
+[🐱 Tomcat 모드 명령어 (Standalone Apache Tomcat 배포)]
+  mvn distribution:packageTomcat -Denv=dev : Tomcat 배포 패키지(Zip) 생성 (webapps/ROOT 포함)
+  mvn distribution:packageTomcat -Denv=prod: Tomcat 운영 패키지(Zip) 생성
+  mvn distribution:deploy -DpackageType=tomcat -Denv=prod : Tomcat 원스탑 배포
+
+[⚡ 기본 명령어 (DSL/pom.xml packageType 설정 기반)]
+  mvn clean package -Denv=dev             : 기본 설정(packageType) 기반 패키지 생성
+  mvn distribution:deploy -Denv=dev       : 기본 설정 기반 원스탑 배포
+
+[🎛️ CLI 파라미터 옵션]
+  -Denv=dev|prod|local|test|stage         : 배포 환경 프로파일 지정
+                                            config.profiles/{env}/ 의 설정 파일이
+                                            패키지 config/ 로 오버레이됩니다.
+  -DpackageType=jar|tomcat                : 배포 유형 CLI 오버라이드
+  -Dtype=jar|tomcat                       : 배포 유형 CLI 오버라이드 (type alias)
+  -DhttpPort=8443                         : HTTP 서비스 포트 지정 (기본값: 8080)
+  -DtomcatVersion=11.0.15                 : Apache Tomcat 버전 지정
+
+[🛠️ pom.xml DSL 설정]
+  <configuration>
+    <appName>my-service</appName>           <!-- 서비스 이름 (기본값: artifactId) -->
+    <packageType>jar</packageType>          <!-- 기본 배포 유형: jar 또는 tomcat -->
+    <httpPort>8080</httpPort>               <!-- 서비스 포트 (기본값: 8080) -->
+    <tomcatVersion>11.0.15</tomcatVersion>  <!-- Tomcat 버전 (Tomcat 모드 전용) -->
+  </configuration>
+
+[🔧 유틸리티]
+  mvn distribution:initDeployScript       : 프로젝트 루트에 build_deploy.sh 자동 생성
+  mvn distribution:help                   : 이 도움말 출력 (또는 mvn distribution:distHelp)
+  ./build_deploy.sh                       : 쉘 스크립트 기반 원스탑 배포
+
 ================================================================================
 """;
     getLog().info(msg);

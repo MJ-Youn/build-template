@@ -38,7 +38,7 @@ Apply the appropriate plugin according to your project's build tool:
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '1.2.2'
+    id 'io.github.mj-youn.distribution' version '2.0.0'
 }
 ```
 
@@ -60,7 +60,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>1.2.2</version>
+            <version>2.0.0</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -130,7 +130,7 @@ We recommend explicitly defining a concise, lowercase identifier when:
 - You want consistent naming across infrastructure:
     - 🐧 **Linux Systemd Service**: `/etc/systemd/system/{appName}.service` (`systemctl start {appName}`)
     - 📁 **Default Log Directory**: `/log/{appName}` (e.g., `/log/hdrms`)
-    - 🐳 **Docker Image Tag**: `{appName}:{version}` (e.g., `hdrms:1.2.2`)
+    - 🐳 **Docker Image Tag**: `{appName}:{version}` (e.g., `hdrms:2.0.0`)
     - 🐚 **Process Console Output**: `🚀 Starting [{appName}] service...`
 
 #### 3) ⚠️ Note on Changing `appName`

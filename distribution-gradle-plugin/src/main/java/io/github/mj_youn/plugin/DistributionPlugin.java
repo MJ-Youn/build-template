@@ -173,23 +173,43 @@ public class DistributionPlugin implements Plugin<Project> {
 ================================================================================
 🚀 [Distribution Plugin 2.0.0] 빌드 및 배포 가이드
 ================================================================================
-[명령어별 빌드 및 배포]
-  ./gradlew packageJar -Penv=dev    : JAR 기반 배포 패키지(Zip) 생성
-  ./gradlew deployJar -Penv=prod    : JAR 기반 원스탑 배포 (빌드 + 설치)
-  ./gradlew packageTomcat -Penv=dev : Standalone Tomcat 기반 배포 패키지(Zip) 생성
-  ./gradlew deployTomcat -Penv=prod : Standalone Tomcat 기반 원스탑 배포 (빌드 + 설치)
 
-[기본 명령어 및 CLI 오버라이드]
-  ./gradlew package -Penv=dev       : 기본 설정(DSL packageType) 기반 패키징
-  ./gradlew package -Ptype=tomcat   : CLI 옵션으로 톰캣 배포 모드 지정
-  ./gradlew deployService -Penv=dev : 기본 설정 기반 원스탑 배포
+[📦 JAR 모드 명령어 (Executable JAR 배포)]
+  ./gradlew packageJar -Penv=dev     : JAR 기반 배포 패키지(Zip) 생성
+  ./gradlew packageJar -Penv=prod    : JAR 기반 운영 패키지(Zip) 생성
+  ./gradlew deployJar -Penv=prod     : JAR 기반 원스탑 배포 (빌드 + 설치)
 
-[유틸리티]
-  ./gradlew initDeployScript        : 프로젝트 루트에 build_deploy.sh 자동 생성
-  ./build_deploy.sh -Penv=dev       : 쉘 스크립트 기반 원스탑 배포
+[🐱 Tomcat 모드 명령어 (Standalone Apache Tomcat 배포)]
+  ./gradlew packageTomcat -Penv=dev  : Tomcat 배포 패키지(Zip) 생성 (webapps/ROOT 포함)
+  ./gradlew packageTomcat -Penv=prod : Tomcat 운영 패키지(Zip) 생성
+  ./gradlew deployTomcat -Penv=prod  : Tomcat 원스탑 배포 (빌드 + 설치)
 
-[환경 지정 옵션 (-Penv=...)]
-  지정 시 config.profiles/{env}/ 내 설정 파일들이 패키지 config/ 로 오버레이됩니다.
+[⚡ 기본 명령어 (DSL packageType 설정 기반)]
+  ./gradlew package -Penv=dev        : 기본 설정(packageType) 기반 패키징
+  ./gradlew deployService -Penv=dev  : 기본 설정 기반 원스탑 배포
+
+[🎛️ CLI 파라미터 옵션]
+  -Penv=dev|prod|local|test|stage    : 배포 환경 프로파일 지정
+                                       config.profiles/{env}/ 의 설정 파일이
+                                       패키지 config/ 로 오버레이됩니다.
+  -Ptype=jar|tomcat                  : 배포 유형 CLI 오버라이드
+  -PpackageType=jar|tomcat           : 배포 유형 CLI 오버라이드 (packageType alias)
+  -Pport=8443                        : HTTP 서비스 포트 지정 (기본값: DSL httpPort)
+  -PtomcatVersion=11.0.15            : Apache Tomcat 버전 지정
+
+[🛠️ DSL 설정 (build.gradle)]
+  distribution {
+      appName     = 'my-service'     // 서비스 이름 (기본값: rootProject.name)
+      packageType = 'jar'            // 기본 배포 유형: 'jar' 또는 'tomcat'
+      httpPort    = 8080             // 서비스 포트 (기본값: 8080)
+      tomcatVersion = '11.0.15'     // Tomcat 버전 (Tomcat 모드 전용)
+  }
+
+[🔧 유틸리티]
+  ./gradlew initDeployScript         : 프로젝트 루트에 build_deploy.sh 자동 생성
+  ./gradlew distHelp                 : 이 도움말 출력
+  ./build_deploy.sh                  : 쉘 스크립트 기반 원스탑 배포
+
 ================================================================================
 """;
         project.getLogger().lifecycle(msg);

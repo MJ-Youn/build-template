@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plugin>
   <name>Distribution Maven Plugin</name>
-  <description>Maven distribution and packaging plugin with embedded scripts and @Override support</description>
+  <description>Maven distribution and packaging plugin with JAR/Tomcat dual deployment support (v2.0.0)</description>
   <groupId>io.github.mj-youn</groupId>
   <artifactId>distribution-maven-plugin</artifactId>
-  <version>1.2.2</version>
+  <version>2.0.0</version>
   <goalPrefix>distribution</goalPrefix>
   <isolatedRealm>false</isolatedRealm>
   <inheritedByDefault>true</inheritedByDefault>

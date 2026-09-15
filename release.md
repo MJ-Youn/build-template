@@ -2,6 +2,106 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [2.0.0] - 2026-09-15
+
+> ⚠️ **Major Release** — 아키텍처 변경이 포함되어 있습니다. 이전 버전과의 호환성을 검토 후 적용하세요.
+
+### 🆕 핵심 신기능: JAR/Tomcat 이중 배포 아키텍처
+
+#### 📦 신규 배포 유형 선택 (packageType)
+
+- **`packageType = 'jar'` (기본값)**: 기존 방식 유지. Spring Boot Executable JAR 패키지 생성.
+- **`packageType = 'tomcat'` (신규)**: Standalone Apache Tomcat 11 외장 배포 지원.
+  - WAR 파일을 자동으로 **Explode (압축 해제)**하여 `webapps/ROOT/` 구조로 패키징.
+  - `tomcat/conf/server.xml`, `tomcat/conf/context.xml`, `tomcat/bin/setenv.sh` 등 Tomcat 설정 템플릿 자동 번들링.
+  - Gradle: `distribution { packageType = 'tomcat' }` / Maven: `<packageType>tomcat</packageType>`
+
+#### ⚡ 전용 태스크 / Goal 추가
+
+| Gradle 태스크 | Maven Goal | 설명 |
+|---|---|---|
+| `packageJar` | `distribution:packageJar` | JAR 모드 패키지 생성 (고정) |
+| `packageTomcat` | `distribution:packageTomcat` | Tomcat 모드 패키지 생성 (고정) |
+| `deployJar` | — | JAR 모드 원스탑 배포 |
+| `deployTomcat` | — | Tomcat 모드 원스탑 배포 |
+
+#### 🎛️ CLI 파라미터 지원 확대
+
+- Gradle: `-Ptype=tomcat`, `-PpackageType=tomcat`, `-Pport=8443`, `-PtomcatVersion=11.0.15`
+- Maven: `-Dtype=tomcat`, `-DpackageType=tomcat`, `-DhttpPort=8443`, `-DtomcatVersion=11.0.15`
+- 빌드 DSL 설정과 CLI 옵션이 동시에 지원되며, CLI 옵션이 DSL 설정보다 우선 적용됩니다.
+
+#### 🛡️ Tomcat 사전 조건 검증기 (`verifyTomcatPrerequisites`)
+
+Tomcat 배포 모드 선택 시 빌드 시점에 자동으로 다음 4가지 조건을 검증합니다:
+1. **`war` 플러그인/packaging 선언 여부** — 미선언 시 빌드 즉시 실패 + 해결 가이드 출력.
+2. **`SpringBootServletInitializer` 상속 여부** — `@SpringBootApplication` 파일을 자동 스캔하여 `extends SpringBootServletInitializer` 누락 시 빌드 실패 + 해결 코드 예시 출력.
+3. **`providedRuntime` / `provided` scope Tomcat 의존성 설정 권고** — 내장 톰캣과의 클래스로더 충돌 방지를 위한 설정 권고 경고 출력.
+4. **`docker/Dockerfile` Tomcat ENTRYPOINT 점검** — `catalina.sh run` 설정 누락 시 경고 출력.
+
+#### 🐱 Tomcat 설정 템플릿 번들링
+
+`build_template/tomcat/` 디렉토리를 단일 원본(SSOT)으로 하는 Tomcat 설정 파일들이 플러그인에 내장됩니다:
+- `tomcat/conf/server.xml` — 기본 포트 443 설정 포함
+- `tomcat/conf/context.xml` — 세션 퍼시스턴스 비활성화
+- `tomcat/conf/logging.properties` — 로그 설정
+- `tomcat/bin/setenv.sh` — JVM 옵션 및 스프링 외부 설정 주입
+
+#### 🚀 Legacy + Tomcat 배포 호스트 자동 구성 (`install_service.sh`)
+
+Legacy 모드 + Tomcat 타입 선택 시 다음이 자동 실행됩니다:
+- 호스트 Tomcat 자동 탐색 (`/usr/local/tomcat`, `/opt/tomcat`, `/opt/apache-tomcat-*` 등)
+- 대화형 `CATALINA_HOME` 경로 입력 + `bin/catalina.sh` 유효성 검사
+- 입력된 경로를 `.env` 파일과 Systemd 유닛 `[Service] Environment=` 섹션에 자동 주입
+- CI/CD 무인 자동화: `--tomcat-home=`, `--catalina-home=`, `CATALINA_HOME=` 환경변수 지원
+
+### ✨ 개선 사항
+
+- **`distHelp` / `mvn distribution:help` 가이드 전면 개편**: 새로운 파라미터(-Penv, -Ptype, -Pport, -PtomcatVersion, DSL 설정) 설명 추가.
+- **Gradle `packageTomcat` Implicit Dependency 버그 수정**: 동일 빌드 내에서 `packageTomcat`과 `packageJar`를 동시에 실행해도 Gradle 검증 오류가 발생하지 않도록 수정.
+- **Maven 플러그인 구조 개선**: `DistributionMojo`를 상속하는 `PackageTomcatMojo`, `PackageJarMojo` 추가로 Maven 플러그인과 Gradle 플러그인의 명령어 체계 통일.
+- **`.gitignore` 경로 패턴 수정**: `./bin/` → `/bin/` (루트 상대 경로로 정확히 매칭).
+
+### 🔧 마이그레이션 가이드 (1.x → 2.0.0)
+
+#### Gradle
+
+```groovy
+// build.gradle
+plugins {
+    id 'io.github.mj-youn.distribution' version '2.0.0'  // 버전 변경
+}
+
+distribution {
+    packageType = 'jar'     // 신규 필드 (기본값: 'jar', 생략 가능)
+    httpPort    = 8080      // 신규 필드 (기본값: 8080, 생략 가능)
+    // Tomcat 배포 시:
+    // packageType = 'tomcat'
+    // tomcatVersion = '11.0.15'
+}
+```
+
+#### Maven
+
+```xml
+<plugin>
+    <groupId>io.github.mj-youn</groupId>
+    <artifactId>distribution-maven-plugin</artifactId>
+    <version>2.0.0</version>  <!-- 버전 변경 -->
+    <configuration>
+        <packageType>jar</packageType>   <!-- 신규 설정 (기본값: jar, 생략 가능) -->
+        <httpPort>8080</httpPort>         <!-- 신규 설정 (기본값: 8080, 생략 가능) -->
+    </configuration>
+</plugin>
+```
+
+> [!NOTE]
+> 기존 `./gradlew package -Penv=dev` / `mvn clean package -Denv=dev` 명령어는 하위 호환성이 유지됩니다.
+> 기존 설정을 변경하지 않아도 1.x와 동일하게 JAR 배포로 동작합니다.
+
+---
+
+
 ## 🚀 [1.2.2] - 2026-09-11
 
 ### ✨ 주요 개선 사항 (Features & Enhancements)
