@@ -23,12 +23,12 @@ build_template (루트 / SSOT)
 ├── 📁 tomcat/                   # ⭐️ 유일한 마스터 Tomcat 설정 원본 (SSOT, v2.0.0 신규)
 │   ├── bin/setenv.sh           # JVM 옵션 및 스프링 외부 설정 주입
 │   └── conf/                   # server.xml, context.xml, logging.properties
-├── 📁 distribution-gradle-plugin/ # 🐘 Gradle 배포 플러그인 모듈 (v2.0.0)
+├── 📁 distribution-gradle-plugin/ # 🐘 Gradle 배포 플러그인 모듈 (v2.0.1)
 │   ├── src/main/java/io/github/mj_youn/plugin/
 │   │   ├── DistributionPlugin.java     # 플러그인 엔트리포인트 및 태스크 등록
 │   │   └── DistributionExtension.java  # distribution { ... } DSL 확장 모델
 │   └── build.gradle                    # Plugin Portal 배포 설정
-├── 📁 distribution-maven-plugin/  # 🪶 Maven 배포 플러그인 모듈 (v2.0.0)
+├── 📁 distribution-maven-plugin/  # 🪶 Maven 배포 플러그인 모듈 (v2.0.1)
 │   ├── src/main/java/io/github/mj_youn/plugin/
 │   │   ├── DistributionMojo.java       # package goal (JAR/Tomcat 공통)
 │   │   ├── PackageJarMojo.java         # packageJar goal (JAR 전용 고정)
@@ -161,7 +161,7 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./gradl
 ```
 
 #### ② 플러그인이 적용된 개별 Spring Boot 프로젝트 사용자 명령어
-`plugins { id 'io.github.mj-youn.distribution' version '2.0.0' }`를 적용한 하위 프로젝트에서 실행하는 명령어:
+`plugins { id 'io.github.mj-youn.distribution' version '2.0.1' }`를 적용한 하위 프로젝트에서 실행하는 명령어:
 
 ```bash
 # Gradle 환경
@@ -195,7 +195,7 @@ JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home ./gradl
 
 ### 2) 로컬 샘플 프로젝트에서 플러그인 동작 검증 시나리오
 
-로컬 캐시에 설치된 `2.0.0` 플러그인을 독립된 샘플 프로젝트에서 테스트합니다:
+로컬 캐시에 설치된 `2.0.1` 플러그인을 독립된 샘플 프로젝트에서 테스트합니다:
 
 1. **Gradle JAR 패키징 & 배포**:
    - `./gradlew packageJar -Penv=dev` ➡️ `build/dist/{APP_NAME}-{version}-dev.dist.zip` 생성 확인

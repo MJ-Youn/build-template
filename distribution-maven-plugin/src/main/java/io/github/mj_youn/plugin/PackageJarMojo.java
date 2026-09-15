@@ -17,7 +17,7 @@ import org.apache.maven.plugins.annotations.Mojo;
  *
  * @author MJ Yun
  * @since 2026. 09. 15.
- * @version 2.0.0
+ * @version 2.0.1
  */
 @Mojo(name = "packageJar", defaultPhase = LifecyclePhase.PACKAGE, requiresProject = true, threadSafe = true)
 public class PackageJarMojo extends DistributionMojo {

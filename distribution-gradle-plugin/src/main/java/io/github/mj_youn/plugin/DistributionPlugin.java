@@ -31,7 +31,7 @@ import java.util.Set;
  *
  * @author MJ Yun
  * @since 2026. 09. 07.
- * @version 2.0.0
+ * @version 2.0.1
  */
 public class DistributionPlugin implements Plugin<Project> {
 
@@ -171,7 +171,7 @@ public class DistributionPlugin implements Plugin<Project> {
     private void printGuide(Project project) {
         String msg = """
 ================================================================================
-🚀 [Distribution Plugin 2.0.0] 빌드 및 배포 가이드
+🚀 [Distribution Plugin 2.0.1] 빌드 및 배포 가이드
 ================================================================================
 
 [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -259,7 +259,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         zipTask.doFirst(task -> {
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("🚀 [Distribution 2.0.0] 배포 패키지 생성 시작");
+            project.getLogger().lifecycle("🚀 [Distribution 2.0.1] 배포 패키지 생성 시작");
             project.getLogger().lifecycle("   - 대상 프로젝트: {}", project.getName());
             project.getLogger().lifecycle("   - 배포 유형: {} ({})", packageType.toUpperCase(), isTomcat ? "Standalone Tomcat" : "Executable JAR");
             project.getLogger().lifecycle("   - 활성 프로파일: {}", env);
@@ -428,7 +428,7 @@ public class DistributionPlugin implements Plugin<Project> {
             File archive = zipTask.getArchiveFile().get().getAsFile();
             long sizeInMb = archive.length() / (1024 * 1024);
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("✅ [Distribution 2.0.0] 배포 패키지 생성 완료!");
+            project.getLogger().lifecycle("✅ [Distribution 2.0.1] 배포 패키지 생성 완료!");
             project.getLogger().lifecycle("   - 산출물 경로: {}", archive.getAbsolutePath());
             project.getLogger().lifecycle("   - 파일 크기  : {} MB ({} bytes)", sizeInMb, archive.length());
             project.getLogger().lifecycle("================================================================");

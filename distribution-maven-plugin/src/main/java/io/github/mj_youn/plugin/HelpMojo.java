@@ -5,11 +5,11 @@ import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.Mojo;
 
 /**
- * Maven 배포 플러그인 v2.0.0의 사용 가이드 및 명령어 안내를 출력하는 Goal입니다.
+ * Maven 배포 플러그인 v2.0.1의 사용 가이드 및 명령어 안내를 출력하는 Goal입니다.
  *
  * @author MJ Yun
  * @since 2026. 09. 07.
- * @version 2.0.0
+ * @version 2.0.1
  */
 @Mojo(name = "help", requiresProject = false, threadSafe = true)
 public class HelpMojo extends AbstractMojo {
@@ -23,7 +23,7 @@ public class HelpMojo extends AbstractMojo {
   public void execute() throws MojoExecutionException {
     String msg = """
 ================================================================================
-🚀 [Distribution Maven Plugin 2.0.0] 빌드 및 배포 가이드
+🚀 [Distribution Maven Plugin 2.0.1] 빌드 및 배포 가이드
 ================================================================================
 
 [📦 JAR 모드 명령어 (Executable JAR 배포)]

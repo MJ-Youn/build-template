@@ -2,6 +2,37 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [2.0.1] - 2026-09-15
+
+> 🛠️ **Patch Release** — `build_deploy.sh` 파라미터 제어 및 도움말 기능 추가, Maven 디스크립터 누락 보완, 미사용 K8s 리소스 정리.
+
+### ✨ 개선 사항 (Improvements)
+
+#### 1. `build_deploy.sh` 배포 자동화 스크립트 기능 강화
+- **`-Ptype`, `-Pport` 파라미터 전달 지원**:
+  - 외장 Tomcat 배포 및 커스텀 포트 지정 시 `./build_deploy.sh prod -Ptype=tomcat -Pport=8443` 형태로 파라미터를 직접 전달하여 패키징 및 배포할 수 있도록 개선.
+  - Gradle `-P...` 옵션 및 Maven `-D...` 옵션 상호 자동 변환 및 패스스루(Pass-through) 지원.
+- **대화형 도움말 (`--help`, `-h`, `help`) 추가**:
+  - 스크립트 사용법, 배포 환경, 지원 파라미터, 다양한 실전 실행 예시를 터미널에서 즉시 확인할 수 있는 도움말 옵션 탑재.
+- **`--no-pull` 플래그 지원**:
+  - Git 저장소 환경에서 배포 전 `git pull` 단계를 건너뛰고 로컬 소스 기준으로 즉시 배포할 수 있는 옵션 추가.
+
+#### 2. Maven Plugin 디스크립터 (`plugin.xml`) 누락 보완
+- `PackageJarMojo` (`packageJar`) 및 `PackageTomcatMojo` (`packageTomcat`) Mojo 정의를 `META-INF/maven/plugin.xml`에 추가하여 Maven 환경에서도 해당 Goal이 정상 인식 및 실행되도록 수정.
+
+#### 3. 미사용 Kubernetes (K8s) 리소스 및 빌드 태스크 정리
+- 플랫폼 집중도 향상을 위해 현재 사용하지 않는 `./k8s` 디렉토리(`configmap.yaml`, `deployment.yaml`, `service.yaml`) 완전 삭제.
+- 루트 `build.gradle`에서 `k8sBuild` 태스크 및 help 가이드 내 K8s 안내 문구 정리.
+- `README.md` 및 `DEVELOPER_GUIDE.md` 문서 내 K8s 관련 섹션 및 다이어그램 정리.
+
+#### 4. 개발자 및 관리자 가이드 (`DEVELOPER_GUIDE.md`) 최신화
+- 플랫폼 단일 원본(SSOT) 아키텍처 및 Gradle ↔ Maven 1:1 대칭 대응표 보강.
+- 루트 관리자 프로젝트 환경과 개별 프로젝트 플러그인 적용 환경의 명령어 차이점 명확화.
+- Tomcat 사전 조건 자동 검증기(`verifyTomcatPrerequisites`) 4단계 로직 상세화.
+- Sonatype Central Portal(Maven Central) 배포를 위한 GPG 서명(Signing) 설정 가이드 추가.
+
+---
+
 ## 🎯 [2.0.0] - 2026-09-15
 
 > ⚠️ **Major Release** — 아키텍처 변경이 포함되어 있습니다. 이전 버전과의 호환성을 검토 후 적용하세요.

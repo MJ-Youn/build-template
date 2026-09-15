@@ -33,7 +33,7 @@ import java.util.*;
  *
  * @author MJ Yun
  * @since 2026. 09. 07.
- * @version 2.0.0
+ * @version 2.0.1
  */
 @Mojo(name = "package", defaultPhase = LifecyclePhase.PACKAGE, requiresProject = true, threadSafe = true)
 public class DistributionMojo extends AbstractMojo {
@@ -138,7 +138,7 @@ public class DistributionMojo extends AbstractMojo {
         String resolvedType = resolvePackageType();
 
         getLog().info("================================================================");
-        getLog().info("\ud83d\ude80 [Distribution 2.0.0 - Maven] 배포 패키지 생성 시작");
+        getLog().info("\ud83d\ude80 [Distribution 2.0.1 - Maven] 배포 패키지 생성 시작");
         getLog().info("   - 프로젝트     : " + project.getArtifactId());
         getLog().info("   - 활성 프로파일: " + env);
         getLog().info("   - 배포 유형    : " + resolvedType.toUpperCase() + " ("
@@ -252,7 +252,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeInMb = targetZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("\u2705 [Distribution 2.0.0] 배포 패키지 생성 완료!");
+        getLog().info("\u2705 [Distribution 2.0.1] 배포 패키지 생성 완료!");
         getLog().info("   - 산출물 경로: " + targetZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeInMb + " MB (" + targetZip.length() + " bytes)");
         getLog().info("================================================================");

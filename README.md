@@ -15,7 +15,7 @@
 ### Quick Start (Gradle)
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '2.0.0'
+    id 'io.github.mj-youn.distribution' version '2.0.1'
 }
 ```
 ```bash
@@ -66,7 +66,7 @@ For complete English documentation, see [**distribution-gradle-plugin/README.md*
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '2.0.0'
+    id 'io.github.mj-youn.distribution' version '2.0.1'
 }
 ```
 
@@ -88,7 +88,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>2.0.0</version>
+            <version>2.0.1</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -131,7 +131,7 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
   ```text
   > Task :distHelp
   ================================================================================
-  🚀 [Distribution Plugin 2.0.0] 빌드 및 배포 가이드
+  🚀 [Distribution Plugin 2.0.1] 빌드 및 배포 가이드
   ================================================================================
 
   [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -177,9 +177,9 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
 
 - **실행 결과 샘플**:
   ```text
-  [INFO] --- distribution:2.0.0:help (default-cli) @ my-service ---
+  [INFO] --- distribution:2.0.1:help (default-cli) @ my-service ---
   [INFO] ================================================================================
-  🚀 [Distribution Maven Plugin 2.0.0] 빌드 및 배포 가이드
+  🚀 [Distribution Maven Plugin 2.0.1] 빌드 및 배포 가이드
   ================================================================================
 
   [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -227,7 +227,7 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
 - **서버 운영 리소스 명칭을 통일하고 싶을 때**:
     - 🐧 **Linux Systemd 서비스명**: `/etc/systemd/system/{appName}.service` (`systemctl start {appName}`)
     - 📁 **기본 로그 저장 경로**: `/log/{appName}` (예: `/log/hdrms`)
-    - 🐳 **Docker 이미지 태그**: `{appName}:{version}` (예: `hdrms:2.0.0`)
+    - 🐳 **Docker 이미지 태그**: `{appName}:{version}` (예: `hdrms:0.1.0`)
     - 🐚 **프로세스 제어 콘솔 출력**: `🚀 [{appName}] 서비스를 시작합니다...`
 
 ##### 3) ⚠️ 설정 시 주의 사항
