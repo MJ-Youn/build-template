@@ -4,11 +4,21 @@
 
 ## 🎯 [2.0.1] - 2026-09-15
 
-> 🛠️ **Patch Release** — `build_deploy.sh` 파라미터 제어 및 도움말 기능 추가, Maven 디스크립터 누락 보완, 미사용 K8s 리소스 정리.
+> 🛠️ **Patch Release** — 배포 유형별 Docker 템플릿 생성 및 비교 유틸리티(`initDocker`, `showDocker`) 추가, `build_deploy.sh` 파라미터 제어 및 도움말 탑재, Javadoc 경고 해결, Maven 디스크립터 완비, 미사용 K8s 리소스 정리.
 
 ### ✨ 개선 사항 (Improvements)
 
-#### 1. `build_deploy.sh` 배포 자동화 스크립트 기능 강화
+#### 1. 🐳 샘플 Dockerfile 생성 및 아키텍처 비교 유틸리티 탑재 (`initDocker` & `showDocker`)
+- **배포 유형별 Dockerfile 자동 생성 (`initDocker`)**:
+  - 프로젝트 설정(`packageType`) 또는 CLI 옵션(`-Ptype=jar|tomcat`)에 맞추어 최적화된 `Dockerfile` 및 `docker-compose.yml`을 프로젝트의 `docker/` 폴더에 즉시 자동 생성.
+  - 배포 유형별 템플릿 파일명을 확장자 오인 방지 네이밍(`Dockerfile-jar`, `Dockerfile-tomcat`, `docker-compose-jar.yml`, `docker-compose-tomcat.yml`)으로 개편하여 동시 번들링 제공.
+- **JAR vs Tomcat 컨테이너 아키텍처 비교 가이드 (`showDocker`)**:
+  - 베이스 이미지, 빌드 산출물 위치, 컨테이너 파일 복사 경로, 엔트리포인트, 볼륨 마운트 구조의 차이점을 터미널 콘솔에 시각적인 표 형태로 즉시 비교 출력.
+- **도움말 가이드 연동 및 양대 빌드 툴 100% 대칭 지원**:
+  - Gradle `./gradlew distHelp` 및 Maven `mvn distribution:help` 도움말 목록에 Docker 유틸리티 명령어 안내 추가.
+  - Maven 환경에서도 `mvn distribution:initDocker`, `mvn distribution:showDocker` Goal을 동일하게 지원.
+
+#### 2. 🚀 `build_deploy.sh` 배포 자동화 스크립트 기능 강화
 - **`-Ptype`, `-Pport` 파라미터 전달 지원**:
   - 외장 Tomcat 배포 및 커스텀 포트 지정 시 `./build_deploy.sh prod -Ptype=tomcat -Pport=8443` 형태로 파라미터를 직접 전달하여 패키징 및 배포할 수 있도록 개선.
   - Gradle `-P...` 옵션 및 Maven `-D...` 옵션 상호 자동 변환 및 패스스루(Pass-through) 지원.
@@ -17,31 +27,19 @@
 - **`--no-pull` 플래그 지원**:
   - Git 저장소 환경에서 배포 전 `git pull` 단계를 건너뛰고 로컬 소스 기준으로 즉시 배포할 수 있는 옵션 추가.
 
-#### 2. Maven Plugin 디스크립터 (`plugin.xml`) 누락 보완
+#### 3. 🪶 Maven Plugin 디스크립터 (`plugin.xml`) 누락 보완 및 신규 Goal 완비
 - `PackageJarMojo` (`packageJar`) 및 `PackageTomcatMojo` (`packageTomcat`) Mojo 정의를 `META-INF/maven/plugin.xml`에 추가하여 Maven 환경에서도 해당 Goal이 정상 인식 및 실행되도록 수정.
+- 신규 `InitDockerMojo` (`initDocker`) 및 `ShowDockerMojo` (`showDocker`) 정의를 디스크립터에 완비하여 Maven CLI 환경 지원 강화.
 
-#### 3. 샘플 Dockerfile 생성 및 아키텍처 비교 기능 탑재 (`initDocker` & `showDocker`)
-- **배포 유형별 Dockerfile 자동 생성 (`initDocker`)**:
-  - 프로젝트 설정(`packageType`) 또는 `-Ptype=jar|tomcat` 옵션에 따라 최적화된 `Dockerfile` 및 `docker-compose.yml`을 프로젝트의 `docker/` 폴더에 즉시 자동 생성.
-  - 참고용 개별 샘플(`Dockerfile-jar`, `Dockerfile-tomcat`, `docker-compose-jar.yml`, `docker-compose-tomcat.yml`) 동시 제공.
-- **JAR vs Tomcat 컨테이너 아키텍처 비교 가이드 (`showDocker`)**:
-  - Base Image, 빌드 산출물 위치, 컨테이너 복사 경로, 엔트리포인트, 볼륨 마운트 구조의 차이점을 터미널 콘솔에 시각적인 표 형태로 즉시 비교 출력.
-- **`distHelp` / `help` 가이드 연동**:
-  - Gradle `./gradlew distHelp` 및 Maven `mvn distribution:help` 도움말 목록에 Docker 유틸리티 명령어 안내 추가.
-- **Maven Goal 대칭 지원**:
-  - `mvn distribution:initDocker`, `mvn distribution:showDocker` Goal 동시 제공.
-
-#### 4. 미사용 Kubernetes (K8s) 리소스 및 빌드 태스크 정리
+#### 4. 🧹 미사용 Kubernetes (K8s) 리소스 및 빌드 태스크 정리
 - 플랫폼 집중도 향상을 위해 현재 사용하지 않는 `./k8s` 디렉토리(`configmap.yaml`, `deployment.yaml`, `service.yaml`) 완전 삭제.
 - 루트 `build.gradle`에서 `k8sBuild` 태스크 및 help 가이드 내 K8s 안내 문구 정리.
 - `README.md` 및 `DEVELOPER_GUIDE.md` 문서 내 K8s 관련 섹션 및 다이어그램 정리.
 
-#### 5. 개발자 및 관리자 가이드 (`DEVELOPER_GUIDE.md`) 최신화 및 Javadoc 개선
-- 플랫폼 단일 원본(SSOT) 아키텍처 및 Gradle ↔ Maven 1:1 대칭 대응표 보강.
-- 루트 관리자 프로젝트 환경과 개별 프로젝트 플러그인 적용 환경의 명령어 차이점 명확화.
-- `DistributionPlugin` 기본 생성자 Javadoc 명세 추가로 컴파일/배포 시 Javadoc 경고 완전 해결.
-- Tomcat 사전 조건 자동 검증기(`verifyTomcatPrerequisites`) 4단계 로직 상세화.
-- Sonatype Central Portal(Maven Central) 배포를 위한 GPG 서명(Signing) 설정 가이드 추가.
+#### 5. 📚 개발자 및 관리자 가이드 (`DEVELOPER_GUIDE.md`) 최신화 및 Javadoc 경고 해결
+- **루트 환경 vs 개별 프로젝트 환경 실행 분리**: 루트 관리자 프로젝트의 `distHelp` 별칭 동작 원리와 플러그인이 적용된 하위 프로젝트의 가이드 출력 간 차이점을 명확히 정리.
+- **Javadoc 경고 완전 해결 (Warning 0건)**: `DistributionPlugin` 기본 생성자에 한글 Javadoc 명세를 추가하여 빌드 및 배포(`javadoc`) 시 경고를 완전히 제거.
+- **아키텍처 문서화 최신화**: 플랫폼 단일 원본(SSOT) 아키텍처 다이어그램에 신규 Docker 템플릿 반영, Tomcat 사전 조건 자동 검증기(`verifyTomcatPrerequisites`) 4단계 로직 상세화 및 GPG 서명 배포 가이드 보강.
 
 ---
 
