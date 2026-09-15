@@ -433,36 +433,6 @@ sudo ./deploy/install_service.sh
 mvn distribution:deploy -Denv=prod
 ```
 
-### ☸️ Kubernetes 배포 (K8s) (개발 예정)
-
-Docker 배포를 넘어, Kubernetes 환경을 위한 매니페스트(`yaml`)도 자동으로 생성해줍니다.
-
-**1. 빌드 (Development PC)**
-
-```bash
-# 🐘 Gradle 환경
-./gradlew k8sBuild -Penv=prod
-
-# 🪶 Maven 환경
-mvn distribution:k8s-build -Denv=prod
-```
-
-- **결과물**: `build/dist/{APP_NAME}-k8s-prod.zip` 또는 `target/{APP_NAME}-k8s-prod.zip`
-- **내용**: `deployment.yaml`, `service.yaml`, `configmap.yaml` (프로젝트 이름 자동 적용됨)
-
-**2. 배포 (K8s Cluster)**
-
-```bash
-# 압축 해제
-unzip {APP_NAME}-k8s-prod.zip -d k8s-deploy
-cd k8s-deploy/k8s
-
-# 클러스터에 적용
-kubectl apply -f configmap.yaml
-kubectl apply -f deployment.yaml
-kubectl apply -f service.yaml
-```
-
 ---
 
 ## ✅ 배포 검증 (Verification)

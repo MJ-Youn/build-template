@@ -336,22 +336,13 @@ flowchart TD
         D2_Pull --> DockerService
     end
 
-    %% 서브그래프: K8s
-    subgraph K8s ["☸️ Kubernetes Path"]
-        direction TB
-        K8sBuild["☸️ K8s 빌드<br/>(Manifests)"]
-        K8sBuild --> K8sDeploy["☁️ K8s 배포<br/>(Kubectl Apply)"]
-    end
-
     %% 메인 연결
     BuildSelect -->|"package"| LegacyBuild
     BuildSelect -->|"Docker 전용 태스크"| DockerDecide
-    BuildSelect -->|"k8sBuild"| K8sBuild
 
     LegacyRun --> Monitor["📈 통합 모니터링"]
     PkgDocker --> Monitor
     DockerService --> Monitor
-    K8sDeploy --> Monitor
 
     %% 범례
     subgraph Legend ["🔖 범례 (Legend)"]
@@ -366,7 +357,6 @@ flowchart TD
     classDef decision fill:#F3E5F5,stroke:#4A148C,stroke-width:2px,color:#000,stroke-dasharray: 5 5;
     classDef legacy fill:#FFEBEE,stroke:#B71C1C,stroke-width:2px,color:#000;
     classDef docker fill:#E3F2FD,stroke:#0D47A1,stroke-width:2px,color:#000;
-    classDef k8s fill:#E8EAF6,stroke:#1A237E,stroke-width:2px,color:#000;
     classDef endNode fill:#E8F5E9,stroke:#2E7D32,stroke-width:2px,color:#000;
 
     %% 환경별 (Local, Remote) Style
@@ -378,8 +368,8 @@ flowchart TD
     class Monitor endNode;
 
     %% Nodes & Legend Styling (Local vs Remote)
-    class LegacyBuild,K8sBuild,D1_Build,D1_Save,D1_Trans,D2_Build,D2_Push,L1 local_env;
-    class LegacyTrans,LegacyRun,PkgDocker,K8sDeploy,D1_Load,D2_Pull,DockerService,L2 remote_env;
+    class LegacyBuild,D1_Build,D1_Save,D1_Trans,D2_Build,D2_Push,L1 local_env;
+    class LegacyTrans,LegacyRun,PkgDocker,D1_Load,D2_Pull,DockerService,L2 remote_env;
     class AS1,AS2,AS3 remote_env;
 ```
 
@@ -504,33 +494,4 @@ sequenceDiagram
     Server->>Server: Systemd/SysVinit 서비스 등록
     Server-->>Dev: 컨테이너 실행 완료
     deactivate Server
-```
-
----
-
-### [지원 예정] ☸️ Kubernetes 배포 (`./gradlew k8sBuild`)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Dev as 🧑‍💻 개발자
-    participant Gradle as 🐘 Gradle
-    participant Registry as 🗄️ Docker Registry
-    participant K8s as ☸️ K8s 클러스터
-
-    Dev->>Gradle: ./gradlew k8sBuild -Penv=prod -PdockerRegistry=...
-    activate Gradle
-    Gradle->>Gradle: Docker 이미지 빌드
-    Gradle->>Registry: docker push
-    Gradle->>Gradle: K8s 매니페스트 YAML 생성
-    Gradle-->>Dev: {APP_NAME}-k8s-prod.zip 생성
-    deactivate Gradle
-
-    Dev->>K8s: unzip → kubectl apply -f configmap.yaml
-    activate K8s
-    Dev->>K8s: kubectl apply -f deployment.yaml
-    Dev->>K8s: kubectl apply -f service.yaml
-    K8s->>Registry: 이미지 Pull
-    K8s-->>Dev: Pod/Service 배포 완료
-    deactivate K8s
 ```
