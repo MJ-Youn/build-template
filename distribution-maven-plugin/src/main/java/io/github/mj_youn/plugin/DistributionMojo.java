@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.*;
+import java.util.function.Predicate;
 
 /**
  * Maven 프로젝트를 위한 표준 배포 Zip 패키징 플러그인입니다. Executable JAR 및 Standalone Apache Tomcat 11 배포를 모두 지원합니다.
@@ -33,7 +34,7 @@ import java.util.*;
  *
  * @author MJ Yun
  * @since 2026. 09. 07.
- * @version 2.0.1
+ * @version 2.0.2
  */
 @Mojo(name = "package", defaultPhase = LifecyclePhase.PACKAGE, requiresProject = true, threadSafe = true)
 public class DistributionMojo extends AbstractMojo {
@@ -138,7 +139,7 @@ public class DistributionMojo extends AbstractMojo {
         String resolvedType = resolvePackageType();
 
         getLog().info("================================================================");
-        getLog().info("\ud83d\ude80 [Distribution 2.0.1 - Maven] 배포 패키지 생성 시작");
+        getLog().info("\ud83d\ude80 [Distribution 2.0.2 - Maven] 배포 패키지 생성 시작");
         getLog().info("   - 프로젝트     : " + project.getArtifactId());
         getLog().info("   - 활성 프로파일: " + env);
         getLog().info("   - 배포 유형    : " + resolvedType.toUpperCase() + " ("
@@ -190,7 +191,8 @@ public class DistributionMojo extends AbstractMojo {
             addDirectoryIfExists(zos, new File(projectBasedir, "scripts/common"), "bin/", 0755, tokens, addedEntries);
             addDirectoryIfExists(zos, new File(projectBasedir, "scripts/common"), "deploy/", 0755, tokens,
                     addedEntries);
-            addDirectoryIfExists(zos, new File(projectBasedir, "docker"), "docker/", 0644, tokens, addedEntries);
+            addDirectoryIfExists(zos, new File(projectBasedir, "docker"), "docker/", 0644, tokens, addedEntries,
+                    f -> !f.getName().contains("-jar") && !f.getName().contains("-tomcat"));
             // 로컬 tomcat/ 오버라이드
             addDirectoryIfExists(zos, new File(projectBasedir, "tomcat"), "tomcat/", 0644, tokens, addedEntries);
 
@@ -203,7 +205,8 @@ public class DistributionMojo extends AbstractMojo {
                     addedEntries);
             addDirectoryIfExists(zos, new File(builtinExtractDir, "scripts/common"), "deploy/", 0755, tokens,
                     addedEntries);
-            addDirectoryIfExists(zos, new File(builtinExtractDir, "docker"), "docker/", 0644, tokens, addedEntries);
+            addDirectoryIfExists(zos, new File(builtinExtractDir, "docker"), "docker/", 0644, tokens, addedEntries,
+                    f -> !f.getName().contains("-jar") && !f.getName().contains("-tomcat"));
 
             // Tomcat 모드: 내장 tomcat/ 설정 + webapps/ROOT 포함
             if (tomcatMode) {
@@ -252,7 +255,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeInMb = targetZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("\u2705 [Distribution 2.0.1] 배포 패키지 생성 완료!");
+        getLog().info("\u2705 [Distribution 2.0.2] 배포 패키지 생성 완료!");
         getLog().info("   - 산출물 경로: " + targetZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeInMb + " MB (" + targetZip.length() + " bytes)");
         getLog().info("================================================================");
@@ -432,6 +435,11 @@ public class DistributionMojo extends AbstractMojo {
 
     private void addDirectoryIfExists(ZipArchiveOutputStream zos, File sourceDir, String zipPathPrefix, int unixMode,
             Map<String, String> tokens, Set<String> addedEntries) throws IOException {
+        addDirectoryIfExists(zos, sourceDir, zipPathPrefix, unixMode, tokens, addedEntries, null);
+    }
+
+    private void addDirectoryIfExists(ZipArchiveOutputStream zos, File sourceDir, String zipPathPrefix, int unixMode,
+            Map<String, String> tokens, Set<String> addedEntries, Predicate<File> fileFilter) throws IOException {
         if (!sourceDir.exists() || !sourceDir.isDirectory())
             return;
 
@@ -441,8 +449,12 @@ public class DistributionMojo extends AbstractMojo {
 
         Arrays.sort(files);
         for (File file : files) {
+            if (fileFilter != null && !fileFilter.test(file)) {
+                continue;
+            }
             if (file.isDirectory()) {
-                addDirectoryIfExists(zos, file, zipPathPrefix + file.getName() + "/", unixMode, tokens, addedEntries);
+                addDirectoryIfExists(zos, file, zipPathPrefix + file.getName() + "/", unixMode, tokens, addedEntries,
+                        fileFilter);
             } else {
                 String entryName = zipPathPrefix + file.getName();
                 if (addedEntries.add(entryName)) {

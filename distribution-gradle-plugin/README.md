@@ -35,7 +35,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.2.0' // or your Spring Boot version
     // ⭐️ Distribution Plugin
-    id 'io.github.mj-youn.distribution' version '2.0.1'
+    id 'io.github.mj-youn.distribution' version '2.0.2'
 }
 
 // (Optional) Plugin configuration
@@ -156,9 +156,9 @@ distribution {
 ```groovy
 plugins {
     id 'java'
-    id 'org.springframework.boot' version '3.2.0' // 또는 프로젝트 버전
+    id 'org.springframework.boot' version '3.4.1' // 또는 프로젝트 버전
     // ⭐️ 배포 플러그인 추가
-    id 'io.github.mj-youn.distribution' version '2.0.1'
+    id 'io.github.mj-youn.distribution' version '2.0.2'
 }
 
 // (선택 사항) 앱 이름 커스텀 및 사용자 정의 토큰/추가 디렉토리 지정

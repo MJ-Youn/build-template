@@ -26,12 +26,12 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * 표준 배포 구조(deploy, bin, config, lib, docker, webapps, tomcat)를 일관되게 패키징하고,
- * Executable JAR 및 Standalone Apache Tomcat 11 배포를 모두 지원하는 Gradle 플러그인입니다.
+ * 표준 배포 구조(deploy, bin, config, lib, docker, webapps, tomcat)를 일관되게 패키징하고, Executable JAR 및
+ * Standalone Apache Tomcat 11 배포를 모두 지원하는 Gradle 플러그인입니다.
  *
  * @author MJ Yun
  * @since 2026. 09. 07.
- * @version 2.0.1
+ * @version 2.0.2
  */
 public class DistributionPlugin implements Plugin<Project> {
 
@@ -120,7 +120,8 @@ public class DistributionPlugin implements Plugin<Project> {
         // 9. 'initDocker' 태스크 등록 (배포 유형에 맞는 Dockerfile & docker-compose.yml 생성)
         project.getTasks().register("initDocker", task -> {
             task.setGroup("distribution");
-            task.setDescription("프로젝트의 docker/ 디렉토리에 배포 유형(JAR 또는 Tomcat)에 맞는 샘플 Dockerfile 및 docker-compose.yml을 생성합니다.");
+            task.setDescription(
+                    "프로젝트의 docker/ 디렉토리에 배포 유형(JAR 또는 Tomcat)에 맞는 샘플 Dockerfile 및 docker-compose.yml을 생성합니다.");
             task.doLast(t -> {
                 String packageType = resolvePackageType(project, extension, null);
                 Map<String, Object> tokens = createReplaceTokens(project, extension, packageType);
@@ -136,7 +137,8 @@ public class DistributionPlugin implements Plugin<Project> {
         });
     }
 
-    private void registerDeployTask(Project project, String taskName, String description, TaskProvider<Zip> zipTaskProvider) {
+    private void registerDeployTask(Project project, String taskName, String description,
+            TaskProvider<Zip> zipTaskProvider) {
         project.getTasks().register(taskName, task -> {
             task.setGroup("distribution");
             task.setDescription(description);
@@ -144,7 +146,8 @@ public class DistributionPlugin implements Plugin<Project> {
             task.doLast(t -> {
                 Zip zipTask = zipTaskProvider.get();
                 File zipFile = zipTask.getArchiveFile().get().getAsFile();
-                File unpackDir = new File(project.getLayout().getBuildDirectory().getAsFile().get(), "distributions/unpacked");
+                File unpackDir = new File(project.getLayout().getBuildDirectory().getAsFile().get(),
+                        "distributions/unpacked");
 
                 project.getLogger().lifecycle("================================================================");
                 project.getLogger().lifecycle("🚀 [Distribution] 원스탑 서비스 배포({}) 시작", taskName);
@@ -160,7 +163,8 @@ public class DistributionPlugin implements Plugin<Project> {
 
                 File installScript = new File(unpackDir, "deploy/install_service.sh");
                 if (!installScript.exists()) {
-                    throw new RuntimeException("deploy/install_service.sh 스크립트를 찾을 수 없습니다: " + installScript.getAbsolutePath());
+                    throw new RuntimeException(
+                            "deploy/install_service.sh 스크립트를 찾을 수 없습니다: " + installScript.getAbsolutePath());
                 }
                 installScript.setExecutable(true, false);
 
@@ -191,52 +195,52 @@ public class DistributionPlugin implements Plugin<Project> {
 
     private void printGuide(Project project) {
         String msg = """
-================================================================================
-🚀 [Distribution Plugin 2.0.1] 빌드 및 배포 가이드
-================================================================================
+                ================================================================================
+                🚀 [Distribution Plugin 2.0.2] 빌드 및 배포 가이드
+                ================================================================================
 
-[📦 JAR 모드 명령어 (Executable JAR 배포)]
-  ./gradlew packageJar -Penv=dev     : JAR 기반 배포 패키지(Zip) 생성
-  ./gradlew packageJar -Penv=prod    : JAR 기반 운영 패키지(Zip) 생성
-  ./gradlew deployJar -Penv=prod     : JAR 기반 원스탑 배포 (빌드 + 설치)
+                [📦 JAR 모드 명령어 (Executable JAR 배포)]
+                  ./gradlew packageJar -Penv=dev     : JAR 기반 배포 패키지(Zip) 생성
+                  ./gradlew packageJar -Penv=prod    : JAR 기반 운영 패키지(Zip) 생성
+                  ./gradlew deployJar -Penv=prod     : JAR 기반 원스탑 배포 (빌드 + 설치)
 
-[🐱 Tomcat 모드 명령어 (Standalone Apache Tomcat 배포)]
-  ./gradlew packageTomcat -Penv=dev  : Tomcat 배포 패키지(Zip) 생성 (webapps/ROOT 포함)
-  ./gradlew packageTomcat -Penv=prod : Tomcat 운영 패키지(Zip) 생성
-  ./gradlew deployTomcat -Penv=prod  : Tomcat 원스탑 배포 (빌드 + 설치)
+                [🐱 Tomcat 모드 명령어 (Standalone Apache Tomcat 배포)]
+                  ./gradlew packageTomcat -Penv=dev  : Tomcat 배포 패키지(Zip) 생성 (webapps/ROOT 포함)
+                  ./gradlew packageTomcat -Penv=prod : Tomcat 운영 패키지(Zip) 생성
+                  ./gradlew deployTomcat -Penv=prod  : Tomcat 원스탑 배포 (빌드 + 설치)
 
-[⚡ 기본 명령어 (DSL packageType 설정 기반)]
-  ./gradlew package -Penv=dev        : 기본 설정(packageType) 기반 패키징
-  ./gradlew deployService -Penv=dev  : 기본 설정 기반 원스탑 배포
+                [⚡ 기본 명령어 (DSL packageType 설정 기반)]
+                  ./gradlew package -Penv=dev        : 기본 설정(packageType) 기반 패키징
+                  ./gradlew deployService -Penv=dev  : 기본 설정 기반 원스탑 배포
 
-[🎛️ CLI 파라미터 옵션]
-  -Penv=dev|prod|local|test|stage    : 배포 환경 프로파일 지정
-                                       config.profiles/{env}/ 의 설정 파일이
-                                       패키지 config/ 로 오버레이됩니다.
-  -Ptype=jar|tomcat                  : 배포 유형 CLI 오버라이드
-  -PpackageType=jar|tomcat           : 배포 유형 CLI 오버라이드 (packageType alias)
-  -Pport=8443                        : HTTP 서비스 포트 지정 (기본값: DSL httpPort)
-  -PtomcatVersion=11.0.15            : Apache Tomcat 버전 지정
+                [🎛️ CLI 파라미터 옵션]
+                  -Penv=dev|prod|local|test|stage    : 배포 환경 프로파일 지정
+                                                       config.profiles/{env}/ 의 설정 파일이
+                                                       패키지 config/ 로 오버레이됩니다.
+                  -Ptype=jar|tomcat                  : 배포 유형 CLI 오버라이드
+                  -PpackageType=jar|tomcat           : 배포 유형 CLI 오버라이드 (packageType alias)
+                  -Pport=8443                        : HTTP 서비스 포트 지정 (기본값: DSL httpPort)
+                  -PtomcatVersion=11.0.15            : Apache Tomcat 버전 지정
 
-[🛠️ DSL 설정 (build.gradle)]
-  distribution {
-      appName     = 'my-service'     // 서비스 이름 (기본값: rootProject.name)
-      packageType = 'jar'            // 기본 배포 유형: 'jar' 또는 'tomcat'
-      httpPort    = 8080             // 서비스 포트 (기본값: 8080)
-      tomcatVersion = '11.0.15'     // Tomcat 버전 (Tomcat 모드 전용)
-  }
+                [🛠️ DSL 설정 (build.gradle)]
+                  distribution {
+                      appName     = 'my-service'     // 서비스 이름 (기본값: rootProject.name)
+                      packageType = 'jar'            // 기본 배포 유형: 'jar' 또는 'tomcat'
+                      httpPort    = 8080             // 서비스 포트 (기본값: 8080)
+                      tomcatVersion = '11.0.15'     // Tomcat 버전 (Tomcat 모드 전용)
+                  }
 
-[🔧 유틸리티]
-  ./gradlew initDeployScript         : 프로젝트 루트에 build_deploy.sh 자동 생성
-  ./gradlew initDocker               : 배포 유형(기본 설정)에 맞는 Dockerfile & docker-compose 생성
-  ./gradlew initDocker -Ptype=jar    : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
-  ./gradlew initDocker -Ptype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
-  ./gradlew showDocker               : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
-  ./gradlew distHelp                 : 이 도움말 출력
-  ./build_deploy.sh                  : 쉘 스크립트 기반 원스탑 배포
+                [🔧 유틸리티]
+                  ./gradlew initDeployScript         : 프로젝트 루트에 build_deploy.sh 자동 생성
+                  ./gradlew initDocker               : 배포 유형(기본 설정)에 맞는 Dockerfile & docker-compose 생성
+                  ./gradlew initDocker -Ptype=jar    : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
+                  ./gradlew initDocker -Ptype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
+                  ./gradlew showDocker               : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
+                  ./gradlew distHelp                 : 이 도움말 출력
+                  ./build_deploy.sh                  : 쉘 스크립트 기반 원스탑 배포
 
-================================================================================
-""";
+                ================================================================================
+                """;
         project.getLogger().lifecycle(msg);
     }
 
@@ -256,7 +260,8 @@ public class DistributionPlugin implements Plugin<Project> {
         Task bootJarTask = project.getTasks().findByName("bootJar");
         Task bootWarTask = project.getTasks().findByName("bootWar");
 
-        File explodedWebappsDir = new File(project.getLayout().getBuildDirectory().getAsFile().get(), "exploded-webapps/ROOT");
+        File explodedWebappsDir = new File(project.getLayout().getBuildDirectory().getAsFile().get(),
+                "exploded-webapps/ROOT");
 
         if (isTomcat) {
             // Tomcat 사전 조건 검증 태스크 등록/실행
@@ -266,7 +271,8 @@ public class DistributionPlugin implements Plugin<Project> {
                 // bootWar의 archiveFileName을 기본적으로 'ROOT.war'로 보장
                 try {
                     bootWarTask.setProperty("archiveFileName", "ROOT.war");
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
                 zipTask.dependsOn(bootWarTask);
             }
         } else {
@@ -284,9 +290,10 @@ public class DistributionPlugin implements Plugin<Project> {
 
         zipTask.doFirst(task -> {
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("🚀 [Distribution 2.0.1] 배포 패키지 생성 시작");
+            project.getLogger().lifecycle("🚀 [Distribution 2.0.2] 배포 패키지 생성 시작");
             project.getLogger().lifecycle("   - 대상 프로젝트: {}", project.getName());
-            project.getLogger().lifecycle("   - 배포 유형: {} ({})", packageType.toUpperCase(), isTomcat ? "Standalone Tomcat" : "Executable JAR");
+            project.getLogger().lifecycle("   - 배포 유형: {} ({})", packageType.toUpperCase(),
+                    isTomcat ? "Standalone Tomcat" : "Executable JAR");
             project.getLogger().lifecycle("   - 활성 프로파일: {}", env);
             project.getLogger().lifecycle("   - HTTP 서비스 포트: {}", tokens.get("httpPort"));
             project.getLogger().lifecycle("   - 산출물 이름: {}", zipTask.getArchiveFileName().get());
@@ -303,7 +310,8 @@ public class DistributionPlugin implements Plugin<Project> {
                     }
                 }
                 if (warFile != null && warFile.exists()) {
-                    project.getLogger().lifecycle("📦 [Distribution] 외장 톰캣 배포를 위해 WAR 압축을 해제합니다: {}", warFile.getName());
+                    project.getLogger().lifecycle("📦 [Distribution] 외장 톰캣 배포를 위해 WAR 압축을 해제합니다: {}",
+                            warFile.getName());
                     project.delete(explodedWebappsDir);
                     final File finalWarFile = warFile;
                     project.copy(spec -> {
@@ -351,6 +359,7 @@ public class DistributionPlugin implements Plugin<Project> {
         if (localDockerDir.exists()) {
             zipTask.from(localDockerDir, spec -> {
                 spec.into("docker");
+                spec.exclude("*-jar*", "*-tomcat*");
                 spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
             });
         }
@@ -389,6 +398,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         zipTask.from(new File(builtinExtractDir, "docker"), spec -> {
             spec.into("docker");
+            spec.exclude("*-jar*", "*-tomcat*");
             spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
         });
 
@@ -453,7 +463,7 @@ public class DistributionPlugin implements Plugin<Project> {
             File archive = zipTask.getArchiveFile().get().getAsFile();
             long sizeInMb = archive.length() / (1024 * 1024);
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("✅ [Distribution 2.0.1] 배포 패키지 생성 완료!");
+            project.getLogger().lifecycle("✅ [Distribution 2.0.2] 배포 패키지 생성 완료!");
             project.getLogger().lifecycle("   - 산출물 경로: {}", archive.getAbsolutePath());
             project.getLogger().lifecycle("   - 파일 크기  : {} MB ({} bytes)", sizeInMb, archive.length());
             project.getLogger().lifecycle("================================================================");
@@ -461,12 +471,8 @@ public class DistributionPlugin implements Plugin<Project> {
 
         // 5. 추가 복제 디렉토리 (EXTRA_DIRS / extraDirs)
         Set<String> extraDirsToCopy = new LinkedHashSet<>(extension.getExtraDirs());
-        List<File> envFiles = List.of(
-            project.file("config.profiles/" + env + "/.env"),
-            project.file("config/" + env + "/.env"),
-            project.file(".env"),
-            project.file("scripts/service/.env")
-        );
+        List<File> envFiles = List.of(project.file("config.profiles/" + env + "/.env"),
+                project.file("config/" + env + "/.env"), project.file(".env"), project.file("scripts/service/.env"));
         for (File envFile : envFiles) {
             if (envFile.exists() && envFile.isFile()) {
                 try {
@@ -477,11 +483,13 @@ public class DistributionPlugin implements Plugin<Project> {
                             String val = line.substring("EXTRA_DIRS=".length()).trim();
                             val = val.replaceAll("^[\"']|[\"']$", "");
                             for (String d : val.split("[,\\s]+")) {
-                                if (!d.trim().isEmpty()) extraDirsToCopy.add(d.trim());
+                                if (!d.trim().isEmpty())
+                                    extraDirsToCopy.add(d.trim());
                             }
                         }
                     }
-                } catch (Exception ignored) {}
+                } catch (Exception ignored) {
+                }
             }
         }
         for (String dirName : extraDirsToCopy) {
@@ -515,22 +523,22 @@ public class DistributionPlugin implements Plugin<Project> {
         if (!project.getPluginManager().hasPlugin("war")) {
             String msg = """
 
-================================================================================
-❌ [Distribution Plugin - Tomcat 사전 조건 검증 실패]
---------------------------------------------------------------------------------
-외장 톰캣 배포(packageType='tomcat')를 위해서는 Gradle 'war' 플러그인이 필수입니다.
-build.gradle의 plugins 블록에 id 'war' 를 추가해 주세요.
+                    ================================================================================
+                    ❌ [Distribution Plugin - Tomcat 사전 조건 검증 실패]
+                    --------------------------------------------------------------------------------
+                    외장 톰캣 배포(packageType='tomcat')를 위해서는 Gradle 'war' 플러그인이 필수입니다.
+                    build.gradle의 plugins 블록에 id 'war' 를 추가해 주세요.
 
-[해결 방법 예시 - build.gradle]
---------------------------------------------------------------------------------
-plugins {
-    id 'java'
-    id 'war' // <-- 추가 필요
-    id 'org.springframework.boot' version '...'
-    ...
-}
-================================================================================
-""";
+                    [해결 방법 예시 - build.gradle]
+                    --------------------------------------------------------------------------------
+                    plugins {
+                        id 'java'
+                        id 'war' // <-- 추가 필요
+                        id 'org.springframework.boot' version '...'
+                        ...
+                    }
+                    ================================================================================
+                    """;
             project.getLogger().error(msg);
             throw new RuntimeException("Tomcat 사전 조건 검증 실패: 'war' 플러그인이 선언되지 않았습니다.");
         }
@@ -562,44 +570,46 @@ plugins {
             }
 
             if (foundSpringBootApp && !extendsServletInitializer) {
-                String appName = springBootAppFile != null ? springBootAppFile.getName().replace(".java", "") : "Application";
+                String appName = springBootAppFile != null ? springBootAppFile.getName().replace(".java", "")
+                        : "Application";
                 String msg = String.format("""
 
-================================================================================
-❌ [Distribution Plugin - Tomcat 사전 조건 검증 실패]
---------------------------------------------------------------------------------
-외장 톰캣 배포(packageType='tomcat')를 위해서는 메인 스프링 부트 애플리케이션 클래스가
-'org.springframework.boot.web.servlet.support.SpringBootServletInitializer'를
-반드시 상속(extends)해야 합니다.
+                        ================================================================================
+                        ❌ [Distribution Plugin - Tomcat 사전 조건 검증 실패]
+                        --------------------------------------------------------------------------------
+                        외장 톰캣 배포(packageType='tomcat')를 위해서는 메인 스프링 부트 애플리케이션 클래스가
+                        'org.springframework.boot.web.servlet.support.SpringBootServletInitializer'를
+                        반드시 상속(extends)해야 합니다.
 
-[검증 실패 파일]
-  %s
+                        [검증 실패 파일]
+                          %s
 
-[해결 방법 예시 - %s.java]
---------------------------------------------------------------------------------
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.boot.web.servlet.support.SpringBootServletInitializer;
+                        [해결 방법 예시 - %s.java]
+                        --------------------------------------------------------------------------------
+                        import org.springframework.boot.SpringApplication;
+                        import org.springframework.boot.autoconfigure.SpringBootApplication;
+                        import org.springframework.boot.builder.SpringApplicationBuilder;
+                        import org.springframework.boot.web.servlet.support.SpringBootServletInitializer;
 
-@SpringBootApplication
-public class %s extends SpringBootServletInitializer {
+                        @SpringBootApplication
+                        public class %s extends SpringBootServletInitializer {
 
-    @Override
-    protected SpringApplicationBuilder configure(SpringApplicationBuilder builder) {
-        return builder.sources(%s.class);
-    }
+                            @Override
+                            protected SpringApplicationBuilder configure(SpringApplicationBuilder builder) {
+                                return builder.sources(%s.class);
+                            }
 
-    public static void main(String[] args) {
-        SpringApplication.run(%s.class, args);
-    }
-}
-================================================================================
-""", springBootAppFile != null ? springBootAppFile.getAbsolutePath() : "src/main/java",
-appName, appName, appName, appName);
+                            public static void main(String[] args) {
+                                SpringApplication.run(%s.class, args);
+                            }
+                        }
+                        ================================================================================
+                        """, springBootAppFile != null ? springBootAppFile.getAbsolutePath() : "src/main/java", appName,
+                        appName, appName, appName);
 
                 project.getLogger().error(msg);
-                throw new RuntimeException("Tomcat 사전 조건 검증 실패: " + appName + " 클래스가 SpringBootServletInitializer를 상속하지 않았습니다.");
+                throw new RuntimeException(
+                        "Tomcat 사전 조건 검증 실패: " + appName + " 클래스가 SpringBootServletInitializer를 상속하지 않았습니다.");
             }
         }
 
@@ -616,13 +626,13 @@ appName, appName, appName, appName);
         }
         if (!hasProvidedTomcat) {
             project.getLogger().warn("""
---------------------------------------------------------------------------------
-⚠️ [Distribution Plugin - Tomcat 의존성 설정 권고]
-외장 톰캣 배포 시 내장 톰캣과의 클래스로더 충돌을 방지하기 위해 
-build.gradle에 providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat' 
-또는 providedRuntime 'org.apache.tomcat.embed:tomcat-embed-core' 설정을 권장합니다.
---------------------------------------------------------------------------------
-""");
+                    --------------------------------------------------------------------------------
+                    ⚠️ [Distribution Plugin - Tomcat 의존성 설정 권고]
+                    외장 톰캣 배포 시 내장 톰캣과의 클래스로더 충돌을 방지하기 위해
+                    build.gradle에 providedRuntime 'org.springframework.boot:spring-boot-starter-tomcat'
+                    또는 providedRuntime 'org.apache.tomcat.embed:tomcat-embed-core' 설정을 권장합니다.
+                    --------------------------------------------------------------------------------
+                    """);
         }
 
         // 4. docker/Dockerfile 설정 점검
@@ -632,20 +642,22 @@ build.gradle에 providedRuntime 'org.springframework.boot:spring-boot-starter-to
                 String dfContent = Files.readString(dockerfile.toPath(), StandardCharsets.UTF_8);
                 if (!dfContent.contains("catalina.sh") && !dfContent.toLowerCase().contains("tomcat")) {
                     project.getLogger().warn("""
---------------------------------------------------------------------------------
-⚠️ [Distribution Plugin - Dockerfile 점검 권고]
-현재 Tomcat 배포 모드이지만 docker/Dockerfile에서 'catalina.sh run' 또는 Tomcat 베이스 설정이 감지되지 않았습니다.
-외장 톰캣 컨테이너 구동을 위해 docker/Dockerfile의 베이스 이미지와 ENTRYPOINT 설정을 확인해 주세요.
---------------------------------------------------------------------------------
-""");
+                            --------------------------------------------------------------------------------
+                            ⚠️ [Distribution Plugin - Dockerfile 점검 권고]
+                            현재 Tomcat 배포 모드이지만 docker/Dockerfile에서 'catalina.sh run' 또는 Tomcat 베이스 설정이 감지되지 않았습니다.
+                            외장 톰캣 컨테이너 구동을 위해 docker/Dockerfile의 베이스 이미지와 ENTRYPOINT 설정을 확인해 주세요.
+                            --------------------------------------------------------------------------------
+                            """);
                 }
-            } catch (Exception ignored) {}
+            } catch (Exception ignored) {
+            }
         }
     }
 
     private void findJavaFiles(File dir, List<File> result) {
         File[] files = dir.listFiles();
-        if (files == null) return;
+        if (files == null)
+            return;
         for (File f : files) {
             if (f.isDirectory()) {
                 findJavaFiles(f, result);
@@ -659,12 +671,14 @@ build.gradle에 providedRuntime 'org.springframework.boot:spring-boot-starter-to
         if (project.hasProperty("httpPort")) {
             try {
                 return Integer.parseInt(String.valueOf(project.property("httpPort")));
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+            }
         }
         if (project.hasProperty("port")) {
             try {
                 return Integer.parseInt(String.valueOf(project.property("port")));
-            } catch (NumberFormatException ignored) {}
+            } catch (NumberFormatException ignored) {
+            }
         }
         return extension.getHttpPort();
     }
@@ -672,7 +686,8 @@ build.gradle에 providedRuntime 'org.springframework.boot:spring-boot-starter-to
     /**
      * 스크립트 및 도커 파일 치환용 토큰 맵 생성
      */
-    private Map<String, Object> createReplaceTokens(Project project, DistributionExtension extension, String packageType) {
+    private Map<String, Object> createReplaceTokens(Project project, DistributionExtension extension,
+            String packageType) {
         Map<String, Object> tokens = new HashMap<>();
         String appName = extension.getAppName() != null && !extension.getAppName().isBlank() ? extension.getAppName()
                 : project.getName();
@@ -740,9 +755,12 @@ build.gradle에 providedRuntime 'org.springframework.boot:spring-boot-starter-to
     /**
      * Docker 관련 템플릿(Dockerfile, docker-compose.yml)을 프로젝트의 docker/ 디렉토리에 생성합니다.
      *
-     * @param project     Gradle 프로젝트 인스턴스
-     * @param packageType 배포 유형 ("jar" 또는 "tomcat")
-     * @param tokens      토큰 치환 맵
+     * @param project
+     *            Gradle 프로젝트 인스턴스
+     * @param packageType
+     *            배포 유형 ("jar" 또는 "tomcat")
+     * @param tokens
+     *            토큰 치환 맵
      */
     private void initDockerFiles(Project project, String packageType, Map<String, Object> tokens) {
         boolean isTomcat = "tomcat".equalsIgnoreCase(packageType) || "war".equalsIgnoreCase(packageType);
@@ -753,8 +771,10 @@ build.gradle에 providedRuntime 'org.springframework.boot:spring-boot-starter-to
 
         try {
             // 1. 배포 타입에 맞는 주 Dockerfile 및 docker-compose.yml 생성
-            String activeDockerTemplate = isTomcat ? "template/docker/Dockerfile-tomcat" : "template/docker/Dockerfile-jar";
-            String activeComposeTemplate = isTomcat ? "template/docker/docker-compose-tomcat.yml" : "template/docker/docker-compose-jar.yml";
+            String activeDockerTemplate = isTomcat ? "template/docker/Dockerfile-tomcat"
+                    : "template/docker/Dockerfile-jar";
+            String activeComposeTemplate = isTomcat ? "template/docker/docker-compose-tomcat.yml"
+                    : "template/docker/docker-compose-jar.yml";
 
             File activeDockerFile = new File(dockerDir, "Dockerfile");
             File activeComposeFile = new File(dockerDir, "docker-compose.yml");
@@ -762,23 +782,10 @@ build.gradle에 providedRuntime 'org.springframework.boot:spring-boot-starter-to
             copyTemplateResource(activeDockerTemplate, activeDockerFile, tokens);
             copyTemplateResource(activeComposeTemplate, activeComposeFile, tokens);
 
-            // 2. 두 형식 비교/참고용 개별 샘플 파일도 함께 생성
-            File jarDockerFile = new File(dockerDir, "Dockerfile-jar");
-            File tomcatDockerFile = new File(dockerDir, "Dockerfile-tomcat");
-            File jarComposeFile = new File(dockerDir, "docker-compose-jar.yml");
-            File tomcatComposeFile = new File(dockerDir, "docker-compose-tomcat.yml");
-
-            copyTemplateResource("template/docker/Dockerfile-jar", jarDockerFile, tokens);
-            copyTemplateResource("template/docker/Dockerfile-tomcat", tomcatDockerFile, tokens);
-            copyTemplateResource("template/docker/docker-compose-jar.yml", jarComposeFile, tokens);
-            copyTemplateResource("template/docker/docker-compose-tomcat.yml", tomcatComposeFile, tokens);
-
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("🐳 [Distribution] Docker 설정 템플릿 생성 완료 (배포 유형: {})", packageType.toUpperCase());
-            project.getLogger().lifecycle("   - 활성 Dockerfile      : {}", activeDockerFile.getAbsolutePath());
-            project.getLogger().lifecycle("   - 활성 docker-compose  : {}", activeComposeFile.getAbsolutePath());
-            project.getLogger().lifecycle("   - JAR 배포용 샘플     : {}", jarDockerFile.getName());
-            project.getLogger().lifecycle("   - Tomcat 배포용 샘플  : {}", tomcatDockerFile.getName());
+            project.getLogger().lifecycle("🐳 [Distribution] Docker 설정 생성 완료 (배포 유형: {})", packageType.toUpperCase());
+            project.getLogger().lifecycle("   - 생성된 Dockerfile     : {}", activeDockerFile.getAbsolutePath());
+            project.getLogger().lifecycle("   - 생성된 docker-compose : {}", activeComposeFile.getAbsolutePath());
             project.getLogger().lifecycle("================================================================");
 
             // 생성 직후 터미널에 두 형식의 차이점 요약 가이드 즉시 출력
@@ -792,12 +799,17 @@ build.gradle에 providedRuntime 'org.springframework.boot:spring-boot-starter-to
     /**
      * 클래스패스 템플릿 리소스를 읽어 토큰을 치환한 후 대상 파일에 저장합니다.
      *
-     * @param resourcePath 클래스패스 리소스 경로
-     * @param targetFile   저장할 대상 파일
-     * @param tokens       치환할 키-값 맵
-     * @throws IOException 입출력 예외 발생 시
+     * @param resourcePath
+     *            클래스패스 리소스 경로
+     * @param targetFile
+     *            저장할 대상 파일
+     * @param tokens
+     *            치환할 키-값 맵
+     * @throws IOException
+     *             입출력 예외 발생 시
      */
-    private void copyTemplateResource(String resourcePath, File targetFile, Map<String, Object> tokens) throws IOException {
+    private void copyTemplateResource(String resourcePath, File targetFile, Map<String, Object> tokens)
+            throws IOException {
         InputStream stream = getClass().getClassLoader().getResourceAsStream(resourcePath);
         if (stream == null) {
             throw new IOException("클래스패스 템플릿을 찾을 수 없습니다: " + resourcePath);
@@ -820,46 +832,47 @@ build.gradle에 providedRuntime 'org.springframework.boot:spring-boot-starter-to
     /**
      * JAR 배포 vs Tomcat 배포의 Dockerfile 아키텍처 비교 가이드를 콘솔에 출력합니다.
      *
-     * @param project Gradle 프로젝트 인스턴스
+     * @param project
+     *            Gradle 프로젝트 인스턴스
      */
     private void printDockerComparisonGuide(Project project) {
         String guide = """
-================================================================================
-🐳 [Distribution 2.0.1] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
-================================================================================
+                ================================================================================
+                🐳 [Distribution 2.0.2] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
+                ================================================================================
 
-┌─────────────────┬──────────────────────────────────┬──────────────────────────────────┐
-│ 비교 항목       │ 📦 JAR 모드 (Executable JAR)     │ 🐱 Tomcat 모드 (Standalone Tomcat)│
-├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
-│ 베이스 이미지   │ eclipse-temurin:25-jdk-alpine    │ eclipse-temurin:25-jdk-alpine +  │
-│                 │                                  │ Apache Tomcat 바이너리 자동 설치 │
-├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
-│ 빌드 산출물     │ build/libs/*.jar                 │ build/exploded-webapps/ROOT/     │
-│                 │ (Spring Boot 실행 가능 단일 JAR) │ (또는 ROOT.war)                  │
-├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
-│ 컨테이너 복사   │ COPY libs/ /app/libs/            │ COPY webapps/ROOT/ .../webapps/ROOT/
-│                 │ COPY config/ /app/config/        │ COPY tomcat/conf/ .../conf/      │
-│                 │ COPY bin/ /app/bin/              │ COPY tomcat/bin/setenv.sh .../   │
-│                 │                                  │ COPY config/ .../config/         │
-├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
-│ 실행 엔트리포인트│ ENTRYPOINT ["/app/bin/start.sh"] │ ENTRYPOINT ["catalina.sh", "run"]│
-├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
-│ 주요 볼륨 마운트│ -v ./config:/app/config          │ -v ./webapps/ROOT:.../ROOT       │
-│                 │ -v ./log:/log                    │ -v ./tomcat/conf:.../conf        │
-│                 │                                  │ -v ./config:.../config           │
-│                 │                                  │ -v ./log/tomcat:.../logs         │
-├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
-│ 주요 용도 및 장점│ 경량 마이크로서비스, 빠른 기동,   │ 엔터프라이즈 레거시 호환, JNDI/Datasource,
-│                 │ 단일 패키지 배포 표준            │ 외부 설정 동적 튜닝, Exploded 무중단 갱신
-└─────────────────┴──────────────────────────────────┴──────────────────────────────────┘
+                ┌─────────────────┬──────────────────────────────────┬──────────────────────────────────┐
+                │ 비교 항목       │ 📦 JAR 모드 (Executable JAR)     │ 🐱 Tomcat 모드 (Standalone Tomcat)│
+                ├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
+                │ 베이스 이미지   │ eclipse-temurin:25-jdk-alpine    │ eclipse-temurin:25-jdk-alpine +  │
+                │                 │                                  │ Apache Tomcat 바이너리 자동 설치 │
+                ├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
+                │ 빌드 산출물     │ build/libs/*.jar                 │ build/exploded-webapps/ROOT/     │
+                │                 │ (Spring Boot 실행 가능 단일 JAR) │ (또는 ROOT.war)                  │
+                ├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
+                │ 컨테이너 복사   │ COPY libs/ /app/libs/            │ COPY webapps/ROOT/ .../webapps/ROOT/
+                │                 │ COPY config/ /app/config/        │ COPY tomcat/conf/ .../conf/      │
+                │                 │ COPY bin/ /app/bin/              │ COPY tomcat/bin/setenv.sh .../   │
+                │                 │                                  │ COPY config/ .../config/         │
+                ├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
+                │ 실행 엔트리포인트│ ENTRYPOINT ["/app/bin/start.sh"] │ ENTRYPOINT ["catalina.sh", "run"]│
+                ├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
+                │ 주요 볼륨 마운트│ -v ./config:/app/config          │ -v ./webapps/ROOT:.../ROOT       │
+                │                 │ -v ./log:/log                    │ -v ./tomcat/conf:.../conf        │
+                │                 │                                  │ -v ./config:.../config           │
+                │                 │                                  │ -v ./log/tomcat:.../logs         │
+                ├─────────────────┼──────────────────────────────────┼──────────────────────────────────┤
+                │ 주요 용도 및 장점│ 경량 마이크로서비스, 빠른 기동,   │ 엔터프라이즈 레거시 호환, JNDI/Datasource,
+                │                 │ 단일 패키지 배포 표준            │ 외부 설정 동적 튜닝, Exploded 무중단 갱신
+                └─────────────────┴──────────────────────────────────┴──────────────────────────────────┘
 
-[💡 사용 명령어]
-  1. 현재 설정 기반 생성 : ./gradlew initDocker
-  2. JAR 배포용 강제 생성 : ./gradlew initDocker -Ptype=jar
-  3. Tomcat용 강제 생성  : ./gradlew initDocker -Ptype=tomcat
-  4. 본 비교 가이드 재출력: ./gradlew showDocker
-================================================================================
-""";
+                [💡 사용 명령어]
+                  1. 현재 설정 기반 생성 : ./gradlew initDocker
+                  2. JAR 배포용 강제 생성 : ./gradlew initDocker -Ptype=jar
+                  3. Tomcat용 강제 생성  : ./gradlew initDocker -Ptype=tomcat
+                  4. 본 비교 가이드 재출력: ./gradlew showDocker
+                ================================================================================
+                """;
         project.getLogger().lifecycle(guide);
     }
 }

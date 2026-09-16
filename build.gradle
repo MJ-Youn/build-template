@@ -169,11 +169,19 @@ task 'package'(type: Zip) {
     }
 
     // 4. Docker 관련 파일 (서버에서 Docker 배포 시 사용)
-    // Dockerfile: dist 패키지 기반 Docker 이미지 빌드용 (docker/Dockerfile 동일한 구조 사용)
+    // Dockerfile: dist 패키지 기반 Docker 이미지 빌드용 (initDocker에 의해 생성된 docker/Dockerfile 사용)
     def dockerfileForDist = file('docker/Dockerfile')
     if (dockerfileForDist.exists()) {
         from(dockerfileForDist) {
             into 'docker'
+        }
+    } else {
+        def defaultDf = file('docker/Dockerfile-jar')
+        if (defaultDf.exists()) {
+            from(defaultDf) {
+                into 'docker'
+                rename { 'Dockerfile' }
+            }
         }
     }
 
@@ -186,6 +194,14 @@ task 'package'(type: Zip) {
         from(pkgComposeFile) {
             into 'docker'
             rename { 'docker-compose.yml' }
+        }
+    } else {
+        def defaultCompose = file('docker/docker-compose-jar.yml')
+        if (defaultCompose.exists()) {
+            from(defaultCompose) {
+                into 'docker'
+                rename { 'docker-compose.yml' }
+            }
         }
     }
 
@@ -225,7 +241,11 @@ task prepareDockerContext {
         copy { from zipTree(distZipFile); into dockerContext }
 
         def dockerfilePath = file('docker/Dockerfile')
-        if (dockerfilePath.exists()) { copy { from dockerfilePath; into dockerContext } }
+        if (dockerfilePath.exists()) {
+            copy { from dockerfilePath; into dockerContext }
+        } else if (file('docker/Dockerfile-jar').exists()) {
+            copy { from file('docker/Dockerfile-jar'); into dockerContext; rename { 'Dockerfile' } }
+        }
         
         println "✅ Docker 컨텍스트 준비 완료: ${dockerContext.absolutePath}"
     }
@@ -447,7 +467,7 @@ task showDocker {
     doLast {
         println """
 ================================================================================
-🐳 [Distribution 2.0.1] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
+🐳 [Distribution 2.0.2] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
 ================================================================================
 
 ┌─────────────────┬──────────────────────────────────┬──────────────────────────────────┐
@@ -485,11 +505,55 @@ task showDocker {
     }
 }
 
-// 🐳 배포 유형에 맞는 샘플 Dockerfile 생성 태스크
+// 🐳 배포 유형에 맞는 Dockerfile 및 docker-compose.yml 생성 태스크
 task initDocker {
     group = 'distribution'
-    description = '프로젝트에 배포 유형(JAR 또는 Tomcat)에 맞는 샘플 Dockerfile 및 docker-compose.yml을 생성합니다.'
+    description = '프로젝트에 배포 유형(JAR 또는 Tomcat)에 맞는 Dockerfile 및 docker-compose.yml을 생성합니다.'
     dependsOn 'showDocker'
+
+    doLast {
+        def targetType = project.hasProperty('type') ? project.property('type').toString().toLowerCase() :
+                         (project.hasProperty('packageType') ? project.property('packageType').toString().toLowerCase() : 'jar')
+        def isTomcat = targetType == 'tomcat' || targetType == 'war'
+        def dockerDir = file('docker')
+        if (!dockerDir.exists()) {
+            dockerDir.mkdirs()
+        }
+
+        def tokens = [
+            appName: project.name,
+            version: project.version.toString(),
+            deployMode: '',
+            dockerImage: "${project.name}:${project.version}".toString(),
+            appType: targetType,
+            tomcatVersion: project.hasProperty('tomcatVersion') ? project.property('tomcatVersion').toString() : '11.0.15',
+            httpPort: project.hasProperty('httpPort') ? project.property('httpPort').toString() : (project.hasProperty('port') ? project.property('port').toString() : '8080')
+        ]
+
+        def activeDockerTemplate = file(isTomcat ? 'docker/Dockerfile-tomcat' : 'docker/Dockerfile-jar')
+        def activeComposeTemplate = file(isTomcat ? 'docker/docker-compose-tomcat.yml' : 'docker/docker-compose-jar.yml')
+
+        def targetDockerFile = file('docker/Dockerfile')
+        def targetComposeFile = file('docker/docker-compose.yml')
+
+        if (activeDockerTemplate.exists()) {
+            def content = activeDockerTemplate.getText('UTF-8')
+            tokens.each { k, v -> content = content.replace("@${k}@", v.toString()) }
+            targetDockerFile.setText(content, 'UTF-8')
+        }
+
+        if (activeComposeTemplate.exists()) {
+            def content = activeComposeTemplate.getText('UTF-8')
+            tokens.each { k, v -> content = content.replace("@${k}@", v.toString()) }
+            targetComposeFile.setText(content, 'UTF-8')
+        }
+
+        println "================================================================"
+        println "🐳 [Distribution] Docker 설정 생성 완료 (배포 유형: ${targetType.toUpperCase()})"
+        println "   - 생성된 Dockerfile     : ${targetDockerFile.absolutePath}"
+        println "   - 생성된 docker-compose : ${targetComposeFile.absolutePath}"
+        println "================================================================"
+    }
 }
 
 // 🌐 Gradle 플러그인(Gradle Plugin Portal) 배포 태스크

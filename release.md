@@ -2,6 +2,42 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [2.0.2] - 2026-09-16
+
+> 🛠️ **Patch Release** — Docker 초기화(`initDocker`) 태스크 최적화(배포 유형별 전용 파일 생성 및 불필요한 샘플 중복 제거), 저장소 원본 Docker 고정 파일 정리(SSOT 확립), 배포 패키지(Zip) 내 템플릿 원본 파일 배제 필터링 적용, 외장 톰캣(Tomcat) SSL(HTTPS) 인증서 호스트 마운트 및 `server.xml` SSL 커넥터 가이드 탑재.
+
+### ✨ 개선 사항 (Improvements)
+
+#### 1. 🐳 `initDocker` 생성 로직 최적화 및 불필요한 샘플 생성 제거
+- **선택된 배포 유형 전용 산출물 생성**:
+  - `type=tomcat` 지정 시: `Dockerfile-tomcat` ➡️ `Dockerfile`, `docker-compose-tomcat.yml` ➡️ `docker-compose.yml`만 생성.
+  - `type=jar` 지정 시: `Dockerfile-jar` ➡️ `Dockerfile`, `docker-compose-jar.yml` ➡️ `docker-compose.yml`만 생성.
+- **불필요한 타 유형 샘플 파일 중복 생성 제거**:
+  - 기존에 `-Ptype` 지정 여부와 상관없이 비교용 목적으로 함께 생성되던 `Dockerfile-jar`, `Dockerfile-tomcat`, `docker-compose-jar.yml`, `docker-compose-tomcat.yml` 개별 샘플 생성 로직을 제거하여, 선택한 유형의 2개 파일만 깔끔하게 생성되도록 개선.
+- **Gradle & Maven 플러그인 및 루트 빌드 스크립트 대칭 반영**:
+  - Gradle 플러그인(`initDocker`), Maven 플러그인(`mvn distribution:initDocker`), 루트 `build.gradle`의 `initDocker` 태스크 모두 동일한 방식으로 동작하도록 동기화.
+
+#### 2. 🧹 Docker 단일 원본(SSOT) 확립 및 저장소 원본 고정 파일 정리
+- **고정 JAR 기준 파일 삭제**:
+  - 저장소 루트의 `docker/Dockerfile` 및 `docker/docker-compose.yml`을 삭제하여, 프로젝트 생성 시 엉뚱한 타입이 기본 적용되거나 타입 불일치가 발생하는 문제 원천 차단.
+  - Docker 원본 템플릿의 단일 원본(SSOT)을 `Dockerfile-jar`, `Dockerfile-tomcat`, `docker-compose-jar.yml`, `docker-compose-tomcat.yml`로 일원화하고, `docker/Dockerfile`과 `docker/docker-compose.yml`은 프로젝트 초기화(`initDocker`) 시 생성되는 산출물로 정의.
+
+#### 3. 📦 배포 패키징(Zip) 시 Docker 템플릿 원본 파일 제외 필터링 적용
+- **패키지 오염 방지**:
+  - `./gradlew package` 및 `mvn distribution:package` 실행 시, Zip 내 `docker/` 디렉토리에 원본 템플릿 파일(`*-jar*`, `*-tomcat*`)이 포함되지 않도록 제외(`exclude`) 필터 적용.
+  - 최종 배포 Zip에는 실제 서버에서 구동에 필요한 `docker/Dockerfile` 및 `docker/docker-compose.yml`만 포함되도록 정제.
+
+#### 4. 🔒 외장 톰캣(Tomcat) 배포 시 SSL(HTTPS) 인증서 호스트 마운트 및 설정 템플릿 추가
+- **`docker-compose-tomcat.yml` SSL 인증서 볼륨 마운트 템플릿 추가**:
+  - 호스트의 SSL 인증서 디렉토리(`${DEST_DIR}/ssl`)를 컨테이너 내부(`/usr/local/tomcat/ssl:ro`, 읽기 전용)로 마운트할 수 있는 주석 가이드 설정 탑재.
+  - 별도 다중 포트 오픈 없이 단일 포트 매핑(`"${HTTP_PORT:-@httpPort@}:@httpPort@"`)으로 HTTP와 HTTPS를 일원화하여 유연하게 전환 및 운영 가능하도록 개선.
+- **`server.xml` 표준 SSL 커넥터 템플릿 탑재 (방식 A & B 동시 제공)**:
+  - **[방식 A] PEM 인증서 방식**: Let's Encrypt 등 `cert.pem`, `privkey.pem`, `chain.pem` 기반 설정 템플릿을 주석으로 제공.
+  - **[방식 B] 키스토어 방식**: PKCS12(`.p12`) 또는 JKS(`.jks`) 기반 키스토어 설정 템플릿을 주석으로 제공.
+  - SSL 적용 시 기본 HTTP 커넥터를 주석 처리하고 동일한 `@httpPort@`로 SSL 커넥터를 활성화할 수 있도록 상세 가이드 주석 명시.
+
+---
+
 ## 🎯 [2.0.1] - 2026-09-15
 
 > 🛠️ **Patch Release** — 배포 유형별 Docker 템플릿 생성 및 비교 유틸리티(`initDocker`, `showDocker`) 추가, `build_deploy.sh` 파라미터 제어 및 도움말 탑재, Javadoc 경고 해결, Maven 디스크립터 완비, 미사용 K8s 리소스 정리.

@@ -84,7 +84,7 @@ select_runtime_engine() {
     echo ""
     echo -e "   ${BOLD}애플리케이션 런타임 엔진을 선택하세요:${NC}"
     echo -e "   ${CYAN}1) Spring Boot Executable JAR${NC}  - 내장 톰캣 구동"
-    echo -e "   ${CYAN}2) Standalone Apache Tomcat${NC}    - 외장 톰캣 11 엔진 구동"
+    echo -e "   ${CYAN}2) Standalone Apache Tomcat${NC}    - 외장 톰캣 엔진 구동"
     echo ""
 
     while true; do

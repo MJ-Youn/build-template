@@ -19,7 +19,7 @@ import java.util.Map;
  *
  * @author MJ Yun
  * @since 2026. 09. 15.
- * @version 2.0.1
+ * @version 2.0.2
  */
 @Mojo(name = "initDocker", requiresProject = true, threadSafe = true)
 public class InitDockerMojo extends AbstractMojo {
@@ -73,7 +73,7 @@ public class InitDockerMojo extends AbstractMojo {
         }
 
         try {
-            // 1. 활성 Dockerfile 및 docker-compose.yml 생성
+            // 1. 배포 타입에 맞는 주 Dockerfile 및 docker-compose.yml 생성
             String activeDockerTemplate = isTomcat ? "template/docker/Dockerfile-tomcat" : "template/docker/Dockerfile-jar";
             String activeComposeTemplate = isTomcat ? "template/docker/docker-compose-tomcat.yml" : "template/docker/docker-compose-jar.yml";
 
@@ -83,23 +83,10 @@ public class InitDockerMojo extends AbstractMojo {
             copyTemplateResource(activeDockerTemplate, activeDockerFile, tokens);
             copyTemplateResource(activeComposeTemplate, activeComposeFile, tokens);
 
-            // 2. 비교 참고용 개별 샘플 파일 생성
-            File jarDockerFile = new File(dockerDir, "Dockerfile-jar");
-            File tomcatDockerFile = new File(dockerDir, "Dockerfile-tomcat");
-            File jarComposeFile = new File(dockerDir, "docker-compose-jar.yml");
-            File tomcatComposeFile = new File(dockerDir, "docker-compose-tomcat.yml");
-
-            copyTemplateResource("template/docker/Dockerfile-jar", jarDockerFile, tokens);
-            copyTemplateResource("template/docker/Dockerfile-tomcat", tomcatDockerFile, tokens);
-            copyTemplateResource("template/docker/docker-compose-jar.yml", jarComposeFile, tokens);
-            copyTemplateResource("template/docker/docker-compose-tomcat.yml", tomcatComposeFile, tokens);
-
             getLog().info("================================================================");
-            getLog().info("🐳 [Distribution] Docker 설정 템플릿 생성 완료 (배포 유형: " + resolvedType.toUpperCase() + ")");
-            getLog().info("   - 활성 Dockerfile      : " + activeDockerFile.getAbsolutePath());
-            getLog().info("   - 활성 docker-compose  : " + activeComposeFile.getAbsolutePath());
-            getLog().info("   - JAR 배포용 샘플     : " + jarDockerFile.getName());
-            getLog().info("   - Tomcat 배포용 샘플  : " + tomcatDockerFile.getName());
+            getLog().info("🐳 [Distribution] Docker 설정 생성 완료 (배포 유형: " + resolvedType.toUpperCase() + ")");
+            getLog().info("   - 생성된 Dockerfile     : " + activeDockerFile.getAbsolutePath());
+            getLog().info("   - 생성된 docker-compose : " + activeComposeFile.getAbsolutePath());
             getLog().info("================================================================");
 
             // 비교 가이드 출력

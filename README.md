@@ -15,7 +15,7 @@
 ### Quick Start (Gradle)
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '2.0.1'
+    id 'io.github.mj-youn.distribution' version '2.0.2'
 }
 ```
 ```bash
@@ -66,7 +66,7 @@ For complete English documentation, see [**distribution-gradle-plugin/README.md*
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '2.0.1'
+    id 'io.github.mj-youn.distribution' version '2.0.2'
 }
 ```
 
@@ -88,7 +88,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>2.0.1</version>
+            <version>2.0.2</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -131,7 +131,7 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
   ```text
   > Task :distHelp
   ================================================================================
-  🚀 [Distribution Plugin 2.0.1] 빌드 및 배포 가이드
+  🚀 [Distribution Plugin 2.0.2] 빌드 및 배포 가이드
   ================================================================================
 
   [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -186,9 +186,9 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
 
 - **실행 결과 샘플**:
   ```text
-  [INFO] --- distribution:2.0.1:help (default-cli) @ my-service ---
+  [INFO] --- distribution:2.0.2:help (default-cli) @ my-service ---
   [INFO] ================================================================================
-  🚀 [Distribution Maven Plugin 2.0.1] 빌드 및 배포 가이드
+  🚀 [Distribution Maven Plugin 2.0.2] 빌드 및 배포 가이드
   ================================================================================
 
   [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -335,7 +335,7 @@ mvn distribution:deploy -DpackageType=tomcat -Denv=prod  # Tomcat 원스탑 배�
 
 ### 🐳 Docker 템플릿 생성 및 아키텍처 비교 (`initDocker` & `showDocker`)
 
-v2.0.1부터 Spring Boot **JAR 배포**와 **Standalone Apache Tomcat 배포**에 각각 최적화된 샘플 `Dockerfile` 및 `docker-compose.yml`을 프로젝트에 즉시 생성하고 차이점을 터미널에서 확인할 수 있습니다.
+v2.0.2부터 Spring Boot **JAR 배포**와 **Standalone Apache Tomcat 배포**에 각각 최적화된 샘플 `Dockerfile` 및 `docker-compose.yml`을 프로젝트에 즉시 생성하고 차이점을 터미널에서 확인할 수 있습니다.
 
 #### 1) 명령어 사용법
 ```bash

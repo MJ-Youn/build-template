@@ -17,6 +17,8 @@ services:
       - ${LOG_PATH:-./log}/tomcat:/usr/local/tomcat/logs
       # 5. 서비스 애플리케이션 로그 마운트
       - ${LOG_PATH:-./log}/app:/log
+      # 6. SSL 인증서 마운트 (호스트의 ssl 디렉토리를 컨테이너로 마운트, SSL 활성화 시 주석 해제)
+      # - ${DEST_DIR:-.}/ssl:/usr/local/tomcat/ssl:ro
     environment:
       - TZ=Asia/Seoul
       - APP_UID=${APP_UID:-1000}

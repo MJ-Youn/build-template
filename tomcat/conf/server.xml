@@ -15,7 +15,7 @@
   </GlobalNamingResources>
 
   <Service name="Catalina">
-    <!-- Connector (포트: @httpPort@, 기본값: 443) -->
+    <!-- [기본] HTTP Connector (SSL 미사용 시 기본 활성화, 포트: @httpPort@) -->
     <Connector port="@httpPort@" protocol="HTTP/1.1"
       connectionTimeout="20000"
       redirectPort="443"
@@ -25,6 +25,42 @@
       acceptCount="100"
       enableLookups="false"
       URIEncoding="UTF-8" />
+
+    <!-- ==================================================================== -->
+    <!-- 🔒 HTTPS SSL Connector 설정 가이드                                    -->
+    <!-- ※ SSL 적용 시: 위의 기본 HTTP Connector는 주석 처리하고 아래 중 하나를 활성화 -->
+    <!-- ※ 동일 포트(@httpPort@)로 단일 서비스하며, 인증서는 호스트 ssl/ 디렉토리 마운트 -->
+    <!-- ==================================================================== -->
+
+    <!-- [방식 A] PEM 인증서 파일 방식 (Let's Encrypt 등, cert.pem / privkey.pem) -->
+    <!--
+    <Connector port="@httpPort@" protocol="org.apache.coyote.http11.Http11NioProtocol"
+      maxThreads="150"
+      SSLEnabled="true">
+      <SSLHostConfig>
+        <Certificate 
+          certificateFile="/usr/local/tomcat/ssl/cert.pem"
+          certificateKeyFile="/usr/local/tomcat/ssl/privkey.pem"
+          certificateChainFile="/usr/local/tomcat/ssl/chain.pem"
+          type="RSA" />
+      </SSLHostConfig>
+    </Connector>
+    -->
+
+    <!-- [방식 B] PKCS12 / JKS 키스토어 파일 방식 (.p12 / .jks) -->
+    <!--
+    <Connector port="@httpPort@" protocol="org.apache.coyote.http11.Http11NioProtocol"
+      maxThreads="150"
+      SSLEnabled="true">
+      <SSLHostConfig>
+        <Certificate 
+          certificateKeystoreFile="/usr/local/tomcat/ssl/keystore.p12"
+          certificateKeystorePassword="changeit"
+          certificateKeystoreType="PKCS12"
+          type="RSA" />
+      </SSLHostConfig>
+    </Connector>
+    -->
 
     <Engine name="Catalina" defaultHost="localhost">
       <Realm className="org.apache.catalina.realm.LockOutRealm">

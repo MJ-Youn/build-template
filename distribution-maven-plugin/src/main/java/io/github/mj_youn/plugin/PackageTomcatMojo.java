@@ -17,7 +17,7 @@ import org.apache.maven.plugins.annotations.Mojo;
  *
  * @author MJ Yun
  * @since 2026. 09. 15.
- * @version 2.0.1
+ * @version 2.0.2
  */
 @Mojo(name = "packageTomcat", defaultPhase = LifecyclePhase.PACKAGE, requiresProject = true, threadSafe = true)
 public class PackageTomcatMojo extends DistributionMojo {
