@@ -235,4 +235,3 @@ is_docker_container() {
 
     return 1
 }
-

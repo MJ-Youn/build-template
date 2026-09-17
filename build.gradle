@@ -56,6 +56,15 @@ task 'package'(type: Zip) {
 
     def distName = "${project.name}-${project.version}"
     def envSuffix = ""
+    def resolvedHttpPort = project.hasProperty('port') ? project.property('port') : (project.hasProperty('httpPort') ? project.property('httpPort') : '8080')
+    def commonTokens = [
+        appName: project.name,
+        deployMode: '',
+        dockerImage: "${project.name}:${project.version}".toString(),
+        httpPort: resolvedHttpPort.toString()
+    ]
+
+    def targetOs = project.hasProperty('os') ? project.property('os').toString().toLowerCase() : 'linux'
 
     // 1. 환경별 파일 (Environment Specific Files)
     // 먼저 추가된 파일이 우선순위를 가짐 (EXCLUDE 전략)
@@ -84,26 +93,42 @@ task 'package'(type: Zip) {
         // 환경별 스크립트 오버레이 (scripts/$env)
         from("scripts/$env/service") {
             into 'bin'
-            filter(ReplaceTokens, tokens: [appName: project.name, deployMode: ''])
+            filter(ReplaceTokens, tokens: commonTokens)
             rename { String filename -> filename.replace("-${env}", "") }
+            if (targetOs == 'linux') {
+                exclude '**/*.bat'
+            } else if (targetOs == 'windows' || targetOs == 'win') {
+                exclude '**/*.sh'
+            }
             exclude '**/*test*'
         }
         from("scripts/$env/deploy") {
             into 'deploy'
-            filter(ReplaceTokens, tokens: [appName: project.name, deployMode: ''])
+            filter(ReplaceTokens, tokens: commonTokens)
             rename { String filename -> filename.replace("-${env}", "") }
+            if (targetOs == 'linux') {
+                exclude '**/*.bat'
+            } else if (targetOs == 'windows' || targetOs == 'win') {
+                exclude '**/*.sh'
+            }
             exclude '**/*test*'
         }
         // 기존 scripts/$env 루트에 위치한 파일도 하위 호환을 위해 bin으로 지원
         from("scripts/$env") {
             into 'bin'
-            filter(ReplaceTokens, tokens: [appName: project.name, deployMode: ''])
+            filter(ReplaceTokens, tokens: commonTokens)
             rename { String filename -> filename.replace("-${env}", "") }
+            if (targetOs == 'linux') {
+                exclude '**/*.bat'
+            } else if (targetOs == 'windows' || targetOs == 'win') {
+                exclude '**/*.sh'
+            }
             exclude 'deploy/**', 'service/**', 'common/**', '**/*test*'
         }
     }
     
     doFirst {
+        println "📦 타겟 OS: ${targetOs.toUpperCase()} (옵션: -Pos=linux|windows|all, 기본값: linux)"
         if (project.hasProperty('env')) {
             println "📦 배포 패키지 생성 중 (환경: ${project.property('env')})"
         } else {
@@ -137,10 +162,15 @@ task 'package'(type: Zip) {
     // 2-1. 서비스 구동용 스크립트 (service) -> bin
     from('scripts/service') {
         into 'bin'
-        filter(ReplaceTokens, tokens: [appName: project.name, deployMode: '', dockerImage: "${project.name}:${project.version}".toString()])
+        filter(ReplaceTokens, tokens: commonTokens)
         exclude environments
         if (project.hasProperty('env')) {
             exclude project.property('env')
+        }
+        if (targetOs == 'linux') {
+            exclude '**/*.bat'
+        } else if (targetOs == 'windows' || targetOs == 'win') {
+            exclude '**/*.sh'
         }
         exclude '**/*test*'
     }
@@ -148,10 +178,15 @@ task 'package'(type: Zip) {
     // 2-2. 배포/설치용 스크립트 (deploy) -> deploy
     from('scripts/deploy') {
         into 'deploy'
-        filter(ReplaceTokens, tokens: [appName: project.name, deployMode: '', dockerImage: "${project.name}:${project.version}".toString()])
+        filter(ReplaceTokens, tokens: commonTokens)
         exclude environments
         if (project.hasProperty('env')) {
             exclude project.property('env')
+        }
+        if (targetOs == 'linux') {
+            exclude '**/*.bat'
+        } else if (targetOs == 'windows' || targetOs == 'win') {
+            exclude '**/*.sh'
         }
         exclude '**/*test*'
     }
@@ -159,12 +194,22 @@ task 'package'(type: Zip) {
     // 2-3. 공통 유틸리티 스크립트 (common) -> bin 및 deploy 모두에 배치
     from('scripts/common') {
         into 'bin'
-        filter(ReplaceTokens, tokens: [appName: project.name, deployMode: '', dockerImage: "${project.name}:${project.version}".toString()])
+        filter(ReplaceTokens, tokens: commonTokens)
+        if (targetOs == 'linux') {
+            exclude '**/*.bat'
+        } else if (targetOs == 'windows' || targetOs == 'win') {
+            exclude '**/*.sh'
+        }
         exclude '**/*test*'
     }
     from('scripts/common') {
         into 'deploy'
-        filter(ReplaceTokens, tokens: [appName: project.name, deployMode: '', dockerImage: "${project.name}:${project.version}".toString()])
+        filter(ReplaceTokens, tokens: commonTokens)
+        if (targetOs == 'linux') {
+            exclude '**/*.bat'
+        } else if (targetOs == 'windows' || targetOs == 'win') {
+            exclude '**/*.sh'
+        }
         exclude '**/*test*'
     }
 
@@ -467,7 +512,7 @@ task showDocker {
     doLast {
         println """
 ================================================================================
-🐳 [Distribution 2.0.2] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
+🐳 [Distribution 3.0.0] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
 ================================================================================
 
 ┌─────────────────┬──────────────────────────────────┬──────────────────────────────────┐

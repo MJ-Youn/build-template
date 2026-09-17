@@ -9,7 +9,6 @@ import org.apache.maven.plugins.annotations.Mojo;
  *
  * @author MJ Yun
  * @since 2026. 09. 15.
- * @version 2.0.2
  */
 @Mojo(name = "showDocker", requiresProject = false, threadSafe = true)
 public class ShowDockerMojo extends AbstractMojo {
@@ -23,7 +22,7 @@ public class ShowDockerMojo extends AbstractMojo {
     public void execute() throws MojoExecutionException {
         String guide = """
 ================================================================================
-🐳 [Distribution Maven Plugin 2.0.2] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
+🐳 [Distribution Maven Plugin 3.0.0] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
 ================================================================================
 
 ┌─────────────────┬──────────────────────────────────┬──────────────────────────────────┐

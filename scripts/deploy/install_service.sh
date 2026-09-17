@@ -73,13 +73,21 @@ select_runtime_engine() {
         return 0
     fi
 
-    local DEFAULT_ENGINE="jar"
-    local DEFAULT_INDEX=1
+    # 1. 자동 감지: 외장 톰캣 패키지(webapps/ROOT 또는 tomcat 디렉토리) 감지 시
     if [ -d "$PKG_ROOT/webapps/ROOT" ] || [ -d "$PKG_ROOT/tomcat" ]; then
-        DEFAULT_ENGINE="tomcat"
-        DEFAULT_INDEX=2
+        RUNTIME_ENGINE="tomcat"
+        log_info "런타임 엔진 자동 감지: Standalone Apache Tomcat (webapps/tomcat 디렉토리 감지됨)"
+        return 0
     fi
 
+    # 2. 자동 감지: Executable JAR 패키지(libs 디렉토리) 감지 시
+    if [ -d "$PKG_ROOT/libs" ] || [ -d "$PKG_ROOT/lib" ]; then
+        RUNTIME_ENGINE="jar"
+        log_info "런타임 엔진 자동 감지: Spring Boot Executable JAR (libs 디렉토리 감지됨)"
+        return 0
+    fi
+
+    # 3. 자동 감지가 불가능한 경우 사용자 대화형 선택
     log_step "애플리케이션 런타임 엔진 선택"
     echo ""
     echo -e "   ${BOLD}애플리케이션 런타임 엔진을 선택하세요:${NC}"
@@ -88,8 +96,8 @@ select_runtime_engine() {
     echo ""
 
     while true; do
-        read -p "   선택 [1/2] (기본값: $DEFAULT_INDEX [자동 감지]): " ENGINE_INPUT
-        ENGINE_INPUT="${ENGINE_INPUT:-$DEFAULT_INDEX}"
+        read -p "   선택 [1/2] (기본값: 1): " ENGINE_INPUT
+        ENGINE_INPUT="${ENGINE_INPUT:-1}"
         case "$ENGINE_INPUT" in
             1)
                 RUNTIME_ENGINE="jar"

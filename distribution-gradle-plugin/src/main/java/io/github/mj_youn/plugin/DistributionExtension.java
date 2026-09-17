@@ -18,6 +18,7 @@ import java.util.Map;
  *     packageType = 'tomcat' // 'jar' (기본값) 또는 'tomcat'
  *     tomcatVersion = '11.0.15'
  *     httpPort = 8083
+ *     os = 'linux' // 'windows', 'all'
  *     token 'customKey', 'customValue'
  *     extraDir 'webapps'
  * }
@@ -33,6 +34,7 @@ public class DistributionExtension {
     private String packageType = "jar";
     private String tomcatVersion = "11.0.15";
     private int httpPort = 443;
+    private String os = "linux";
     private final Map<String, Object> extraTokens = new HashMap<>();
     private final List<String> extraDirs = new ArrayList<>();
 
@@ -185,5 +187,24 @@ public class DistributionExtension {
         if (extraDir != null && !extraDir.trim().isEmpty()) {
             this.extraDirs.add(extraDir.trim());
         }
+    }
+
+    /**
+     * 배포 대상 운영체제('linux', 'windows', 'all')를 반환합니다.
+     *
+     * @return 대상 운영체제 (기본값: "linux")
+     */
+    public String getOs() {
+        return os;
+    }
+
+    /**
+     * 배포 대상 운영체제를 설정합니다 ('linux', 'windows', 'all').
+     *
+     * @param os
+     *            설정할 대상 운영체제
+     */
+    public void setOs(String os) {
+        this.os = os;
     }
 }

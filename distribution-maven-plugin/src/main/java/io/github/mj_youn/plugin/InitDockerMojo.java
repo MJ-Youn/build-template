@@ -19,7 +19,6 @@ import java.util.Map;
  *
  * @author MJ Yun
  * @since 2026. 09. 15.
- * @version 2.0.2
  */
 @Mojo(name = "initDocker", requiresProject = true, threadSafe = true)
 public class InitDockerMojo extends AbstractMojo {

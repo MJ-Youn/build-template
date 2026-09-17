@@ -2,6 +2,49 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [3.0.0] - 2026-09-17
+
+> 🚀 **Major Release** — Windows 환경(Windows 10/11, Workstation, Windows Server 전 에디션) 공식 지원 추가(방안 C: Docker Compose 컨테이너 배포 모드), Windows 네이티브 배치 스크립트 세트(`install_service.bat`, `uninstall_service.bat`, `start.bat`, `stop.bat`, `status.bat`) 신규 개발, Windows 원스탑 빌드/배포 스크립트(`build_deploy.bat`) 탑재, 배포 아카이브(`.dist.zip`) 내 Windows 스크립트 자동 번들링 및 `initDeployScript` 연동.
+
+### ✨ 신규 기능 및 개선 사항 (Features & Improvements)
+
+#### 1. 🪟 Windows 환경 공식 지원 (방안 C: Docker Compose 컨테이너 배포 표준화)
+- **크로스 플랫폼 배포 체계 완성**:
+  - 기존 Linux/macOS 중심 배포 체계에서 확장하여, **Windows 환경에서도 무설치 원스탑 배포가 가능하도록 지원**.
+  - Windows 환경의 특성(Systemd 부재 및 서비스 제어 차이)에 맞추어 **방안 C (Docker Compose 기반 컨테이너 배포)를 표준 방식으로 채택**.
+  - Windows 10/11 일반 데스크톱, Pro, Workstation 및 Windows Server 전 에디션에서 추가 런타임 없이 기본 지원.
+
+#### 2. 🛠️ Windows 전용 네이티브 배치 스크립트(`.bat`) 세트 신규 탑재
+- **배포 및 서비스 제어 스크립트 제공**:
+  - `deploy/install_service.bat`: 
+    - Windows 환경 서비스 설치 및 배포 진입점.
+    - `where docker` 및 `docker info`를 통한 Docker Desktop / 데몬 구동 여부 사전 자동 점검.
+    - `docker compose` (v2) 및 `docker-compose` (v1) 자동 감지.
+    - 로컬 이미지 아카이브 로드 또는 Dockerfile 빌드 후 백그라운드 컨테이너 구동 (`docker compose up -d`).
+    - 콘솔 UTF-8 (`chcp 65001`) 지원으로 한글 깨짐 방지.
+  - `deploy/uninstall_service.bat`:
+    - 배포된 Docker 컨테이너 서비스 중지 및 제거 (`docker compose down`).
+  - `bin/start.bat`, `bin/stop.bat`, `bin/status.bat`:
+    - 배포 완료 후 컨테이너를 쉽게 시작, 중지, 상태 확인할 수 있는 라이프사이클 스크립트 제공.
+
+#### 3. 🚀 Windows 루트 원스탑 빌드 및 배포 스크립트(`build_deploy.bat`) 신설
+- **원클릭 자동화**:
+  - Windows CMD 및 PowerShell 환경에서 `build_deploy.bat dev` 실행 시, [Git pull ➡️ Gradle/Maven 패키징 ➡️ 산출물 ZIP 자동 압축 해제 ➡️ deploy\install_service.bat 실행]까지 한 번에 완료.
+  - `--no-pull`, `-Pport=...` 등 주요 빌드 옵션 지원.
+
+#### 4. 📦 빌드 및 Gradle/Maven 배포 플러그인 동기화 & 타겟 OS 선택 지원
+- **타겟 OS 선택 옵션 추가 (`-Pos` / `-Dos`, 기본값: `linux`)**:
+  - 패키징 시 불필요한 OS 스크립트가 함께 묶이지 않도록 타겟 OS 필터링 옵션을 지원합니다.
+  - 아무런 옵션도 지정하지 않은 경우 **기본값은 `linux`**가 적용되어 Windows 배치 스크립트(`.bat`)는 제외되고 리눅스 쉘 스크립트(`.sh`)만 깔끔하게 패키징됩니다.
+  - `-Pos=windows` (또는 `-Dos=windows`): Windows 전용 패키징으로 리눅스 쉘 스크립트(`.sh`)를 제외하고 배치 스크립트(`.bat`)만 포함.
+  - `-Pos=all` (또는 `-Dos=all`): 리눅스(`.sh`)와 윈도우(`.bat`) 스크립트를 모두 포함하는 크로스 플랫폼 패키징.
+- **자동 토큰 치환**:
+  - `@appName@`, `@dockerImage@`, `@httpPort@` 토큰 치환이 배치 스크립트(`.bat`)에도 자동 적용.
+- **원스탑 배포 스크립트 초기화**:
+  - Gradle/Maven 플러그인의 `initDeployScript` 태스크 실행 시 `build_deploy.sh`와 `build_deploy.bat`이 프로젝트 루트에 함께 생성되도록 개선.
+
+---
+
 ## 🎯 [2.0.2] - 2026-09-16
 
 > 🛠️ **Patch Release** — Docker 초기화(`initDocker`) 태스크 최적화(배포 유형별 전용 파일 생성 및 불필요한 샘플 중복 제거), 저장소 원본 Docker 고정 파일 정리(SSOT 확립), 배포 패키지(Zip) 내 템플릿 원본 파일 배제 필터링 적용, 외장 톰캣(Tomcat) SSL(HTTPS) 인증서 호스트 마운트 및 `server.xml` SSL 커넥터 가이드 탑재.
@@ -35,6 +78,11 @@
   - **[방식 A] PEM 인증서 방식**: Let's Encrypt 등 `cert.pem`, `privkey.pem`, `chain.pem` 기반 설정 템플릿을 주석으로 제공.
   - **[방식 B] 키스토어 방식**: PKCS12(`.p12`) 또는 JKS(`.jks`) 기반 키스토어 설정 템플릿을 주석으로 제공.
   - SSL 적용 시 기본 HTTP 커넥터를 주석 처리하고 동일한 `@httpPort@`로 SSL 커넥터를 활성화할 수 있도록 상세 가이드 주석 명시.
+
+#### 5. ⚙️ 서비스 설치 스크립트(`install_service.sh`) 런타임 엔진 자동 감지 시 대화형 프롬프트 생략
+- **무인 자동화 편의성 향상**:
+  - 패키지 내 `webapps/ROOT` 또는 `tomcat/` 디렉토리 감지 시 `tomcat` 엔진으로, `libs/` 디렉토리 감지 시 `jar` 엔진으로 사용자에게 묻지 않고 즉시 자동 진행하도록 개선.
+  - 배포 유형이 모호하거나 자동 감지가 불가능한 경우에만 대화형 선택 프롬프트가 표시되도록 정밀화.
 
 ---
 

@@ -34,7 +34,6 @@ import java.util.function.Predicate;
  *
  * @author MJ Yun
  * @since 2026. 09. 07.
- * @version 2.0.2
  */
 @Mojo(name = "package", defaultPhase = LifecyclePhase.PACKAGE, requiresProject = true, threadSafe = true)
 public class DistributionMojo extends AbstractMojo {
@@ -70,6 +69,9 @@ public class DistributionMojo extends AbstractMojo {
     /** HTTP 서비스 포트 (기본값: 8080) */
     @Parameter(property = "httpPort", defaultValue = "8080")
     private int httpPort;
+
+    @Parameter(property = "os", defaultValue = "linux")
+    private String os;
 
     @Parameter(defaultValue = "${project.build.directory}", required = true)
     private File outputDirectory;
@@ -137,13 +139,15 @@ public class DistributionMojo extends AbstractMojo {
     public void execute() throws MojoExecutionException {
         boolean tomcatMode = isTomcat();
         String resolvedType = resolvePackageType();
+        String targetOs = (os != null && !os.isBlank()) ? os.trim().toLowerCase() : "linux";
 
         getLog().info("================================================================");
-        getLog().info("\ud83d\ude80 [Distribution 2.0.2 - Maven] 배포 패키지 생성 시작");
-        getLog().info("   - 프로젝트     : " + project.getArtifactId());
+        getLog().info("\ud83d\ude80 [Distribution 3.0.0 - Maven] 배포 패키지 생성 시작");
+        getLog().info("   - 대상 프로젝트: " + project.getName() + " (" + project.getArtifactId() + ")");
         getLog().info("   - 활성 프로파일: " + env);
         getLog().info("   - 배포 유형    : " + resolvedType.toUpperCase() + " ("
                 + (tomcatMode ? "Standalone Tomcat" : "Executable JAR") + ")");
+        getLog().info("   - 타겟 OS      : " + targetOs.toUpperCase() + " (옵션: -Dos=linux|windows|all, 기본값: linux)");
         getLog().info("   - HTTP 포트    : " + httpPort);
         getLog().info("================================================================");
 
@@ -181,16 +185,26 @@ public class DistributionMojo extends AbstractMojo {
 
         try (ZipArchiveOutputStream zos = new ZipArchiveOutputStream(new FileOutputStream(targetZip))) {
             zos.setEncoding("UTF-8");
-
             File projectBasedir = project.getBasedir();
+
+            Predicate<File> scriptFilter;
+            if ("windows".equals(targetOs) || "win".equals(targetOs)) {
+                scriptFilter = f -> !f.getName().endsWith(".sh");
+            } else if ("all".equals(targetOs)) {
+                scriptFilter = f -> true;
+            } else { // 기본값: linux
+                scriptFilter = f -> !f.getName().endsWith(".bat");
+            }
 
             // --- 4.1. [우선순위 1] 로컬 프로젝트의 @Override 파일 적재 ---
             addDirectoryIfExists(zos, new File(projectBasedir, "scripts/deploy"), "deploy/", 0755, tokens,
-                    addedEntries);
-            addDirectoryIfExists(zos, new File(projectBasedir, "scripts/service"), "bin/", 0755, tokens, addedEntries);
-            addDirectoryIfExists(zos, new File(projectBasedir, "scripts/common"), "bin/", 0755, tokens, addedEntries);
+                    addedEntries, scriptFilter);
+            addDirectoryIfExists(zos, new File(projectBasedir, "scripts/service"), "bin/", 0755, tokens, addedEntries,
+                    scriptFilter);
+            addDirectoryIfExists(zos, new File(projectBasedir, "scripts/common"), "bin/", 0755, tokens, addedEntries,
+                    scriptFilter);
             addDirectoryIfExists(zos, new File(projectBasedir, "scripts/common"), "deploy/", 0755, tokens,
-                    addedEntries);
+                    addedEntries, scriptFilter);
             addDirectoryIfExists(zos, new File(projectBasedir, "docker"), "docker/", 0644, tokens, addedEntries,
                     f -> !f.getName().contains("-jar") && !f.getName().contains("-tomcat"));
             // 로컬 tomcat/ 오버라이드
@@ -198,13 +212,13 @@ public class DistributionMojo extends AbstractMojo {
 
             // --- 4.2. [우선순위 2] 내장 기본 템플릿 파일 적재 (로컬에 없는 것만 추가) ---
             addDirectoryIfExists(zos, new File(builtinExtractDir, "scripts/deploy"), "deploy/", 0755, tokens,
-                    addedEntries);
+                    addedEntries, scriptFilter);
             addDirectoryIfExists(zos, new File(builtinExtractDir, "scripts/service"), "bin/", 0755, tokens,
-                    addedEntries);
+                    addedEntries, scriptFilter);
             addDirectoryIfExists(zos, new File(builtinExtractDir, "scripts/common"), "bin/", 0755, tokens,
-                    addedEntries);
+                    addedEntries, scriptFilter);
             addDirectoryIfExists(zos, new File(builtinExtractDir, "scripts/common"), "deploy/", 0755, tokens,
-                    addedEntries);
+                    addedEntries, scriptFilter);
             addDirectoryIfExists(zos, new File(builtinExtractDir, "docker"), "docker/", 0644, tokens, addedEntries,
                     f -> !f.getName().contains("-jar") && !f.getName().contains("-tomcat"));
 
@@ -255,7 +269,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeInMb = targetZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("\u2705 [Distribution 2.0.2] 배포 패키지 생성 완료!");
+        getLog().info("\u2705 [Distribution 3.0.0] 배포 패키지 생성 완료!");
         getLog().info("   - 산출물 경로: " + targetZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeInMb + " MB (" + targetZip.length() + " bytes)");
         getLog().info("================================================================");

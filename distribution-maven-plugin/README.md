@@ -7,7 +7,7 @@
 - **JDK Requirement**: Java 25 이상
 - **GroupId**: `io.github.mj-youn`
 - **ArtifactId**: `distribution-maven-plugin`
-- **Version**: `2.0.2`
+- **Version**: `3.0.0`
 - **Goals**:
     - `package`: 표준 배포 Zip 아카이브 생성 (JAR / Tomcat 통합 지원)
     - `packageJar`: Spring Boot Executable JAR 배포 전용 Zip 아카이브 생성
@@ -43,13 +43,15 @@
 ```text
 📦 {project.artifactId}-{project.version}.zip
 ├── 📁 deploy/                  # 서비스 등록 및 설치 스크립트
-│   ├── install_service.sh
-│   ├── uninstall_service.sh
+│   ├── install_service.sh      (Linux/macOS 설치 스크립트)
+│   ├── install_service.bat     (Windows Docker 컨테이너 배포 스크립트)
+│   ├── uninstall_service.sh    (Linux/macOS 제거 스크립트)
+│   ├── uninstall_service.bat   (Windows Docker 서비스 제거 스크립트)
 │   └── utils.sh / bootstrap.sh
 ├── 📁 bin/                     # 서비스 기동/중지 스크립트
-│   ├── start.sh
-│   ├── stop.sh
-│   ├── status.sh
+│   ├── start.sh / start.bat    (서비스 시작)
+│   ├── stop.sh / stop.bat      (서비스 중지)
+│   ├── status.sh / status.bat  (서비스 상태 확인)
 │   ├── cron/crond
 │   └── utils.sh / bootstrap.sh
 ├── 📁 config/                  # 애플리케이션 환경설정
@@ -77,7 +79,7 @@
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>2.0.2</version>
+            <version>3.0.0</version>
             <executions>
                 <execution>
                     <phase>package</phase>

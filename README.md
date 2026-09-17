@@ -15,7 +15,7 @@
 ### Quick Start (Gradle)
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '2.0.2'
+    id 'io.github.mj-youn.distribution' version '3.0.0'
 }
 ```
 ```bash
@@ -66,7 +66,7 @@ For complete English documentation, see [**distribution-gradle-plugin/README.md*
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '2.0.2'
+    id 'io.github.mj-youn.distribution' version '3.0.0'
 }
 ```
 
@@ -88,7 +88,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>2.0.2</version>
+            <version>3.0.0</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -131,7 +131,7 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
   ```text
   > Task :distHelp
   ================================================================================
-  🚀 [Distribution Plugin 2.0.2] 빌드 및 배포 가이드
+  🚀 [Distribution Plugin 3.0.0] 빌드 및 배포 가이드
   ================================================================================
 
   [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -151,12 +151,14 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
   [🎛️ CLI 파라미터 옵션]
     -Penv=dev|prod|local|test|stage    : 배포 환경 프로파일 지정
     -Ptype=jar|tomcat                  : 배포 유형 CLI 오버라이드
+    -Pos=linux|windows|all             : 배포 타겟 OS 지정 (기본값: linux, .bat/.sh 필터링)
     -Pport=8443                        : HTTP 서비스 포트 지정
     -PtomcatVersion=11.0.15            : Apache Tomcat 버전 지정
 
   [🛠️ DSL 설정 (build.gradle)]
     distribution {
         packageType = 'jar'            // 기본 배포 유형: 'jar' 또는 'tomcat'
+        os          = 'linux'          // 배포 타겟 OS ('linux', 'windows', 'all')
         httpPort    = 8080
         tomcatVersion = '11.0.15'
     }
@@ -186,9 +188,9 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
 
 - **실행 결과 샘플**:
   ```text
-  [INFO] --- distribution:2.0.2:help (default-cli) @ my-service ---
+  [INFO] --- distribution:3.0.0:help (default-cli) @ my-service ---
   [INFO] ================================================================================
-  🚀 [Distribution Maven Plugin 2.0.2] 빌드 및 배포 가이드
+  🚀 [Distribution Maven Plugin 3.0.0] 빌드 및 배포 가이드
   ================================================================================
 
   [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -209,6 +211,7 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
     -Denv=dev|prod|local|test|stage         : 배포 환경 프로파일 지정
     -DpackageType=jar|tomcat                : 배포 유형 CLI 오버라이드
     -Dtype=jar|tomcat                       : 배포 유형 CLI 오버라이드 (alias)
+    -Dos=linux|windows|all                  : 배포 타겟 OS 지정 (기본값: linux, .bat/.sh 필터링)
     -DhttpPort=8443                         : HTTP 서비스 포트 지정
     -DtomcatVersion=11.0.15                 : Apache Tomcat 버전 지정
 
@@ -405,6 +408,41 @@ sudo ./deploy/install_service.sh
     - 배포 경로 기반 `.env` 파일 자동 생성
     - Docker Compose 실행 (`docker-compose up -d`)
     - Linux 서비스(Systemd) 등록 (재부팅 시 자동 실행)
+
+---
+
+### 🪟 Windows 환경 배포 (방안 C: Docker Compose 컨테이너 배포)
+
+> **💡 Windows 환경(Windows 10/11, Workstation, Windows Server 전 에디션)에서는 OS 환경 특성에 맞추어 Docker Compose 배포(방안 C) 방식을 표준으로 지원합니다.**
+
+배포 Zip 아카이브 내에 Windows 네이티브 배치 스크립트(`.bat`)가 기본 번들링되어 제공되므로, 추가 쉘 설치 없이 더블 클릭 또는 CMD에서 즉시 배포 및 관리가 가능합니다.
+
+#### 1. Windows 원스탑 배포 (배포 Zip 기준)
+1. Windows 머신에서 배포 패키지(`.dist.zip`) 압축을 해제합니다.
+2. `deploy\install_service.bat` 파일을 **더블 클릭**하거나 명령 프롬프트(CMD)에서 실행합니다:
+   ```cmd
+   deploy\install_service.bat
+   ```
+3. **자동 수행 내용**:
+   - Docker 및 Docker Desktop 데몬 실행 상태(`docker info`) 자동 점검
+   - Docker 이미지 자동 빌드 또는 로드
+   - `docker compose -f docker\docker-compose.yml up -d` 백그라운드 컨테이너 구동
+   - 서비스 접속 URL(`http://localhost:8080`) 및 상태 안내 출력
+
+#### 2. Windows 컨테이너 제어 명령어 (`bin/`)
+- **서비스 시작**: `bin\start.bat` (`docker compose up -d`)
+- **서비스 중지**: `bin\stop.bat` (`docker compose stop`)
+- **상태 확인**: `bin\status.bat` (`docker compose ps`)
+- **서비스 제거**: `deploy\uninstall_service.bat` (`docker compose down`)
+
+#### 3. 소스 루트 원스탑 빌드 및 배포 (`build_deploy.bat`)
+Windows 개발 환경에서 소스 코드로부터 빌드 및 배포를 한 번에 실행하려면 루트의 `build_deploy.bat`을 실행합니다:
+```cmd
+build_deploy.bat dev
+build_deploy.bat prod -Pport=8081
+```
+
+---
 
 ### 🐳 Docker 배포 2: 레지스트리 (Push & Pull)
 

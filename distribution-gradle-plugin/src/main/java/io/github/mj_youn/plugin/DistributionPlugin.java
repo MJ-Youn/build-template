@@ -31,7 +31,6 @@ import java.util.Set;
  *
  * @author MJ Yun
  * @since 2026. 09. 07.
- * @version 2.0.2
  */
 public class DistributionPlugin implements Plugin<Project> {
 
@@ -113,6 +112,23 @@ public class DistributionPlugin implements Plugin<Project> {
                     project.getLogger().lifecycle("================================================================");
                 } catch (IOException e) {
                     throw new RuntimeException("build_deploy.sh 생성 실패: " + e.getMessage(), e);
+                }
+
+                // Windows용 build_deploy.bat 생성
+                File batTargetFile = project.file("build_deploy.bat");
+                InputStream batStream = getClass().getClassLoader().getResourceAsStream("template/build_deploy.bat");
+                if (batStream != null) {
+                    try (batStream) {
+                        Files.copy(batStream, batTargetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                        project.getLogger()
+                                .lifecycle("✅ [Distribution] build_deploy.bat (Windows용)이 프로젝트 루트에 생성되었습니다!");
+                        project.getLogger().lifecycle("   - 파일 경로: {}", batTargetFile.getAbsolutePath());
+                        project.getLogger().lifecycle("   - 사용법: build_deploy.bat dev");
+                        project.getLogger()
+                                .lifecycle("================================================================");
+                    } catch (IOException e) {
+                        project.getLogger().warn("⚠️ [Distribution] build_deploy.bat 생성 실패: {}", e.getMessage());
+                    }
                 }
             });
         });
@@ -196,7 +212,7 @@ public class DistributionPlugin implements Plugin<Project> {
     private void printGuide(Project project) {
         String msg = """
                 ================================================================================
-                🚀 [Distribution Plugin 2.0.2] 빌드 및 배포 가이드
+                🚀 [Distribution Plugin 3.0.0] 빌드 및 배포 가이드
                 ================================================================================
 
                 [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -217,6 +233,10 @@ public class DistributionPlugin implements Plugin<Project> {
                   -Penv=dev|prod|local|test|stage    : 배포 환경 프로파일 지정
                                                        config.profiles/{env}/ 의 설정 파일이
                                                        패키지 config/ 로 오버레이됩니다.
+                  -Pos=linux|windows|all             : 배포 대상 운영체제 지정 (기본값: linux)
+                                                       linux  : *.sh 스크립트만 포함 (*.bat 제외)
+                                                       windows: *.bat 스크립트만 포함 (*.sh 제외)
+                                                       all    : *.sh 및 *.bat 스크립트 모두 포함
                   -Ptype=jar|tomcat                  : 배포 유형 CLI 오버라이드
                   -PpackageType=jar|tomcat           : 배포 유형 CLI 오버라이드 (packageType alias)
                   -Pport=8443                        : HTTP 서비스 포트 지정 (기본값: DSL httpPort)
@@ -286,15 +306,17 @@ public class DistributionPlugin implements Plugin<Project> {
         zipTask.getOutputs().upToDateWhen(t -> false);
 
         String env = project.hasProperty("env") ? String.valueOf(project.property("env")) : DEFAULT_ENV;
+        String targetOs = resolveTargetOs(project, extension);
         Map<String, Object> tokens = createReplaceTokens(project, extension, packageType);
 
         zipTask.doFirst(task -> {
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("🚀 [Distribution 2.0.2] 배포 패키지 생성 시작");
+            project.getLogger().lifecycle("🚀 [Distribution 3.0.0] 배포 패키지 생성 시작");
             project.getLogger().lifecycle("   - 대상 프로젝트: {}", project.getName());
             project.getLogger().lifecycle("   - 배포 유형: {} ({})", packageType.toUpperCase(),
                     isTomcat ? "Standalone Tomcat" : "Executable JAR");
             project.getLogger().lifecycle("   - 활성 프로파일: {}", env);
+            project.getLogger().lifecycle("   - 타겟 OS      : {} (옵션: -Pos=linux|windows|all, 기본값: linux)", targetOs.toUpperCase());
             project.getLogger().lifecycle("   - HTTP 서비스 포트: {}", tokens.get("httpPort"));
             project.getLogger().lifecycle("   - 산출물 이름: {}", zipTask.getArchiveFileName().get());
             project.getLogger().lifecycle("================================================================");
@@ -328,6 +350,7 @@ public class DistributionPlugin implements Plugin<Project> {
             zipTask.from(localDeployDir, spec -> {
                 spec.into("deploy");
                 spec.filePermissions(p -> p.unix(0755));
+                applyOsScriptFilter(spec, targetOs);
                 spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
             });
         }
@@ -337,6 +360,7 @@ public class DistributionPlugin implements Plugin<Project> {
             zipTask.from(localServiceDir, spec -> {
                 spec.into("bin");
                 spec.filePermissions(p -> p.unix(0755));
+                applyOsScriptFilter(spec, targetOs);
                 spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
             });
         }
@@ -346,11 +370,13 @@ public class DistributionPlugin implements Plugin<Project> {
             zipTask.from(localCommonDir, spec -> {
                 spec.into("bin");
                 spec.filePermissions(p -> p.unix(0755));
+                applyOsScriptFilter(spec, targetOs);
                 spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
             });
             zipTask.from(localCommonDir, spec -> {
                 spec.into("deploy");
                 spec.filePermissions(p -> p.unix(0755));
+                applyOsScriptFilter(spec, targetOs);
                 spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
             });
         }
@@ -376,23 +402,27 @@ public class DistributionPlugin implements Plugin<Project> {
         zipTask.from(new File(builtinExtractDir, "scripts/deploy"), spec -> {
             spec.into("deploy");
             spec.filePermissions(p -> p.unix(0755));
+            applyOsScriptFilter(spec, targetOs);
             spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
         });
 
         zipTask.from(new File(builtinExtractDir, "scripts/service"), spec -> {
             spec.into("bin");
             spec.filePermissions(p -> p.unix(0755));
+            applyOsScriptFilter(spec, targetOs);
             spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
         });
 
         zipTask.from(new File(builtinExtractDir, "scripts/common"), spec -> {
             spec.into("bin");
             spec.filePermissions(p -> p.unix(0755));
+            applyOsScriptFilter(spec, targetOs);
             spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
         });
         zipTask.from(new File(builtinExtractDir, "scripts/common"), spec -> {
             spec.into("deploy");
             spec.filePermissions(p -> p.unix(0755));
+            applyOsScriptFilter(spec, targetOs);
             spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
         });
 
@@ -463,7 +493,7 @@ public class DistributionPlugin implements Plugin<Project> {
             File archive = zipTask.getArchiveFile().get().getAsFile();
             long sizeInMb = archive.length() / (1024 * 1024);
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("✅ [Distribution 2.0.2] 배포 패키지 생성 완료!");
+            project.getLogger().lifecycle("✅ [Distribution 3.0.0] 배포 패키지 생성 완료!");
             project.getLogger().lifecycle("   - 산출물 경로: {}", archive.getAbsolutePath());
             project.getLogger().lifecycle("   - 파일 크기  : {} MB ({} bytes)", sizeInMb, archive.length());
             project.getLogger().lifecycle("================================================================");
@@ -499,6 +529,34 @@ public class DistributionPlugin implements Plugin<Project> {
                     spec.into(dirName);
                 });
             }
+        }
+    }
+
+    /**
+     * 배포 대상 운영체제를 결정합니다. (CLI -Pos= / -PtargetOs= -> DSL extension.os -> 기본값 "linux")
+     */
+    private String resolveTargetOs(Project project, DistributionExtension extension) {
+        if (project.hasProperty("os")) {
+            return String.valueOf(project.property("os")).trim().toLowerCase();
+        }
+        if (project.hasProperty("targetOs")) {
+            return String.valueOf(project.property("targetOs")).trim().toLowerCase();
+        }
+        String extOs = extension.getOs();
+        if (extOs != null && !extOs.trim().isEmpty()) {
+            return extOs.trim().toLowerCase();
+        }
+        return "linux";
+    }
+
+    /**
+     * 타겟 OS에 따라 불필요한 스크립트 확장자를 제외합니다.
+     */
+    private void applyOsScriptFilter(org.gradle.api.file.CopySpec spec, String targetOs) {
+        if ("linux".equals(targetOs)) {
+            spec.exclude("**/*.bat");
+        } else if ("windows".equals(targetOs) || "win".equals(targetOs)) {
+            spec.exclude("**/*.sh");
         }
     }
 
@@ -838,7 +896,7 @@ public class DistributionPlugin implements Plugin<Project> {
     private void printDockerComparisonGuide(Project project) {
         String guide = """
                 ================================================================================
-                🐳 [Distribution 2.0.2] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
+                🐳 [Distribution 3.0.0] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
                 ================================================================================
 
                 ┌─────────────────┬──────────────────────────────────┬──────────────────────────────────┐
