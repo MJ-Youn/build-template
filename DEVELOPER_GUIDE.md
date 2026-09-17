@@ -392,7 +392,7 @@ flowchart TD
 
 ## 🧜‍♀️ 배포 시퀀스 (Sequence Diagram)
 
-### 📦 Legacy 배포 v2.0.0 (`packageJar` / `packageTomcat`)
+### 📦 Legacy 배포 (`packageJar` / `packageTomcat`)
 
 ```mermaid
 sequenceDiagram
@@ -462,7 +462,7 @@ Docker 전용 태스크는 주로 **어디서 빌드하고 어떻게 서버에 �
 sequenceDiagram
     autonumber
     actor Dev as 🧑‍💻 개발자
-    participant Gradle as 🐘 Gradle
+    participant Gradle as 🐘 Gradle / 🪶 Maven
     participant Server as 🖥️ 운영 서버
 
     Dev->>Gradle: ./gradlew packageDocker -Penv=prod
@@ -489,7 +489,7 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     actor Dev as 🧑‍💻 개발자
-    participant Gradle as 🐘 Gradle
+    participant Gradle as 🐘 Gradle / 🪶 Maven
     participant Registry as 🗄️ Docker Registry
     participant Server as 🖥️ 운영 서버
 
