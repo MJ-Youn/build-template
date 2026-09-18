@@ -493,6 +493,14 @@ tasks.named('help') {
   ./gradlew initDocker -Ptype=jar    : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
   ./gradlew initDocker -Ptype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
   ./gradlew showDocker               : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
+
+[🚀 플러그인 모듈 개발 및 배포 (루트 저장소 관리자 전용)]
+  1. 플러그인 로컬 빌드 및 로컬 Maven 캐시(~/.m2/repository)에 설치 (로컬 테스트 전 필수):
+     ./gradlew :distribution-gradle-plugin:publishToMavenLocal
+     ./gradlew :distribution-maven-plugin:publishToMavenLocal
+
+  2. 공식 퍼블릭 저장소 원클릭 동시 배포 (Gradle Plugin Portal + Sonatype Central Portal):
+     ./gradlew publishAllPlugins
 ================================================================================
 """
     }
