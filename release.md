@@ -22,7 +22,9 @@
   - Docker Hub, AWS ECR, 사내 Private Registry 등 원격 저장소를 사용하는 표준 CI/CD 환경 지원.
   - 이미지를 빌드하고 지정된 레지스트리로 즉시 `docker push` 수행.
   - 서버 배포에 필요한 최소 산출물(`docker-compose.yml`, `config/`, `bin/`, `deploy/`) 및 `DEPLOY-GUIDE.md`를 `docker-dist/` 폴더에 자동 구성.
-  - 터미널 콘솔에 운영 서버 배포 단계(1. 파일 전송 ➡️ 2. 레지스트리 로그인 ➡️ 3. docker pull ➡️ 4. 자동 설치) 가이드 박스를 시각적으로 자동 출력.
+  - **원클릭 자동 설치 & 자동 Pull 연동**: `docker-dist`의 `install_service.sh`(및 `.bat`)가 전체 원격 이미지 태그를 자동 주입받아, 설치 실행 시 `docker pull`을 자동으로 처리하도록 개선.
+  - **URL 프로토콜 자동 정제**: `dockerRegistry` 파라미터에 `http://` 또는 `https://`가 포함되어도 자동으로 제거하여 Docker 태그 규격을 만족하도록 안전하게 정제.
+  - 터미널 콘솔에 운영 서버 배포 단계(1. 파일 전송 ➡️ 2. 레지스트리 로그인 ➡️ 3. 자동 설치 및 pull) 가이드 박스를 시각적으로 자동 출력.
 - **기존 호환성 보장**:
   - `dockerBuildRemote` 명령어 및 기존 스크립트와의 100% 하위 호환성을 위해 `dockerBuildRemote` 별칭(Alias) 태스크 동시 지원.
   - Gradle: `./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=...` (또는 `./gradlew dockerBuildRemote`)

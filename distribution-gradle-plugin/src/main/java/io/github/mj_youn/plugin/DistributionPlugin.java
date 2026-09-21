@@ -344,13 +344,13 @@ public class DistributionPlugin implements Plugin<Project> {
         zipTask.doFirst(task -> {
             project.getLogger().lifecycle("================================================================");
             project.getLogger().lifecycle("🚀 [Distribution 3.1.0] 배포 패키지 생성 시작");
-            project.getLogger().lifecycle("   - 대상 프로젝트: {}", project.getName());
-            project.getLogger().lifecycle("   - 배포 유형: {} ({})", packageType.toUpperCase(),
+            project.getLogger().lifecycle("   - 대상 프로젝트    : {}", project.getName());
+            project.getLogger().lifecycle("   - 배포 유형       : {} ({})", packageType.toUpperCase(),
                     isTomcat ? "Standalone Tomcat" : "Executable JAR");
-            project.getLogger().lifecycle("   - 활성 프로파일: {}", env);
-            project.getLogger().lifecycle("   - 타겟 OS      : {} (옵션: -Pos=linux|windows|all, 기본값: linux)", targetOs.toUpperCase());
-            project.getLogger().lifecycle("   - HTTP 서비스 포트: {}", tokens.get("httpPort"));
-            project.getLogger().lifecycle("   - 산출물 이름: {}", zipTask.getArchiveFileName().get());
+            project.getLogger().lifecycle("   - 활성 프로파일    : {}", env);
+            project.getLogger().lifecycle("   - 타겟 OS        : {} (옵션: -Pos=linux|windows|all, 기본값: linux)", targetOs.toUpperCase());
+            project.getLogger().lifecycle("   - HTTP 서비스 포트 : {}", tokens.get("httpPort"));
+            project.getLogger().lifecycle("   - 산출물 이름      : {}", zipTask.getArchiveFileName().get());
             project.getLogger().lifecycle("================================================================");
 
             // Tomcat 모드인 경우 WAR 압축 해제 실행
@@ -985,8 +985,8 @@ public class DistributionPlugin implements Plugin<Project> {
         List<String> saveCmd = List.of("docker", "save", "-o", tarFile.getAbsolutePath(), ctx.fullImageName);
         runProcess(project, saveCmd, dockerDistDir, "Docker 이미지 저장");
 
-        // 2. docker context 내 스크립트 및 설정 복제
-        copyDirIfExists(new File(ctx.dockerContextDir, "docker"), new File(dockerDistDir, "docker"));
+        // 2. docker context 내 스크립트 및 설정 복제 (Dockerfile, dev/prod 제외하고 docker-compose.yml만 복사)
+        copyDockerComposeOnly(ctx.dockerContextDir, dockerDistDir);
         copyDirIfExists(new File(ctx.dockerContextDir, "config"), new File(dockerDistDir, "config"));
         copyDirIfExists(new File(ctx.dockerContextDir, "bin"), new File(dockerDistDir, "bin"));
         copyDirIfExists(new File(ctx.dockerContextDir, "deploy"), new File(dockerDistDir, "deploy"));
@@ -1033,10 +1033,14 @@ public class DistributionPlugin implements Plugin<Project> {
         project.delete(dockerDistDir);
         dockerDistDir.mkdirs();
 
-        copyDirIfExists(new File(ctx.dockerContextDir, "docker"), new File(dockerDistDir, "docker"));
+        // Dockerfile, dev/prod 제외하고 docker-compose.yml만 복사
+        copyDockerComposeOnly(ctx.dockerContextDir, dockerDistDir);
         copyDirIfExists(new File(ctx.dockerContextDir, "config"), new File(dockerDistDir, "config"));
         copyDirIfExists(new File(ctx.dockerContextDir, "bin"), new File(dockerDistDir, "bin"));
         copyDirIfExists(new File(ctx.dockerContextDir, "deploy"), new File(dockerDistDir, "deploy"));
+
+        // 원격 레지스트리 전체 이미지명으로 스크립트 및 compose 파일 내용 업데이트
+        updateDockerImageInDir(dockerDistDir, ctx.appName + ":" + ctx.tag, ctx.fullImageName);
 
         // DEPLOY-GUIDE.md 작성
         File guideFile = new File(dockerDistDir, "DEPLOY-GUIDE.md");
@@ -1051,16 +1055,15 @@ public class DistributionPlugin implements Plugin<Project> {
                    scp -r %s/ user@your-server:/home/user/docker-dist
                 2. 서버 접속 후 Private Registry 로그인 (필요 시):
                    docker login %s
-                3. 이미지 Pull:
-                   docker pull %s
-                4. 자동 설치 및 Systemd 서비스 등록 (권장):
+                3. 자동 설치 및 실행 (Systemd 서비스 등록 포함 — 권장):
                    cd /home/user/docker-dist
                    sudo ./deploy/install_service.sh
-                5. 또는 수동 실행:
+                   * install_service.sh 실행 시 원격 레지스트리에서 이미지를 자동으로 pull 받습니다.
+                4. 또는 수동 실행 (docker compose 직접 기동):
                    cd /home/user/docker-dist
                    docker compose -f docker/docker-compose.yml up -d
                 """, ctx.appName, ctx.fullImageName, dockerDistDir.getAbsolutePath(),
-                dockerDistDir.getAbsolutePath(), ctx.registry, ctx.fullImageName);
+                dockerDistDir.getAbsolutePath(), ctx.registry);
 
         try {
             Files.writeString(guideFile.toPath(), guideContent, StandardCharsets.UTF_8);
@@ -1140,8 +1143,9 @@ public class DistributionPlugin implements Plugin<Project> {
                         ? extension.getDockerImageTag()
                         : (project.getVersion() != null ? project.getVersion().toString() : "latest"));
 
-        String registry = project.hasProperty("dockerRegistry") ? String.valueOf(project.property("dockerRegistry"))
+        String rawRegistry = project.hasProperty("dockerRegistry") ? String.valueOf(project.property("dockerRegistry"))
                 : (extension.getDockerRegistry() != null ? extension.getDockerRegistry() : "");
+        String registry = cleanRegistryUrl(rawRegistry);
 
         if (requireRegistry && (registry == null || registry.isBlank())) {
             throw new RuntimeException("""
@@ -1152,7 +1156,7 @@ public class DistributionPlugin implements Plugin<Project> {
         }
 
         String fullImageName = (registry != null && !registry.isBlank())
-                ? (registry.endsWith("/") ? registry : registry + "/") + appName + ":" + tag
+                ? registry + "/" + appName + ":" + tag
                 : appName + ":" + tag;
 
         // 6. docker build 실행
@@ -1243,6 +1247,18 @@ public class DistributionPlugin implements Plugin<Project> {
         }
     }
 
+    private void copyDockerComposeOnly(File dockerContextDir, File destDistDir) {
+        File targetDockerDir = new File(destDistDir, "docker");
+        targetDockerDir.mkdirs();
+        File composeSrc = new File(dockerContextDir, "docker/docker-compose.yml");
+        if (composeSrc.exists()) {
+            try {
+                Files.copy(composeSrc.toPath(), new File(targetDockerDir, "docker-compose.yml").toPath(),
+                        StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException ignored) {}
+        }
+    }
+
     private void printRemoteDeployBanner(Project project, DockerBuildContext ctx, File distDir) {
         String msg = String.format("""
 
@@ -1258,25 +1274,54 @@ public class DistributionPlugin implements Plugin<Project> {
                 ║  [1] 배포 파일 서버 전송
                 ║      scp -r %s/ user@your-server:/home/user/docker-dist
                 ║
-                ║  [2] Registry 로그인 (Private Registry인 경우)
+                ║  [2] Registry 로그인 (Private Registry 인증 필요 시)
                 ║      docker login %s
                 ║
-                ║  [3] 이미지 Pull
-                ║      docker pull %s
-                ║
-                ║  [4-a] 자동 설치 (Systemd 서비스 등록 포함 — 권장)
+                ║  [3] 자동 설치 (이미지 자동 Pull + Systemd 서비스 등록 — 권장)
                 ║      cd /home/user/docker-dist
                 ║      sudo ./deploy/install_service.sh
                 ║
-                ║  [4-b] 수동 실행 (docker compose 직접)
+                ║  [4] 수동 실행 (필요 시 직접 docker compose 실행)
                 ║      cd /home/user/docker-dist
                 ║      docker compose -f docker/docker-compose.yml up -d
                 ║
                 ║  💡 상세 가이드: %s/DEPLOY-GUIDE.md
                 ╚══════════════════════════════════════════════════════════════════╝
                 """, ctx.fullImageName, distDir.getAbsolutePath(), distDir.getAbsolutePath(),
-                distDir.getAbsolutePath(), ctx.registry, ctx.fullImageName, distDir.getAbsolutePath());
+                distDir.getAbsolutePath(), ctx.registry, distDir.getAbsolutePath());
         project.getLogger().lifecycle(msg);
+    }
+
+    private String cleanRegistryUrl(String raw) {
+        if (raw == null) return "";
+        String reg = raw.trim().replaceAll("^https?://", "");
+        if (reg.endsWith("/")) {
+            reg = reg.substring(0, reg.length() - 1);
+        }
+        return reg;
+    }
+
+    private void updateDockerImageInDir(File dir, String oldImage, String newImage) {
+        if (dir == null || !dir.exists()) return;
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            if (file.isDirectory()) {
+                updateDockerImageInDir(file, oldImage, newImage);
+            } else {
+                String name = file.getName();
+                if (name.endsWith(".sh") || name.endsWith(".bat") || name.endsWith(".yml") || name.endsWith(".yaml")
+                        || name.endsWith(".env") || name.endsWith(".md") || name.endsWith(".conf")) {
+                    try {
+                        String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+                        String updated = content.replace(oldImage, newImage).replace("@dockerImage@", newImage);
+                        if (!content.equals(updated)) {
+                            Files.writeString(file.toPath(), updated, StandardCharsets.UTF_8);
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
     }
 
     private static class DockerBuildContext {

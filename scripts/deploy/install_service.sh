@@ -68,6 +68,12 @@ done
 
 # @description 애플리케이션 런타임 엔진 선택 (jar / tomcat)
 select_runtime_engine() {
+    # Docker 배포 모드인 경우 런타임 엔진은 컨테이너 내부에서 구동되므로 선택 생략
+    if [ "$DEPLOY_MODE" = "docker" ]; then
+        RUNTIME_ENGINE="${RUNTIME_ENGINE:-docker}"
+        return 0
+    fi
+
     if [ -n "$RUNTIME_ENGINE" ]; then
         log_info "지정된 런타임 엔진($RUNTIME_ENGINE)으로 진행합니다."
         return 0
@@ -137,6 +143,15 @@ select_deploy_mode() {
         DEPLOY_MODE="docker"
         log_info "로컬 Docker 아카이브(.tar)가 감지되어 Docker Offline 모드로 자동 진행합니다."
         return 0
+    fi
+
+    # 1-1. 자동 감지: docker-compose.yml이 있고 libs/webapps가 없으면 순수 Docker 배포로 자동 지정
+    if [ -f "$PKG_ROOT/docker/docker-compose.yml" ] || [ -f "$PKG_ROOT/docker-compose.yml" ]; then
+        if [ ! -d "$PKG_ROOT/libs" ] && [ ! -d "$PKG_ROOT/lib" ] && [ ! -d "$PKG_ROOT/webapps" ]; then
+            DEPLOY_MODE="docker"
+            log_info "Docker 배포 패키지가 감지되어 Docker 모드로 자동 진행합니다."
+            return 0
+        fi
     fi
 
     # 2. 이미 지정된 경우
@@ -919,7 +934,7 @@ load_or_build_docker_image() {
             exit 1
         fi
         log_success "Docker 이미지 로드 완료."
-    elif [ -f "$DOCKERFILE_PATH" ]; then
+    elif [ -f "$DOCKERFILE_PATH" ] && ([ -d "$PKG_ROOT/libs" ] || [ -d "$PKG_ROOT/lib" ] || [ -d "$PKG_ROOT/webapps" ]); then
         log_step "Docker 이미지 빌드 중 (Dockerfile 기반)..."
         log_info "빌드 컨텍스트: $PKG_ROOT"
         log_info "Dockerfile: $DOCKERFILE_PATH"
@@ -930,9 +945,15 @@ load_or_build_docker_image() {
             log_error "Docker 이미지 빌드 실패"
             exit 1
         fi
-        log_success "Docker 이미지 빌드 완료: $IMAGE_TAG"
     else
-        log_info "Docker 이미지 로드/빌드를 건너뜁니다. (원격 레지스트리 사용 예상)"
+        log_step "원격 레지스트리에서 Docker 이미지 다운로드 중 (docker pull $IMAGE_TAG)..."
+        docker pull "$IMAGE_TAG"
+        if [ $? -ne 0 ]; then
+            log_error "Docker 이미지 다운로드 실패: $IMAGE_TAG"
+            log_warning "사설 레지스트리인 경우 'docker login' 및 Docker 데몬의 insecure-registries 설정을 확인해주세요."
+            exit 1
+        fi
+        log_success "Docker 이미지 다운로드 완료: $IMAGE_TAG"
     fi
 }
 

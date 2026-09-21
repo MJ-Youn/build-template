@@ -150,14 +150,17 @@ public class DistributionMojo extends AbstractMojo {
         String resolvedType = resolvePackageType();
         String targetOs = (os != null && !os.isBlank()) ? os.trim().toLowerCase() : "linux";
 
+        File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
+
         getLog().info("================================================================");
-        getLog().info("\ud83d\ude80 [Distribution 3.1.0 - Maven] 배포 패키지 생성 시작");
-        getLog().info("   - 대상 프로젝트: " + project.getName() + " (" + project.getArtifactId() + ")");
-        getLog().info("   - 활성 프로파일: " + env);
-        getLog().info("   - 배포 유형    : " + resolvedType.toUpperCase() + " ("
+        getLog().info("🚀 [Distribution 3.1.0] 배포 패키지 생성 시작");
+        getLog().info("   - 대상 프로젝트    : " + (appName != null && !appName.isBlank() ? appName : project.getArtifactId()));
+        getLog().info("   - 배포 유형       : " + resolvedType.toUpperCase() + " ("
                 + (tomcatMode ? "Standalone Tomcat" : "Executable JAR") + ")");
-        getLog().info("   - 타겟 OS      : " + targetOs.toUpperCase() + " (옵션: -Dos=linux|windows|all, 기본값: linux)");
-        getLog().info("   - HTTP 포트    : " + httpPort);
+        getLog().info("   - 활성 프로파일    : " + env);
+        getLog().info("   - 타겟 OS        : " + targetOs.toUpperCase() + " (옵션: -Dos=linux|windows|all, 기본값: linux)");
+        getLog().info("   - HTTP 서비스 포트 : " + httpPort);
+        getLog().info("   - 산출물 이름      : " + targetZip.getName());
         getLog().info("================================================================");
 
         // Tomcat 모드 사전 조건 검증
@@ -165,7 +168,6 @@ public class DistributionMojo extends AbstractMojo {
             verifyTomcatPrerequisites();
         }
 
-        File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
         File builtinExtractDir = new File(outputDirectory, "tmp/dist-template-builtin");
 
         // 1. 내장 템플릿 추출
@@ -718,8 +720,8 @@ public class DistributionMojo extends AbstractMojo {
         List<String> saveCmd = List.of("docker", "save", "-o", tarFile.getAbsolutePath(), ctx.fullImageName);
         runProcess(saveCmd, dockerDistDir, "Docker 이미지 저장");
 
-        // 2. docker context 내 스크립트 및 설정 복제
-        copyDirIfExists(new File(ctx.dockerContextDir, "docker"), new File(dockerDistDir, "docker"));
+        // 2. docker context 내 스크립트 및 설정 복제 (Dockerfile, dev/prod 제외하고 docker-compose.yml만 복사)
+        copyDockerComposeOnly(ctx.dockerContextDir, dockerDistDir);
         copyDirIfExists(new File(ctx.dockerContextDir, "config"), new File(dockerDistDir, "config"));
         copyDirIfExists(new File(ctx.dockerContextDir, "bin"), new File(dockerDistDir, "bin"));
         copyDirIfExists(new File(ctx.dockerContextDir, "deploy"), new File(dockerDistDir, "deploy"));
@@ -767,10 +769,14 @@ public class DistributionMojo extends AbstractMojo {
         deleteRecursively(dockerDistDir);
         dockerDistDir.mkdirs();
 
-        copyDirIfExists(new File(ctx.dockerContextDir, "docker"), new File(dockerDistDir, "docker"));
+        // Dockerfile, dev/prod 제외하고 docker-compose.yml만 복사
+        copyDockerComposeOnly(ctx.dockerContextDir, dockerDistDir);
         copyDirIfExists(new File(ctx.dockerContextDir, "config"), new File(dockerDistDir, "config"));
         copyDirIfExists(new File(ctx.dockerContextDir, "bin"), new File(dockerDistDir, "bin"));
         copyDirIfExists(new File(ctx.dockerContextDir, "deploy"), new File(dockerDistDir, "deploy"));
+
+        // 원격 레지스트리 전체 이미지명으로 스크립트 및 compose 파일 내용 업데이트
+        updateDockerImageInDir(dockerDistDir, ctx.appName + ":" + ctx.tag, ctx.fullImageName);
 
         // DEPLOY-GUIDE.md 작성
         File guideFile = new File(dockerDistDir, "DEPLOY-GUIDE.md");
@@ -785,16 +791,15 @@ public class DistributionMojo extends AbstractMojo {
                    scp -r %s/ user@your-server:/home/user/docker-dist
                 2. 서버 접속 후 Private Registry 로그인 (필요 시):
                    docker login %s
-                3. 이미지 Pull:
-                   docker pull %s
-                4. 자동 설치 및 Systemd 서비스 등록 (권장):
+                3. 자동 설치 및 실행 (Systemd 서비스 등록 포함 — 권장):
                    cd /home/user/docker-dist
                    sudo ./deploy/install_service.sh
-                5. 또는 수동 실행:
+                   * install_service.sh 실행 시 원격 레지스트리에서 이미지를 자동으로 pull 받습니다.
+                4. 또는 수동 실행 (docker compose 직접 기동):
                    cd /home/user/docker-dist
                    docker compose -f docker/docker-compose.yml up -d
                 """, ctx.appName, ctx.fullImageName, dockerDistDir.getAbsolutePath(),
-                dockerDistDir.getAbsolutePath(), ctx.registry, ctx.fullImageName);
+                dockerDistDir.getAbsolutePath(), ctx.registry);
 
         try {
             Files.writeString(guideFile.toPath(), guideContent, StandardCharsets.UTF_8);
@@ -886,7 +891,8 @@ public class DistributionMojo extends AbstractMojo {
         String resolvedAppName = (appName != null && !appName.isBlank()) ? appName : project.getArtifactId();
         String tag = (dockerImageTag != null && !dockerImageTag.isBlank()) ? dockerImageTag
                 : (project.getVersion() != null ? project.getVersion() : "latest");
-        String registry = (dockerRegistry != null) ? dockerRegistry.trim() : "";
+        String rawRegistry = (dockerRegistry != null) ? dockerRegistry : "";
+        String registry = cleanRegistryUrl(rawRegistry);
 
         if (requireRegistry && registry.isBlank()) {
             throw new MojoExecutionException("""
@@ -897,7 +903,7 @@ public class DistributionMojo extends AbstractMojo {
         }
 
         String fullImageName = !registry.isBlank()
-                ? (registry.endsWith("/") ? registry : registry + "/") + resolvedAppName + ":" + tag
+                ? registry + "/" + resolvedAppName + ":" + tag
                 : resolvedAppName + ":" + tag;
 
         // 6. docker build 실행
@@ -988,6 +994,18 @@ public class DistributionMojo extends AbstractMojo {
         }
     }
 
+    private void copyDockerComposeOnly(File dockerContextDir, File destDistDir) {
+        File targetDockerDir = new File(destDistDir, "docker");
+        targetDockerDir.mkdirs();
+        File composeSrc = new File(dockerContextDir, "docker/docker-compose.yml");
+        if (composeSrc.exists()) {
+            try {
+                Files.copy(composeSrc.toPath(), new File(targetDockerDir, "docker-compose.yml").toPath(),
+                        StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException ignored) {}
+        }
+    }
+
     private void printRemoteDeployBanner(DockerBuildContext ctx, File distDir) {
         String msg = String.format("""
 
@@ -1003,25 +1021,54 @@ public class DistributionMojo extends AbstractMojo {
                 ║  [1] 배포 파일 서버 전송
                 ║      scp -r %s/ user@your-server:/home/user/docker-dist
                 ║
-                ║  [2] Registry 로그인 (Private Registry인 경우)
+                ║  [2] Registry 로그인 (Private Registry 인증 필요 시)
                 ║      docker login %s
                 ║
-                ║  [3] 이미지 Pull
-                ║      docker pull %s
-                ║
-                ║  [4-a] 자동 설치 (Systemd 서비스 등록 포함 — 권장)
+                ║  [3] 자동 설치 (이미지 자동 Pull + Systemd 서비스 등록 — 권장)
                 ║      cd /home/user/docker-dist
                 ║      sudo ./deploy/install_service.sh
                 ║
-                ║  [4-b] 수동 실행 (docker compose 직접)
+                ║  [4] 수동 실행 (필요 시 직접 docker compose 실행)
                 ║      cd /home/user/docker-dist
                 ║      docker compose -f docker/docker-compose.yml up -d
                 ║
                 ║  💡 상세 가이드: %s/DEPLOY-GUIDE.md
                 ╚══════════════════════════════════════════════════════════════════╝
                 """, ctx.fullImageName, distDir.getAbsolutePath(), distDir.getAbsolutePath(),
-                distDir.getAbsolutePath(), ctx.registry, ctx.fullImageName, distDir.getAbsolutePath());
+                distDir.getAbsolutePath(), ctx.registry, distDir.getAbsolutePath());
         getLog().info(msg);
+    }
+
+    private String cleanRegistryUrl(String raw) {
+        if (raw == null) return "";
+        String reg = raw.trim().replaceAll("^https?://", "");
+        if (reg.endsWith("/")) {
+            reg = reg.substring(0, reg.length() - 1);
+        }
+        return reg;
+    }
+
+    private void updateDockerImageInDir(File dir, String oldImage, String newImage) {
+        if (dir == null || !dir.exists()) return;
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File file : files) {
+            if (file.isDirectory()) {
+                updateDockerImageInDir(file, oldImage, newImage);
+            } else {
+                String name = file.getName();
+                if (name.endsWith(".sh") || name.endsWith(".bat") || name.endsWith(".yml") || name.endsWith(".yaml")
+                        || name.endsWith(".env") || name.endsWith(".md") || name.endsWith(".conf")) {
+                    try {
+                        String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+                        String updated = content.replace(oldImage, newImage).replace("@dockerImage@", newImage);
+                        if (!content.equals(updated)) {
+                            Files.writeString(file.toPath(), updated, StandardCharsets.UTF_8);
+                        }
+                    } catch (Exception ignored) {}
+                }
+            }
+        }
     }
 
     private static class DockerBuildContext {

@@ -82,7 +82,7 @@ if exist "%TAR_FILE%" (
         exit /b 1
     )
     echo ✅  Docker 이미지 로드 완료
-) else if exist "%DOCKERFILE_PATH%" (
+) else if exist "%DOCKERFILE_PATH%" if exist "%PKG_ROOT%\\libs" (
     echo ➡️  Docker 이미지 빌드 중 (Dockerfile 기반)...
     echo    - 빌드 컨텍스트: %PKG_ROOT%
     echo    - Dockerfile    : %DOCKERFILE_PATH%
@@ -95,7 +95,15 @@ if exist "%TAR_FILE%" (
     )
     echo ✅  Docker 이미지 빌드 완료: %IMAGE_TAG%
 ) else (
-    echo ℹ️  로컬 Dockerfile 또는 이미지 아카이브가 없습니다. 원격 이미지를 사용합니다.
+    echo ➡️  원격 레지스트리에서 Docker 이미지 다운로드 중 (docker pull %IMAGE_TAG%)...
+    docker pull "%IMAGE_TAG%"
+    if !ERRORLEVEL! neq 0 (
+        echo ❌ [오류] Docker 이미지 다운로드에 실패했습니다: %IMAGE_TAG%
+        echo    사설 레지스트리인 경우 'docker login' 및 Docker 데몬 설정을 확인해주세요.
+        pause
+        exit /b 1
+    )
+    echo ✅  Docker 이미지 다운로드 완료: %IMAGE_TAG%
 )
 
 @rem 5. docker-compose.yml 탐색
