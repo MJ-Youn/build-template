@@ -21,8 +21,9 @@
 - **Strategy 2 (표준 CI/CD 파이프라인 연동 지원)**:
   - Docker Hub, AWS ECR, 사내 Private Registry 등 원격 저장소를 사용하는 표준 CI/CD 환경 지원.
   - 이미지를 빌드하고 지정된 레지스트리로 즉시 `docker push` 수행.
-  - 서버 배포에 필요한 최소 산출물(`docker-compose.yml`, `config/`, `bin/`, `deploy/`) 및 `DEPLOY-GUIDE.md`를 `docker-dist/` 폴더에 자동 구성.
+  - **배포 산출물 경량화 및 최적화**: 빌드 완료 후 불필요한 `Dockerfile`, `dev/`, `prod/` 디렉토리를 배포 패키지에서 제외하고, 오직 필요한 `docker/docker-compose.yml` 및 `config/`, `bin/`, `deploy/` 스크립트만 `docker-dist/` 폴더에 깔끔하게 구성.
   - **원클릭 자동 설치 & 자동 Pull 연동**: `docker-dist`의 `install_service.sh`(및 `.bat`)가 전체 원격 이미지 태그를 자동 주입받아, 설치 실행 시 `docker pull`을 자동으로 처리하도록 개선.
+  - **배포 모드 스마트 자동 감지**: `docker-compose.yml`이 존재하고 `libs/`가 없는 패키지인 경우 배포 방식(Legacy/Docker) 및 런타임 엔진(JAR/Tomcat) 선택 질의를 자동 생략하고 즉시 Docker 배포로 직행.
   - **URL 프로토콜 자동 정제**: `dockerRegistry` 파라미터에 `http://` 또는 `https://`가 포함되어도 자동으로 제거하여 Docker 태그 규격을 만족하도록 안전하게 정제.
   - 터미널 콘솔에 운영 서버 배포 단계(1. 파일 전송 ➡️ 2. 레지스트리 로그인 ➡️ 3. 자동 설치 및 pull) 가이드 박스를 시각적으로 자동 출력.
 - **기존 호환성 보장**:
@@ -38,6 +39,8 @@
 #### 4. 🧹 사용자 경험 최적화 및 기존 패키징 호환성 유지
 - **독립적인 `dockerBuild` 태스크 분리 배제**:
   - 사용자의 태스크 목록 혼선을 방지하기 위해 단독 `dockerBuild` 태스크는 노출하지 않고, `packageDocker` 및 `packageDockerRemote` 내부 로직으로 깔끔하게 캡슐화.
+- **Gradle & Maven 콘솔 배너 및 가이드 포맷 100% 일치**:
+  - 패키징 시작 배너(대상 프로젝트, 배포 유형, 활성 프로파일, 타겟 OS, HTTP 서비스 포트, 산출물 이름) 및 완료 배너, `DEPLOY-GUIDE.md`의 형식과 순서를 두 플러그인 간 완전 일치화.
 - **기존 `package` 빌드 방식 100% 유지**:
   - 기존의 JAR/Tomcat 표준 배포 패키지(`package`, `packageJar`, `packageTomcat`, `deployService`, `deploy`) 로직은 일체 변경 없이 완전하게 유지.
 - **도움말(`distHelp` / `help`) 안내 갱신**:

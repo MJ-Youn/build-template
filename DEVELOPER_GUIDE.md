@@ -452,8 +452,8 @@ Docker 전용 태스크는 주로 **어디서 빌드하고 어떻게 서버에 �
 |  **핵심 목적**  | 외부 서버 전송을 위한 **단일 Zip 패키지 생성**  | 원격 저장소를 활용한 **표준 파이프라인 구성**                 | 배포 서버에서 런타임에 직접 실행 방식 선택 |
 |  **타겟 환경**  | 인터넷/레지스트리 접근이 불가한 **폐쇄망 환경** | AWS ECR, Docker Hub 등 **원격 레지스트리 환경**               | 서버에서 소스를 클론받아 바로 띄우는 환경  |
 |  **작업 내용**  | 이미지 빌드 + `.tar` 추출 + Zip 파일 압축       | 이미지 빌드 + 원격 레지스트리로 `docker push`                 | Jar 빌드 + Dockerfile + 스크립트 압축      |
-| **주요 산출물** | `build/dist/...-docker-prod.zip`                | Remote Registry에 업로드된 Docker Image                       | `build/dist/...-prod.dist.zip`             |
-|  **전송 방식**  | 수동 전송 필요 (Zip 파일을 복사)                | 자동 풀 (운영 서버에서 `docker pull`로 수신)                  | 소스 pull 또는 Zip 복사                    |
+| **주요 산출물** | `build/distributions/{appName}-docker-{env}.zip` | Remote Registry Image + `build/distributions/docker-dist/`<br>*(경량 배포 디렉토리: `docker-compose.yml`만 포함)* | `build/distributions/{appName}-{version}.zip` |
+|  **전송 방식**  | 수동 전송 필요 (Zip 파일을 복사)                | 서버에 `docker-dist/` 전송 후 스크립트 실행 시 **이미지 자동 Pull** | 소스 pull 또는 Zip 복사                    |
 |  **실행 예시**  | `./gradlew packageDocker -Penv=prod`            | `./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=...`<br>*(별칭: dockerBuildRemote)* | `./gradlew package -Penv=prod`             |
 
 #### Strategy 1 — 오프라인 빌드 (Offline Image) (`./gradlew packageDocker`)
@@ -469,14 +469,14 @@ sequenceDiagram
     activate Gradle
     Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)
     Gradle->>Gradle: docker save → image.tar 추출
-    Gradle->>Gradle: tar + 배포 스크립트 → docker.zip 패키징
-    Gradle-->>Dev: {APP_NAME}-docker-prod.zip 생성
+    Gradle->>Gradle: tar + docker-compose.yml + 스크립트 압축
+    Gradle-->>Dev: {appName}-docker-prod.zip 생성
     deactivate Gradle
 
     Dev->>Server: scp + unzip
     activate Server
     Dev->>Server: sudo ./deploy/install_service.sh
-    Server->>Server: docker load (image.tar)
+    Server->>Server: docker load (image.tar 자동 로드)
     Server->>Server: docker compose up -d
     Server->>Server: Systemd/SysVinit 서비스 등록
     Server-->>Dev: 컨테이너 실행 완료
@@ -496,15 +496,16 @@ sequenceDiagram
     Dev->>Gradle: ./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=...
     activate Gradle
     Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)
-    Gradle->>Gradle: DEPLOY-GUIDE.md 자동 생성
     Gradle->>Registry: docker push {image}:{tag}
+    Gradle->>Gradle: docker-dist/ 생성 (docker-compose.yml + 설정/스크립트만 포함)
+    Gradle->>Gradle: DEPLOY-GUIDE.md 자동 생성
     Gradle-->>Dev: Push 완료 + docker-dist/ 폴더 준비
     deactivate Gradle
 
     Dev->>Server: scp docker-dist/ 폴더 전송
     activate Server
-    Server->>Registry: docker pull {image}:{tag}
-    Dev->>Server: sudo ./deploy/install_service.sh
+    Dev->>Server: sudo ./deploy/install_service.sh (원클릭 자동 설치)
+    Server->>Registry: docker pull {image}:{tag} (스크립트 내 자동 Pull)
     Server->>Server: docker compose up -d
     Server->>Server: Systemd/SysVinit 서비스 등록
     Server-->>Dev: 컨테이너 실행 완료

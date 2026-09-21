@@ -486,23 +486,23 @@ mvn distribution:docker-build-remote -Denv=prod -DdockerRegistry=my-registry.com
 ```
 
 - **결과물**:
-    - Docker Registry에 이미지 업로드 (`my-registry.com/repo/{APP_NAME}:latest`)
-    - `build/docker-dist` (또는 `target/docker-dist`): 실행에 필요한 파일들 (`docker-compose.yml`, `config`, 스크립트 등)
+    - Docker Registry에 이미지 업로드 (`my-registry.com/repo/{APP_NAME}:{TAG}`)
+    - `build/distributions/docker-dist` (Maven: `target/docker-dist`): 서버 배포 디렉토리 (`docker/docker-compose.yml`, `config`, 스크립트 등만 포함하며 불필요한 `Dockerfile` 및 `dev/prod` 제외)
 
 **2. 배포 (Server)**
 
-서버에는 **`build/docker-dist` (또는 `target/docker-dist`) 폴더의 내용물만** 있으면 됩니다. (소스 코드 불필요)
+서버에는 **`docker-dist` 폴더의 내용물만** 있으면 됩니다. (소스 코드나 빌드 바이너리 불필요)
 CI/CD 파이프라인을 통해 설정 파일만 배포하거나, scp로 전송하세요.
 
 ```bash
 # 1. 배포 디렉토리로 이동
 cd docker-dist
 
-# 2. 서비스 등록 (이미지는 레지스트리에서 자동 Pull 및 .env 구성)
+# 2. 원클릭 서비스 등록 (레지스트리에서 이미지 자동 Pull + .env 구성 + Systemd 등록)
 sudo ./deploy/install_service.sh
 ```
 
-> ⚠️ **주의**: Private Registry를 사용하는 경우, 서버에서 `docker login`이 선행되어야 합니다.
+> 💡 **참고**: `install_service.sh`가 Docker 배포 패키지임을 자동 감지하여 불필요한 프롬프트 없이 즉시 원격 이미지를 `docker pull`하고 서비스를 기동합니다. Private Registry인 경우 서버에서 사전에 `docker login`이 필요합니다.
 
 ### 🖥️ 일반 서버 배포 (Legacy)
 
