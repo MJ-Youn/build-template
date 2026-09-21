@@ -2,6 +2,47 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [3.1.0] - 2026-09-21
+
+> 🚀 **Minor Release** — Docker 배포 전략 2종(`packageDocker`, `packageDockerRemote`) 정식 플러그인 탑재 (Gradle & Maven 동시 지원), 오프라인/폐쇄망용 이미지 tar 추출 및 번들링 Zip 생성(`packageDocker`), 원격 레지스트리 Push 및 서버 배포 가이드 패키지 생성(`packageDockerRemote`), CLI/DSL 파라미터(`dockerRegistry`, `dockerImageTag`) 신설, 기존 `package` 패키징 체계 100% 호환 보장.
+
+### ✨ 신규 기능 및 개선 사항 (Features & Improvements)
+
+#### 1. 🐳 오프라인/폐쇄망용 Docker 패키징 태스크 공식 탑재 (`packageDocker`)
+- **Strategy 1 (폐쇄망/오프라인 이미지 배포 표준화)**:
+  - 인터넷 또는 Docker Registry 접근이 불가능한 폐쇄망 운영 환경을 위해, 로컬에서 이미지를 빌드한 뒤 `docker save`를 통해 `{appName}.tar`로 추출.
+  - 추출된 이미지 tarball과 `docker/docker-compose.yml`, `config/`, `bin/`, `deploy/` 스크립트를 번들링하여 `{appName}-docker-{env}.zip` 단일 아카이브 생성.
+  - 서버에서는 전송받은 zip을 해제하고 `sudo ./deploy/install_service.sh`만 실행하면, 내부에서 `docker load -i {appName}.tar`를 자동 수행하여 컨테이너 구동까지 원클릭 완료.
+- **Gradle & Maven 동시 지원**:
+  - Gradle: `./gradlew packageDocker -Penv=prod`
+  - Maven: `mvn distribution:packageDocker -Denv=prod` (별칭: `package-docker`)
+
+#### 2. ☁️ 원격 레지스트리 Push & 서버 배포 준비 태스크 공식 탑재 (`packageDockerRemote`)
+- **Strategy 2 (표준 CI/CD 파이프라인 연동 지원)**:
+  - Docker Hub, AWS ECR, 사내 Private Registry 등 원격 저장소를 사용하는 표준 CI/CD 환경 지원.
+  - 이미지를 빌드하고 지정된 레지스트리로 즉시 `docker push` 수행.
+  - 서버 배포에 필요한 최소 산출물(`docker-compose.yml`, `config/`, `bin/`, `deploy/`) 및 `DEPLOY-GUIDE.md`를 `docker-dist/` 폴더에 자동 구성.
+  - 터미널 콘솔에 운영 서버 배포 단계(1. 파일 전송 ➡️ 2. 레지스트리 로그인 ➡️ 3. docker pull ➡️ 4. 자동 설치) 가이드 박스를 시각적으로 자동 출력.
+- **기존 호환성 보장**:
+  - `dockerBuildRemote` 명령어 및 기존 스크립트와의 100% 하위 호환성을 위해 `dockerBuildRemote` 별칭(Alias) 태스크 동시 지원.
+  - Gradle: `./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=...` (또는 `./gradlew dockerBuildRemote`)
+  - Maven: `mvn distribution:packageDockerRemote -Denv=prod -DdockerRegistry=...` (또는 `mvn distribution:docker-build-remote`)
+
+#### 3. 🎛️ Docker 레지스트리 및 이미지 태그 제어 파라미터 신설
+- **유연한 이미지 태깅 지원**:
+  - **`dockerRegistry`**: 대상 원격 레지스트리 URL 지정 (CLI: `-PdockerRegistry=...` / `-DdockerRegistry=...`, DSL: `distribution { dockerRegistry = '...' }` / pom `<dockerRegistry>`).
+  - **`dockerImageTag`**: 이미지 태그 지정 (기본값: 프로젝트 버전 `project.version`, CLI: `-PdockerImageTag=...` / `-DdockerImageTag=...`, DSL: `distribution { dockerImageTag = '...' }` / pom `<dockerImageTag>`).
+
+#### 4. 🧹 사용자 경험 최적화 및 기존 패키징 호환성 유지
+- **독립적인 `dockerBuild` 태스크 분리 배제**:
+  - 사용자의 태스크 목록 혼선을 방지하기 위해 단독 `dockerBuild` 태스크는 노출하지 않고, `packageDocker` 및 `packageDockerRemote` 내부 로직으로 깔끔하게 캡슐화.
+- **기존 `package` 빌드 방식 100% 유지**:
+  - 기존의 JAR/Tomcat 표준 배포 패키지(`package`, `packageJar`, `packageTomcat`, `deployService`, `deploy`) 로직은 일체 변경 없이 완전하게 유지.
+- **도움말(`distHelp` / `help`) 안내 갱신**:
+  - Gradle `./gradlew distHelp` 및 Maven `mvn distribution:help` 콘솔 가이드에 신규 Docker 명령어 섹션 및 옵션 안내 반영.
+
+---
+
 ## 🎯 [3.0.0] - 2026-09-17
 
 > 🚀 **Major Release** — Windows 환경(Windows 10/11, Workstation, Windows Server 전 에디션) 공식 지원 추가(방안 C: Docker Compose 컨테이너 배포 모드), Windows 네이티브 배치 스크립트 세트(`install_service.bat`, `uninstall_service.bat`, `start.bat`, `stop.bat`, `status.bat`) 신규 개발, Windows 원스탑 빌드/배포 스크립트(`build_deploy.bat`) 탑재, 배포 아카이브(`.dist.zip`) 내 Windows 스크립트 자동 번들링 및 `initDeployScript` 연동.

@@ -35,6 +35,8 @@ public class DistributionExtension {
     private String tomcatVersion = "11.0.15";
     private int httpPort = 443;
     private String os = "linux";
+    private String dockerRegistry;
+    private String dockerImageTag;
     private final Map<String, Object> extraTokens = new HashMap<>();
     private final List<String> extraDirs = new ArrayList<>();
 
@@ -206,5 +208,41 @@ public class DistributionExtension {
      */
     public void setOs(String os) {
         this.os = os;
+    }
+
+    /**
+     * Docker 원격 레지스트리 URL을 반환합니다.
+     *
+     * @return 원격 레지스트리 URL (예: my.registry.com/repo)
+     */
+    public String getDockerRegistry() {
+        return dockerRegistry;
+    }
+
+    /**
+     * Docker 원격 레지스트리 URL을 설정합니다.
+     *
+     * @param dockerRegistry 원격 레지스트리 URL
+     */
+    public void setDockerRegistry(String dockerRegistry) {
+        this.dockerRegistry = dockerRegistry;
+    }
+
+    /**
+     * Docker 이미지 태그를 반환합니다.
+     *
+     * @return Docker 이미지 태그 (기본값: null -> project.version 사용)
+     */
+    public String getDockerImageTag() {
+        return dockerImageTag;
+    }
+
+    /**
+     * Docker 이미지 태그를 설정합니다.
+     *
+     * @param dockerImageTag Docker 이미지 태그
+     */
+    public void setDockerImageTag(String dockerImageTag) {
+        this.dockerImageTag = dockerImageTag;
     }
 }

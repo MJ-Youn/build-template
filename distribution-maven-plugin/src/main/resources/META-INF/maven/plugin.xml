@@ -2,10 +2,10 @@
 <plugin>
   <name>Distribution Maven Plugin</name>
   <description>Maven distribution packaging plugin with embedded scripts and JAR/Tomcat dual deployment support
-    (v3.0.0)</description>
+    (v3.1.0)</description>
   <groupId>io.github.mj-youn</groupId>
   <artifactId>distribution-maven-plugin</artifactId>
-  <version>3.0.0</version>
+  <version>3.1.0</version>
   <goalPrefix>distribution</goalPrefix>
   <isolatedRealm>false</isolatedRealm>
   <inheritedByDefault>true</inheritedByDefault>
@@ -384,6 +384,187 @@
       <requiresOnline>false</requiresOnline>
       <inheritedByDefault>true</inheritedByDefault>
       <implementation>io.github.mj_youn.plugin.ShowDockerMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+    <mojo>
+      <goal>packageDocker</goal>
+      <description>Docker 이미지를 빌드하고 배포용 스크립트와 함께 Zip으로 패키징합니다. (Strategy 1 - 오프라인/폐쇄망용)</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.PackageDockerMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+      <parameters>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>false</editable>
+        </parameter>
+        <parameter>
+          <name>appName</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+        </parameter>
+        <parameter>
+          <name>env</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+        </parameter>
+        <parameter>
+          <name>outputDirectory</name>
+          <type>java.io.File</type>
+          <required>false</required>
+          <editable>true</editable>
+        </parameter>
+        <parameter>
+          <name>dockerRegistry</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+        </parameter>
+        <parameter>
+          <name>dockerImageTag</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+        </parameter>
+      </parameters>
+      <configuration>
+        <project default-value="${project}" />
+        <appName default-value="${project.artifactId}" />
+        <env default-value="${env}" />
+        <outputDirectory default-value="${project.build.directory}" />
+        <dockerRegistry implementation="java.lang.String">${dockerRegistry}</dockerRegistry>
+        <dockerImageTag implementation="java.lang.String">${dockerImageTag}</dockerImageTag>
+      </configuration>
+    </mojo>
+    <mojo>
+      <goal>package-docker</goal>
+      <description>Docker 이미지를 빌드하고 배포용 스크립트와 함께 Zip으로 패키징합니다. (packageDocker alias)</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.PackageDockerMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+    </mojo>
+    <mojo>
+      <goal>packageDockerRemote</goal>
+      <description>Docker 이미지를 빌드하고 원격 레지스트리에 Push합니다. (Strategy 2 - CI/CD용)</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.PackageDockerRemoteMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+      <parameters>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>false</editable>
+        </parameter>
+        <parameter>
+          <name>appName</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+        </parameter>
+        <parameter>
+          <name>env</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+        </parameter>
+        <parameter>
+          <name>outputDirectory</name>
+          <type>java.io.File</type>
+          <required>false</required>
+          <editable>true</editable>
+        </parameter>
+        <parameter>
+          <name>dockerRegistry</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+        </parameter>
+        <parameter>
+          <name>dockerImageTag</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+        </parameter>
+      </parameters>
+      <configuration>
+        <project default-value="${project}" />
+        <appName default-value="${project.artifactId}" />
+        <env default-value="${env}" />
+        <outputDirectory default-value="${project.build.directory}" />
+        <dockerRegistry implementation="java.lang.String">${dockerRegistry}</dockerRegistry>
+        <dockerImageTag implementation="java.lang.String">${dockerImageTag}</dockerImageTag>
+      </configuration>
+    </mojo>
+    <mojo>
+      <goal>package-docker-remote</goal>
+      <description>Docker 이미지를 빌드하고 원격 레지스트리에 Push합니다. (packageDockerRemote alias)</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.PackageDockerRemoteMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+    </mojo>
+    <mojo>
+      <goal>dockerBuildRemote</goal>
+      <description>Docker 이미지를 빌드하고 원격 레지스트리에 Push합니다. (packageDockerRemote alias)</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.DockerBuildRemoteMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+    </mojo>
+    <mojo>
+      <goal>docker-build-remote</goal>
+      <description>Docker 이미지를 빌드하고 원격 레지스트리에 Push합니다. (packageDockerRemote alias)</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.DockerBuildRemoteMojo</implementation>
       <language>java</language>
       <instantiationStrategy>per-lookup</instantiationStrategy>
       <executionStrategy>once-per-lookup</executionStrategy>

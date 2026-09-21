@@ -22,7 +22,7 @@ public class HelpMojo extends AbstractMojo {
     public void execute() throws MojoExecutionException {
         String msg = """
 ================================================================================
-🚀 [Distribution Maven Plugin 3.0.0] 빌드 및 배포 가이드
+🚀 [Distribution Maven Plugin 3.1.0] 빌드 및 배포 가이드
 ================================================================================
 
 [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -38,6 +38,11 @@ public class HelpMojo extends AbstractMojo {
 [⚡ 기본 명령어 (DSL/pom.xml packageType 설정 기반)]
   mvn clean package -Denv=dev             : 기본 설정(packageType) 기반 패키지 생성
   mvn distribution:deploy -Denv=dev       : 기본 설정 기반 원스탑 배포
+
+[🐳 Docker 배포 명령어 (Strategy 1 & 2)]
+  mvn distribution:packageDocker -Denv=prod             : Docker 이미지 빌드 후 .tar 추출 + Zip 패키징 (Strategy 1: 오프라인용)
+  mvn distribution:packageDockerRemote -Denv=prod -DdockerRegistry=my.reg.com/repo : Docker 이미지 빌드 & 원격 레지스트리 Push
+  (별칭: mvn distribution:package-docker / mvn distribution:package-docker-remote / mvn distribution:docker-build-remote)
 
 [🎛️ CLI 파라미터 옵션]
   -Denv=dev|prod|local|test|stage         : 배포 환경 프로파일 지정

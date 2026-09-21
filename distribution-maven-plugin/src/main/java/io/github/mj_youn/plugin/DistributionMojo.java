@@ -3,6 +3,7 @@ package io.github.mj_youn.plugin;
 import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
 import org.apache.commons.compress.archivers.zip.ZipArchiveInputStream;
 import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
+import org.apache.commons.compress.archivers.zip.ZipFile;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
@@ -79,6 +80,14 @@ public class DistributionMojo extends AbstractMojo {
     @Parameter(property = "extraDirs")
     private String extraDirs;
 
+    /** Docker 원격 레지스트리 URL (예: my.reg.com/repo) */
+    @Parameter(property = "dockerRegistry")
+    private String dockerRegistry;
+
+    /** Docker 이미지 태그 (기본값: project.version) */
+    @Parameter(property = "dockerImageTag")
+    private String dockerImageTag;
+
     private static final List<String> ENVIRONMENTS = List.of("dev", "prod", "local", "test", "stage");
 
     /**
@@ -142,7 +151,7 @@ public class DistributionMojo extends AbstractMojo {
         String targetOs = (os != null && !os.isBlank()) ? os.trim().toLowerCase() : "linux";
 
         getLog().info("================================================================");
-        getLog().info("\ud83d\ude80 [Distribution 3.0.0 - Maven] 배포 패키지 생성 시작");
+        getLog().info("\ud83d\ude80 [Distribution 3.1.0 - Maven] 배포 패키지 생성 시작");
         getLog().info("   - 대상 프로젝트: " + project.getName() + " (" + project.getArtifactId() + ")");
         getLog().info("   - 활성 프로파일: " + env);
         getLog().info("   - 배포 유형    : " + resolvedType.toUpperCase() + " ("
@@ -269,7 +278,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeInMb = targetZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("\u2705 [Distribution 3.0.0] 배포 패키지 생성 완료!");
+        getLog().info("\u2705 [Distribution 3.1.0] 배포 패키지 생성 완료!");
         getLog().info("   - 산출물 경로: " + targetZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeInMb + " MB (" + targetZip.length() + " bytes)");
         getLog().info("================================================================");
@@ -634,6 +643,26 @@ public class DistributionMojo extends AbstractMojo {
         }
     }
 
+    private void copyTemplateResource(String resourcePath, File targetFile, Map<String, String> tokens) throws IOException {
+        InputStream stream = getClass().getClassLoader().getResourceAsStream(resourcePath);
+        if (stream == null) {
+            throw new IOException("클래스패스 템플릿을 찾을 수 없습니다: " + resourcePath);
+        }
+        try (stream) {
+            String content = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+            if (tokens != null) {
+                for (Map.Entry<String, String> entry : tokens.entrySet()) {
+                    String placeholder = "@" + entry.getKey() + "@";
+                    content = content.replace(placeholder, entry.getValue());
+                }
+            }
+            if (targetFile.getParentFile() != null) {
+                targetFile.getParentFile().mkdirs();
+            }
+            Files.writeString(targetFile.toPath(), content, StandardCharsets.UTF_8);
+        }
+    }
+
     private void findJavaFiles(File dir, List<File> result) {
         File[] files = dir.listFiles();
         if (files == null)
@@ -665,5 +694,352 @@ public class DistributionMojo extends AbstractMojo {
             }
         }
         file.delete();
+    }
+
+    /**
+     * Docker 이미지 빌드 및 오프라인 배포용 Zip 패키지를 생성합니다. (Strategy 1)
+     */
+    public void executePackageDocker() throws MojoExecutionException {
+        File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
+        if (!targetZip.exists()) {
+            execute();
+        }
+
+        DockerBuildContext ctx = buildDockerImageInternal(false);
+        File dockerDistDir = new File(outputDirectory, "tmp/docker-dist");
+        deleteRecursively(dockerDistDir);
+        dockerDistDir.mkdirs();
+
+        String resolvedEnv = (env != null && !env.isBlank()) ? env : "dev";
+        File tarFile = new File(dockerDistDir, ctx.appName + ".tar");
+
+        // 1. docker save 실행
+        getLog().info("💾 [Distribution - Maven] Docker 이미지 tar 저장 중 (docker save) -> " + tarFile.getAbsolutePath());
+        List<String> saveCmd = List.of("docker", "save", "-o", tarFile.getAbsolutePath(), ctx.fullImageName);
+        runProcess(saveCmd, dockerDistDir, "Docker 이미지 저장");
+
+        // 2. docker context 내 스크립트 및 설정 복제
+        copyDirIfExists(new File(ctx.dockerContextDir, "docker"), new File(dockerDistDir, "docker"));
+        copyDirIfExists(new File(ctx.dockerContextDir, "config"), new File(dockerDistDir, "config"));
+        copyDirIfExists(new File(ctx.dockerContextDir, "bin"), new File(dockerDistDir, "bin"));
+        copyDirIfExists(new File(ctx.dockerContextDir, "deploy"), new File(dockerDistDir, "deploy"));
+
+        // 3. Zip 압축
+        File outputZip = new File(outputDirectory, ctx.appName + "-docker-" + resolvedEnv + ".zip");
+        if (outputZip.exists()) {
+            outputZip.delete();
+        }
+
+        getLog().info("🗜️ [Distribution - Maven] 오프라인 배포용 Zip 패키지 생성 중: " + outputZip.getAbsolutePath());
+        createTarAndZipArchive(dockerDistDir, outputZip);
+
+        deleteRecursively(ctx.dockerContextDir);
+        deleteRecursively(dockerDistDir);
+
+        long sizeMb = outputZip.length() / (1024 * 1024);
+        getLog().info("================================================================");
+        getLog().info("✅ [Distribution 3.1.0 - Maven] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
+        getLog().info("   - 산출물 경로: " + outputZip.getAbsolutePath());
+        getLog().info("   - 파일 크기  : " + sizeMb + " MB (" + outputZip.length() + " bytes)");
+        getLog().info("   - 배포 방법  : 서버에 zip 전송 -> unzip -> sudo ./deploy/install_service.sh");
+        getLog().info("================================================================");
+    }
+
+    /**
+     * Docker 이미지를 빌드하고 원격 레지스트리에 Push합니다. (Strategy 2)
+     */
+    public void executePackageDockerRemote() throws MojoExecutionException {
+        File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
+        if (!targetZip.exists()) {
+            execute();
+        }
+
+        DockerBuildContext ctx = buildDockerImageInternal(true);
+
+        // 1. docker push 실행
+        getLog().info("☁️ [Distribution - Maven] Docker 이미지 Push 시작 -> " + ctx.fullImageName);
+        List<String> pushCmd = List.of("docker", "push", ctx.fullImageName);
+        runProcess(pushCmd, null, "Docker 이미지 Push");
+        getLog().info("✅ [Distribution - Maven] Docker 이미지 Push 완료!");
+
+        // 2. 서버 배포용 dist 준비 (target/docker-dist)
+        File dockerDistDir = new File(outputDirectory, "docker-dist");
+        deleteRecursively(dockerDistDir);
+        dockerDistDir.mkdirs();
+
+        copyDirIfExists(new File(ctx.dockerContextDir, "docker"), new File(dockerDistDir, "docker"));
+        copyDirIfExists(new File(ctx.dockerContextDir, "config"), new File(dockerDistDir, "config"));
+        copyDirIfExists(new File(ctx.dockerContextDir, "bin"), new File(dockerDistDir, "bin"));
+        copyDirIfExists(new File(ctx.dockerContextDir, "deploy"), new File(dockerDistDir, "deploy"));
+
+        // DEPLOY-GUIDE.md 작성
+        File guideFile = new File(dockerDistDir, "DEPLOY-GUIDE.md");
+        String guideContent = String.format("""
+                # %s 배포 가이드 (Strategy 2 - Remote Registry)
+
+                - Docker 이미지: %s
+                - 배포 파일 경로: %s
+
+                ## 배포 절차
+                1. docker-dist 디렉토리를 서버로 복사:
+                   scp -r %s/ user@your-server:/home/user/docker-dist
+                2. 서버 접속 후 Private Registry 로그인 (필요 시):
+                   docker login %s
+                3. 이미지 Pull:
+                   docker pull %s
+                4. 자동 설치 및 Systemd 서비스 등록 (권장):
+                   cd /home/user/docker-dist
+                   sudo ./deploy/install_service.sh
+                5. 또는 수동 실행:
+                   cd /home/user/docker-dist
+                   docker compose -f docker/docker-compose.yml up -d
+                """, ctx.appName, ctx.fullImageName, dockerDistDir.getAbsolutePath(),
+                dockerDistDir.getAbsolutePath(), ctx.registry, ctx.fullImageName);
+
+        try {
+            Files.writeString(guideFile.toPath(), guideContent, StandardCharsets.UTF_8);
+        } catch (IOException ignored) {}
+
+        deleteRecursively(ctx.dockerContextDir);
+
+        printRemoteDeployBanner(ctx, dockerDistDir);
+    }
+
+    /**
+     * Docker 이미지 빌드 공통 내부 로직을 수행합니다.
+     */
+    private DockerBuildContext buildDockerImageInternal(boolean requireRegistry) throws MojoExecutionException {
+        File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
+        if (!targetZip.exists()) {
+            throw new MojoExecutionException("배포 패키지 파일이 존재하지 않습니다: " + targetZip.getAbsolutePath());
+        }
+
+        File dockerContextDir = new File(outputDirectory, "tmp/docker-build");
+        deleteRecursively(dockerContextDir);
+        dockerContextDir.mkdirs();
+
+        // 1. 배포 Zip 아카이브 압축 해제
+        getLog().info("================================================================");
+        getLog().info("🐳 [Distribution - Maven] Docker 빌드 컨텍스트 준비 중: " + dockerContextDir.getAbsolutePath());
+        try (ZipFile zipFile = new ZipFile(targetZip)) {
+            Enumeration<ZipArchiveEntry> entries = zipFile.getEntries();
+            while (entries.hasMoreElements()) {
+                ZipArchiveEntry entry = entries.nextElement();
+                File entryFile = new File(dockerContextDir, entry.getName());
+                if (entry.isDirectory()) {
+                    entryFile.mkdirs();
+                } else {
+                    File parent = entryFile.getParentFile();
+                    if (parent != null && !parent.exists()) {
+                        parent.mkdirs();
+                    }
+                    try (InputStream is = zipFile.getInputStream(entry);
+                            FileOutputStream fos = new FileOutputStream(entryFile)) {
+                        is.transferTo(fos);
+                    }
+                    if (entry.getUnixMode() > 0 && (entry.getUnixMode() & 0111) != 0) {
+                        entryFile.setExecutable(true, false);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            throw new MojoExecutionException("Zip 압축 해제 실패: " + e.getMessage(), e);
+        }
+
+        // 2. 패키지 타입 및 토큰 치환 준비
+        String resolvedType = resolvePackageType();
+        boolean tomcatMode = isTomcat();
+        Map<String, String> tokens = createReplaceTokens(resolvedType);
+
+        // 3. Dockerfile 준비
+        File dockerFile = new File(dockerContextDir, "docker/Dockerfile");
+        if (!dockerFile.exists()) {
+            File localDockerfile = new File(project.getBasedir(), "docker/Dockerfile");
+            if (localDockerfile.exists()) {
+                try {
+                    Files.copy(localDockerfile.toPath(), dockerFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                } catch (Exception e) {
+                    getLog().warn("로컬 Dockerfile 복사 실패: " + e.getMessage());
+                }
+            }
+        }
+        if (!dockerFile.exists()) {
+            String templateName = tomcatMode ? "template/docker/Dockerfile-tomcat" : "template/docker/Dockerfile-jar";
+            try {
+                copyTemplateResource(templateName, dockerFile, tokens);
+            } catch (IOException e) {
+                throw new MojoExecutionException("기본 Dockerfile 템플릿 생성 실패: " + e.getMessage(), e);
+            }
+        }
+
+        // 4. docker-compose.yml 준비
+        File composeFile = new File(dockerContextDir, "docker/docker-compose.yml");
+        if (!composeFile.exists()) {
+            String composeTemplate = tomcatMode ? "template/docker/docker-compose-tomcat.yml"
+                    : "template/docker/docker-compose-jar.yml";
+            try {
+                copyTemplateResource(composeTemplate, composeFile, tokens);
+            } catch (IOException ignored) {}
+        }
+
+        // 5. 이미지명 및 태그 계산
+        String resolvedAppName = (appName != null && !appName.isBlank()) ? appName : project.getArtifactId();
+        String tag = (dockerImageTag != null && !dockerImageTag.isBlank()) ? dockerImageTag
+                : (project.getVersion() != null ? project.getVersion() : "latest");
+        String registry = (dockerRegistry != null) ? dockerRegistry.trim() : "";
+
+        if (requireRegistry && registry.isBlank()) {
+            throw new MojoExecutionException("""
+                    ❌ [Distribution - Maven] Docker Registry 설정이 필요합니다.
+                       - CLI 옵션 예시: mvn distribution:packageDockerRemote -Denv=prod -DdockerRegistry=my.reg.com/repo
+                       - pom.xml 설정 : <configuration><dockerRegistry>my.reg.com/repo</dockerRegistry></configuration>
+                    """);
+        }
+
+        String fullImageName = !registry.isBlank()
+                ? (registry.endsWith("/") ? registry : registry + "/") + resolvedAppName + ":" + tag
+                : resolvedAppName + ":" + tag;
+
+        // 6. docker build 실행
+        getLog().info("🔨 [Distribution - Maven] Docker 이미지 빌드 시작 -> " + fullImageName);
+        List<String> buildCmd = List.of(
+                "docker", "build",
+                "--build-arg", "APP_NAME=" + resolvedAppName,
+                "-t", fullImageName,
+                "-f", dockerFile.getAbsolutePath(),
+                dockerContextDir.getAbsolutePath()
+        );
+
+        runProcess(buildCmd, dockerContextDir, "Docker 이미지 빌드");
+        getLog().info("✨ [Distribution - Maven] Docker 이미지 빌드 성공: " + fullImageName);
+
+        return new DockerBuildContext(dockerContextDir, resolvedAppName, tag, registry, fullImageName, resolvedType);
+    }
+
+    private void runProcess(List<String> command, File workDir, String taskDesc) throws MojoExecutionException {
+        try {
+            getLog().info("▶️ [Distribution - Maven] 실행 명령어: " + String.join(" ", command));
+            ProcessBuilder pb = new ProcessBuilder(command);
+            if (workDir != null && workDir.exists()) {
+                pb.directory(workDir);
+            }
+            pb.inheritIO();
+            Process process = pb.start();
+            int exitCode = process.waitFor();
+            if (exitCode != 0) {
+                throw new MojoExecutionException(taskDesc + " 실패 (종료 코드: " + exitCode + ")");
+            }
+        } catch (Exception e) {
+            throw new MojoExecutionException(taskDesc + " 중 오류 발생: " + e.getMessage(), e);
+        }
+    }
+
+    private void createTarAndZipArchive(File sourceDir, File zipFile) throws MojoExecutionException {
+        try (ZipArchiveOutputStream zos = new ZipArchiveOutputStream(new FileOutputStream(zipFile))) {
+            zos.setEncoding("UTF-8");
+            addDirToZip(zos, sourceDir, sourceDir);
+        } catch (IOException e) {
+            throw new MojoExecutionException("Docker 배포 Zip 생성 실패: " + e.getMessage(), e);
+        }
+    }
+
+    private void addDirToZip(ZipArchiveOutputStream zos, File currentFile, File rootDir) throws IOException {
+        if (currentFile.isDirectory()) {
+            File[] children = currentFile.listFiles();
+            if (children != null) {
+                for (File child : children) {
+                    addDirToZip(zos, child, rootDir);
+                }
+            }
+        } else {
+            String relativePath = rootDir.toPath().relativize(currentFile.toPath()).toString().replace('\\', '/');
+            ZipArchiveEntry entry = new ZipArchiveEntry(currentFile, relativePath);
+            if (currentFile.getName().endsWith(".sh")) {
+                entry.setUnixMode(0755);
+            } else {
+                entry.setUnixMode(0644);
+            }
+            zos.putArchiveEntry(entry);
+            try (FileInputStream fis = new FileInputStream(currentFile)) {
+                fis.transferTo(zos);
+            }
+            zos.closeArchiveEntry();
+        }
+    }
+
+    private void copyDirIfExists(File src, File dest) {
+        if (src == null || !src.exists()) return;
+        if (src.isDirectory()) {
+            dest.mkdirs();
+            File[] files = src.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    copyDirIfExists(f, new File(dest, f.getName()));
+                }
+            }
+        } else {
+            if (dest.getParentFile() != null) dest.getParentFile().mkdirs();
+            try {
+                Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                if (src.getName().endsWith(".sh")) {
+                    dest.setExecutable(true, false);
+                }
+            } catch (IOException ignored) {}
+        }
+    }
+
+    private void printRemoteDeployBanner(DockerBuildContext ctx, File distDir) {
+        String msg = String.format("""
+
+                ╔══════════════════════════════════════════════════════════════════╗
+                ║  ✅  Docker 이미지 Push 완료 (Strategy 2)                       ║
+                ╠══════════════════════════════════════════════════════════════════╣
+                ║  🖼️   이미지   : %s
+                ║  📂  배포파일 : %s
+                ║  📄  가이드   : %s/DEPLOY-GUIDE.md
+                ╠══════════════════════════════════════════════════════════════════╣
+                ║  🚀 서버 배포 순서 (운영 서버에서 실행)                         ║
+                ╠══════════════════════════════════════════════════════════════════╣
+                ║  [1] 배포 파일 서버 전송
+                ║      scp -r %s/ user@your-server:/home/user/docker-dist
+                ║
+                ║  [2] Registry 로그인 (Private Registry인 경우)
+                ║      docker login %s
+                ║
+                ║  [3] 이미지 Pull
+                ║      docker pull %s
+                ║
+                ║  [4-a] 자동 설치 (Systemd 서비스 등록 포함 — 권장)
+                ║      cd /home/user/docker-dist
+                ║      sudo ./deploy/install_service.sh
+                ║
+                ║  [4-b] 수동 실행 (docker compose 직접)
+                ║      cd /home/user/docker-dist
+                ║      docker compose -f docker/docker-compose.yml up -d
+                ║
+                ║  💡 상세 가이드: %s/DEPLOY-GUIDE.md
+                ╚══════════════════════════════════════════════════════════════════╝
+                """, ctx.fullImageName, distDir.getAbsolutePath(), distDir.getAbsolutePath(),
+                distDir.getAbsolutePath(), ctx.registry, ctx.fullImageName, distDir.getAbsolutePath());
+        getLog().info(msg);
+    }
+
+    private static class DockerBuildContext {
+        final File dockerContextDir;
+        final String appName;
+        final String tag;
+        final String registry;
+        final String fullImageName;
+        final String packageType;
+
+        DockerBuildContext(File dockerContextDir, String appName, String tag, String registry,
+                String fullImageName, String packageType) {
+            this.dockerContextDir = dockerContextDir;
+            this.appName = appName;
+            this.tag = tag;
+            this.registry = registry;
+            this.fullImageName = fullImageName;
+            this.packageType = packageType;
+        }
     }
 }

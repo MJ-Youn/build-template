@@ -15,7 +15,7 @@
 ### Quick Start (Gradle)
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '3.0.0'
+    id 'io.github.mj-youn.distribution' version '3.1.0'
 }
 ```
 ```bash
@@ -66,7 +66,7 @@ For complete English documentation, see [**distribution-gradle-plugin/README.md*
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '3.0.0'
+    id 'io.github.mj-youn.distribution' version '3.1.0'
 }
 ```
 
@@ -88,7 +88,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>3.0.0</version>
+            <version>3.1.0</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -131,7 +131,7 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
   ```text
   > Task :distHelp
   ================================================================================
-  🚀 [Distribution Plugin 3.0.0] 빌드 및 배포 가이드
+  🚀 [Distribution Plugin 3.1.0] 빌드 및 배포 가이드
   ================================================================================
 
   [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -148,12 +148,20 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
     ./gradlew package -Penv=dev        : 기본 설정(packageType) 기반 패키징
     ./gradlew deployService -Penv=dev  : 기본 설정 기반 원스탑 배포
 
+  [🐳 Docker 배포 명령어 (Strategy 1 & 2)]
+    ./gradlew packageDocker -Penv=prod            : Docker 이미지 빌드 후 .tar 추출 + Zip 패키징 (Strategy 1: 오프라인/폐쇄망용)
+    ./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=my.reg.com/repo : Docker 이미지 빌드 & 원격 레지스트리 Push (Strategy 2: CI/CD용)
+    (별칭: ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=...)
+
   [🎛️ CLI 파라미터 옵션]
     -Penv=dev|prod|local|test|stage    : 배포 환경 프로파일 지정
     -Ptype=jar|tomcat                  : 배포 유형 CLI 오버라이드
+    -PpackageType=jar|tomcat           : 배포 유형 CLI 오버라이드 (packageType alias)
     -Pos=linux|windows|all             : 배포 타겟 OS 지정 (기본값: linux, .bat/.sh 필터링)
     -Pport=8443                        : HTTP 서비스 포트 지정
     -PtomcatVersion=11.0.15            : Apache Tomcat 버전 지정
+    -PdockerRegistry=my.reg.com/repo   : Docker 원격 레지스트리 URL
+    -PdockerImageTag=v1.0.0            : Docker 이미지 태그 (기본값: 버전)
 
   [🛠️ DSL 설정 (build.gradle)]
     distribution {
@@ -161,6 +169,8 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
         os          = 'linux'          // 배포 타겟 OS ('linux', 'windows', 'all')
         httpPort    = 8080
         tomcatVersion = '11.0.15'
+        dockerRegistry = 'my.reg.com/repo' // (선택) 원격 레지스트리 URL
+        dockerImageTag = '1.0.0'           // (선택) 이미지 태그 (기본값: version)
     }
 
   [🔧 유틸리티]
@@ -188,9 +198,9 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
 
 - **실행 결과 샘플**:
   ```text
-  [INFO] --- distribution:3.0.0:help (default-cli) @ my-service ---
+  [INFO] --- distribution:3.1.0:help (default-cli) @ my-service ---
   [INFO] ================================================================================
-  🚀 [Distribution Maven Plugin 3.0.0] 빌드 및 배포 가이드
+  🚀 [Distribution Maven Plugin 3.1.0] 빌드 및 배포 가이드
   ================================================================================
 
   [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -207,6 +217,11 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
     mvn clean package -Denv=dev             : 기본 설정(packageType) 기반 패키지
     mvn distribution:deploy -Denv=dev       : 기본 설정 기반 원스탑 배포
 
+  [🐳 Docker 배포 명령어 (Strategy 1 & 2)]
+    mvn distribution:packageDocker -Denv=prod             : Docker 이미지 빌드 후 .tar 추출 + Zip 패키징 (Strategy 1: 오프라인용)
+    mvn distribution:packageDockerRemote -Denv=prod -DdockerRegistry=my.reg.com/repo : Docker 이미지 빌드 & 원격 레지스트리 Push
+    (별칭: mvn distribution:package-docker / mvn distribution:package-docker-remote / mvn distribution:docker-build-remote)
+
   [🎛️ CLI 파라미터 옵션]
     -Denv=dev|prod|local|test|stage         : 배포 환경 프로파일 지정
     -DpackageType=jar|tomcat                : 배포 유형 CLI 오버라이드
@@ -214,6 +229,8 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
     -Dos=linux|windows|all                  : 배포 타겟 OS 지정 (기본값: linux, .bat/.sh 필터링)
     -DhttpPort=8443                         : HTTP 서비스 포트 지정
     -DtomcatVersion=11.0.15                 : Apache Tomcat 버전 지정
+    -DdockerRegistry=my.reg.com/repo        : Docker 원격 레지스트리 URL
+    -DdockerImageTag=v1.0.0                 : Docker 이미지 태그 (기본값: 버전)
 
   [🔧 유틸리티]
     mvn distribution:initDeployScript       : 프로젝트 루트에 build_deploy.sh 자동 생성
@@ -452,15 +469,20 @@ Docker Hub, ECR, GCR 등 원격 레지스트리를 활용하는 표준적인 방
 **1. 빌드 및 Push (Development PC / CI)**
 
 ```bash
-# 🐘 Gradle 환경
+# 🐘 Gradle 환경 (표준 명령어 및 별칭 지원)
+./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=my-registry.com/repo
+# 또는 기존 별칭
 ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=my-registry.com/repo
 
-# 🪶 Maven 환경
+# 🪶 Maven 환경 (표준 명령어 및 별칭 지원)
+mvn distribution:packageDockerRemote -Denv=prod -DdockerRegistry=my-registry.com/repo
+# 또는 기존 별칭
+mvn distribution:package-docker-remote -Denv=prod -DdockerRegistry=my-registry.com/repo
 mvn distribution:docker-build-remote -Denv=prod -DdockerRegistry=my-registry.com/repo
 
-# (선택) 태그 지정 가능 (기본값: latest)
-# Gradle: ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=... -PdockerImageTag=v1.0.0
-# Maven:  mvn distribution:docker-build-remote -Denv=prod -DdockerRegistry=... -DdockerImageTag=v1.0.0
+# (선택) 태그 지정 가능 (기본값: 버전)
+# Gradle: ./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=... -PdockerImageTag=v1.0.0
+# Maven:  mvn distribution:packageDockerRemote -Denv=prod -DdockerRegistry=... -DdockerImageTag=v1.0.0
 ```
 
 - **결과물**:

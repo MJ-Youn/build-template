@@ -172,7 +172,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 
 #### ② 플러그인이 적용된 개별 Spring Boot 프로젝트 사용자 명령어
 
-`plugins { id 'io.github.mj-youn.distribution' version '3.0.0' }`를 적용한 실제 프로젝트에서 실행하는 명령어:
+`plugins { id 'io.github.mj-youn.distribution' version '3.1.0' }`를 적용한 실제 프로젝트에서 실행하는 명령어:
 
 ```bash
 # 🐘 Gradle 환경
@@ -447,14 +447,14 @@ sequenceDiagram
 
 Docker 전용 태스크는 주로 **어디서 빌드하고 어떻게 서버에 배포할 것인가(네트워크 및 인프라 환경)**에 따라 나뉩니다. 다음 표를 참고하여 환경에 맞는 방식을 선택하세요:
 
-|      구분       | Strategy 1: `packageDocker`                     | Strategy 2: `dockerBuildRemote`                               | (참고) 통합 배포: `package`                |
+|      구분       | Strategy 1: `packageDocker`                     | Strategy 2: `packageDockerRemote`                             | (참고) 통합 배포: `package`                |
 | :-------------: | :---------------------------------------------- | :------------------------------------------------------------ | :----------------------------------------- |
 |  **핵심 목적**  | 외부 서버 전송을 위한 **단일 Zip 패키지 생성**  | 원격 저장소를 활용한 **표준 파이프라인 구성**                 | 배포 서버에서 런타임에 직접 실행 방식 선택 |
 |  **타겟 환경**  | 인터넷/레지스트리 접근이 불가한 **폐쇄망 환경** | AWS ECR, Docker Hub 등 **원격 레지스트리 환경**               | 서버에서 소스를 클론받아 바로 띄우는 환경  |
 |  **작업 내용**  | 이미지 빌드 + `.tar` 추출 + Zip 파일 압축       | 이미지 빌드 + 원격 레지스트리로 `docker push`                 | Jar 빌드 + Dockerfile + 스크립트 압축      |
 | **주요 산출물** | `build/dist/...-docker-prod.zip`                | Remote Registry에 업로드된 Docker Image                       | `build/dist/...-prod.dist.zip`             |
 |  **전송 방식**  | 수동 전송 필요 (Zip 파일을 복사)                | 자동 풀 (운영 서버에서 `docker pull`로 수신)                  | 소스 pull 또는 Zip 복사                    |
-|  **실행 예시**  | `./gradlew packageDocker -Penv=prod`            | `./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=...` | `./gradlew package -Penv=prod`             |
+|  **실행 예시**  | `./gradlew packageDocker -Penv=prod`            | `./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=...`<br>*(별칭: dockerBuildRemote)* | `./gradlew package -Penv=prod`             |
 
 #### Strategy 1 — 오프라인 빌드 (Offline Image) (`./gradlew packageDocker`)
 
@@ -483,7 +483,7 @@ sequenceDiagram
     deactivate Server
 ```
 
-#### Strategy 2 — Registry Push & Pull (`./gradlew dockerBuildRemote`)
+#### Strategy 2 — Registry Push & Pull (`./gradlew packageDockerRemote`)
 
 ```mermaid
 sequenceDiagram
@@ -493,7 +493,7 @@ sequenceDiagram
     participant Registry as 🗄️ Docker Registry
     participant Server as 🖥️ 운영 서버
 
-    Dev->>Gradle: ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=...
+    Dev->>Gradle: ./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=...
     activate Gradle
     Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)
     Gradle->>Gradle: DEPLOY-GUIDE.md 자동 생성
