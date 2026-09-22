@@ -315,32 +315,47 @@ mvn distribution:help
 #### 🐘 Gradle 프로젝트
 
 ```bash
-# JAR 배포
-./gradlew deployJar -Penv=dev        # JAR 개발 환경 빌드 & 즉시 서비스 설치/구동
-./gradlew deployJar -Penv=prod       # JAR 운영 환경 빌드 & 즉시 서비스 설치/구동
+# 👤 일반 사용자 모드 배포 (기본값 - sudo 불필요, ~/apps 및 systemctl --user 배포)
+./gradlew deployJar -Penv=dev        # JAR 개발 환경 빌드 & 즉시 일반 사용자 서비스 설치/구동
+./gradlew deployJar -Penv=prod       # JAR 운영 환경 빌드 & 즉시 일반 사용자 서비스 설치/구동
+./gradlew deployTomcat -Penv=prod    # Tomcat 운영 환경 빌드 & 즉시 일반 사용자 서비스 설치/구동
+./gradlew deployService -Penv=prod   # 기본 설정 기반 일반 사용자 원스탑 배포
 
-# Tomcat 배포
-./gradlew deployTomcat -Penv=dev     # Tomcat 개발 환경 빌드 & 즉시 서비스 설치/구동
-./gradlew deployTomcat -Penv=prod    # Tomcat 운영 환경 빌드 & 즉시 서비스 설치/구동
-
-# 기본 배포 (DSL packageType 기준)
-./gradlew deployService -Penv=prod   # 기본 설정 기반 원스탑 배포
+# 🛡️ 시스템(Root/Sudo) 모드 배포 (sudo 권한 필요, /opt 및 시스템 데몬 배포)
+./gradlew deployService -Penv=prod -Psudo   # 시스템 데몬 모드로 원스탑 배포 (/opt, /etc/systemd)
 ```
 
 #### 🪶 Maven 프로젝트
 
 ```bash
-# JAR 배포
-mvn distribution:deploy -Denv=prod              # JAR 기본 원스탑 배포
-# Tomcat 배포
-mvn distribution:deploy -DpackageType=tomcat -Denv=prod  # Tomcat 원스탑 배포
+# 👤 일반 사용자 모드 배포 (기본값 - sudo 불필요)
+mvn distribution:deploy -Denv=prod              # JAR 기본 일반 사용자 원스탑 배포
+mvn distribution:deploy -DpackageType=tomcat -Denv=prod  # Tomcat 일반 사용자 원스탑 배포
+
+# 🛡️ 시스템(Root/Sudo) 모드 배포 (sudo 권한 필요)
+mvn distribution:deploy -Denv=prod -Dsudo       # 시스템 데몬 모드로 원스탑 배포
 ```
+
+### 🛡️ 배포 권한 모델: 일반 사용자 모드 vs 시스템 모드
+
+| 구분 | 일반 사용자 모드 (기본값) | 시스템 모드 (`--sudo` / `-Psudo`) |
+| :--- | :--- | :--- |
+| **필요 권한** | **일반 계정 단독 실행 (sudo 불필요)** | `sudo` / `root` 필수 |
+| **설치 기본 경로** | `~/apps/{APP_NAME}` (`$HOME/apps/...`) | `/opt/{APP_NAME}` |
+| **로그 기본 경로** | `~/logs/{APP_NAME}` (`$HOME/logs/...`) | `/log/{APP_NAME}` |
+| **데몬 서비스 등록** | `~/.config/systemd/user/{APP_NAME}.service` | `/etc/systemd/system/{APP_NAME}.service` |
+| **서비스 제어 명령** | `systemctl --user status {APP_NAME}` | `systemctl status {APP_NAME}` |
+| **크론(Cron) 등록** | 사용자 crontab (`crontab -e`) | `/etc/cron.d/{APP_NAME}` |
+| **포트 제약** | **1024 이상 비특권 포트 필수 (사전 검증)** | 모든 포트 가능 (1~65535) |
+| **수동 설치 명령어** | `./deploy/install_service.sh` | `sudo ./deploy/install_service.sh --sudo` |
+
+> 💡 더 자세한 권한 모델 비교 및 부팅 시 자동 실행(Linger) 설정 방법은 [**DEVELOPER_GUIDE.md**](DEVELOPER_GUIDE.md#5-배포-권한-모델-일반-사용자-모드-기본-vs-시스템-모드)를 참고하세요.
 
 ### 📋 상세 동작
 
 1. **패키징 (Package)**: 지정된 환경(`-Penv` 또는 `-Denv`)의 프로파일(`config.profiles/{env}`)과 스크립트 오버레이를 적용하여 배포 아카이브(`.zip`)를 생성합니다.
 2. **압축 자동 해제 (Unzip)**: 생성된 배포 ZIP을 빌드 디렉토리 내부 임시 폴더에 압축 해제합니다.
-3. **서비스 인스톨러 자동 실행**: 압축 해제된 `deploy/install_service.sh`에 실행 권한(`0755`)을 부여하고 즉시 실행하여, Linux 백그라운드 데몬 서비스 등록 및 앱 구동까지 마칩니다.
+3. **서비스 인스톨러 자동 실행**: 압축 해제된 `deploy/install_service.sh`에 실행 권한(`0755`)을 부여하고 즉시 실행하여, Linux 백그라운드 데몬 서비스 등록 및 앱 구동까지 마칩니다. (기본적으로 sudo 없이 일반 사용자 모드로 안전하게 배포되며, `-Psudo` / `--sudo` 지정 시 시스템 서비스로 배포됩니다.)
 
 ---
 

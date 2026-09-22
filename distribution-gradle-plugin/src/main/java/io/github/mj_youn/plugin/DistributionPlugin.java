@@ -215,11 +215,21 @@ public class DistributionPlugin implements Plugin<Project> {
                     List<String> command = new ArrayList<>();
                     boolean isWindows = System.getProperty("os.name", "").toLowerCase().contains("win");
                     boolean isRoot = "root".equals(System.getProperty("user.name"));
+                    // 기본 배포는 일반 사용자(User) 모드
+                    // -Psudo, -Proot, -Psystem 또는 환경변수 SUDO=true, ROOT_MODE=true 등이 지정되었을 때만 시스템(root/sudo) 모드로 전환
+                    boolean isSudoMode = project.hasProperty("sudo") || project.hasProperty("root")
+                            || project.hasProperty("system")
+                            || "true".equalsIgnoreCase(System.getenv("SUDO"))
+                            || "true".equalsIgnoreCase(System.getenv("SUDO_MODE"))
+                            || "true".equalsIgnoreCase(System.getenv("ROOT_MODE"));
 
-                    if (!isWindows && !isRoot) {
+                    if (!isWindows && !isRoot && isSudoMode) {
                         command.add("sudo");
                     }
                     command.add("./install_service.sh");
+                    if (isSudoMode) {
+                        command.add("--sudo");
+                    }
 
                     ProcessBuilder pb = new ProcessBuilder(command);
                     pb.directory(installScript.getParentFile());
@@ -245,16 +255,19 @@ public class DistributionPlugin implements Plugin<Project> {
                 [📦 JAR 모드 명령어 (Executable JAR 배포)]
                   ./gradlew packageJar -Penv=dev     : JAR 기반 배포 패키지(Zip) 생성
                   ./gradlew packageJar -Penv=prod    : JAR 기반 운영 패키지(Zip) 생성
-                  ./gradlew deployJar -Penv=prod     : JAR 기반 원스탑 배포 (빌드 + 설치)
+                  ./gradlew deployJar -Penv=prod     : JAR 기반 원스탑 배포 (기본: 일반 사용자 모드, sudo 불필요)
+                  ./gradlew deployJar -Penv=prod -Psudo : JAR 기반 시스템 모드 원스탑 배포 (sudo 필요, /opt 배포)
 
                 [🐱 Tomcat 모드 명령어 (Standalone Apache Tomcat 배포)]
                   ./gradlew packageTomcat -Penv=dev  : Tomcat 배포 패키지(Zip) 생성 (webapps/ROOT 포함)
                   ./gradlew packageTomcat -Penv=prod : Tomcat 운영 패키지(Zip) 생성
-                  ./gradlew deployTomcat -Penv=prod  : Tomcat 원스탑 배포 (빌드 + 설치)
+                  ./gradlew deployTomcat -Penv=prod  : Tomcat 원스탑 배포 (기본: 일반 사용자 모드, sudo 불필요)
+                  ./gradlew deployTomcat -Penv=prod -Psudo : Tomcat 시스템 모드 원스탑 배포 (sudo 필요)
 
                 [⚡ 기본 명령어 (DSL packageType 설정 기반)]
                   ./gradlew package -Penv=dev        : 기본 설정(packageType) 기반 패키징
-                  ./gradlew deployService -Penv=dev  : 기본 설정 기반 원스탑 배포
+                  ./gradlew deployService -Penv=dev  : 기본 설정 기반 원스탑 배포 (기본: 일반 사용자 모드)
+                  ./gradlew deployService -Penv=dev -Psudo : 시스템 모드 기반 원스탑 배포 (sudo 필요)
 
                 [🐳 Docker 배포 명령어 (Strategy 1 & 2)]
                   ./gradlew packageDocker -Penv=prod            : Docker 이미지 빌드 후 .tar 추출 + Zip 패키징 (Strategy 1: 오프라인/폐쇄망용)
@@ -262,6 +275,8 @@ public class DistributionPlugin implements Plugin<Project> {
                   (별칭: ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=...)
 
                 [🎛️ CLI 파라미터 옵션]
+                  -Psudo, -Proot                     : 시스템 모드로 배포 (sudo 필요, /opt 및 /etc/systemd 배포)
+                  -Puser                             : 일반 사용자 모드로 배포 (기본값이므로 생략 가능)
                   -Penv=dev|prod|local|test|stage    : 배포 환경 프로파일 지정
                                                        config.profiles/{env}/ 의 설정 파일이
                                                        패키지 config/ 로 오버레이됩니다.

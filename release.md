@@ -2,6 +2,37 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [3.2.0] - 2026-09-22
+
+> 🚀 **Minor Release** — 일반 사용자 배포 모드(Non-root / User Mode) 기본화 및 시스템 모드 옵션(`--sudo`, `--root`, `-Psudo`, `-Dsudo`) 공식 지원. 보안 요구사항(최소 권한의 원칙: Least Privilege)에 맞추어 `sudo` 권한이 전혀 없는 일반 계정에서도 기본으로 안전하게 서비스를 배포·운영할 수 있도록 systemd 사용자 모드(`systemctl --user`) 데몬 등록, 엄격한 사전 유효성 검증(1024 미만 특권 포트 차단, 디렉토리 쓰기 권한 및 Docker 그룹 권한 검증), 사용자 crontab 등록, 재부팅 시 백그라운드 구동 유지를 위한 Linger 설정 점검 기능 탑재. 기존 OS 레벨 통합 관리가 필요한 경우 `--sudo` / `-Psudo` 옵션으로 시스템 모드 배포 지원.
+
+### ✨ 신규 기능 및 개선 사항 (Features & Improvements)
+
+#### 1. 👤 일반 사용자 배포 모드(Non-root / User Mode) 기본화 & 시스템 모드 옵션화
+- **최소 권한의 원칙(PoLP) 기본 적용**:
+  - 별도 옵션 없이 실행 시 기본적으로 일반 사용자 권한(`$HOME/apps`, `$HOME/logs`, `~/.config/systemd/user/`)으로 안전하게 배포.
+  - OS 전역 데몬 등록 및 `/opt` 배포가 필요한 경우 `--sudo`, `--root`, `-Psudo`, `-Dsudo` 옵션을 부여하여 시스템 모드로 전환 가능.
+  - 기존 옵션(`--user`, `-Puser`, `-Duser`) 역시 호환성을 위해 유저 모드로 정상 처리.
+
+#### 2. 🔍 엄격한 사전 유효성 검증 (배포 전 안전 차단)
+- **특권 포트(Privileged Port: 1~1023) 바인딩 차단**:
+  - 1024 미만 포트 바인딩 시도 시 배포를 즉시 중단하고 1024 이상 포트 변경 또는 리버스 프록시 연동 가이드 제공.
+- **설치 및 로그 경로 쓰기 권한 검증**:
+  - 일반 사용자 기본 경로(`~/apps/<appName>`, `~/logs/<appName>`)를 지원하며, 대상 경로에 현재 사용자의 쓰기 권한이 없으면 즉시 중단.
+- **Docker 데몬 제어 권한 검증**:
+  - Docker 배포 모드 구동 시 현재 사용자가 sudo 없이 docker 명령어 실행 가능한지 검증하고, 권한 부족 시 `sudo usermod -aG docker $USER` 요청 가이드 출력.
+
+#### 3. ⚙️ `systemd` 사용자 모드(`systemctl --user`) 기반 데몬 등록
+- `~/.config/systemd/user/<appName>.service`에 서비스 유닛을 생성하고 `systemctl --user`로 데몬 제어.
+- `chown` 명령어 호출을 안전하게 bypass 처리하여 불필요한 권한 오류 완전 방지.
+- 시스템 전역 크론 대신 사용자 크론탭(`crontab`)에 자동 로그 정리 작업 등록.
+
+#### 4. 💡 배포 완료 후 Linger 및 서비스 제어 안내 가이드 자동 출력
+- 재부팅 후에도 백그라운드 구동 유지를 위한 `sudo loginctl enable-linger $USER` 설정 여부 자동 확인 및 미설정 시 가이드 카드 출력.
+- `systemctl --user status|start|stop|restart` 및 로그 모니터링 명령어 가이드 제공.
+
+---
+
 ## 🎯 [3.1.0] - 2026-09-21
 
 > 🚀 **Minor Release** — Docker 배포 전략 2종(`packageDocker`, `packageDockerRemote`) 정식 플러그인 탑재 (Gradle & Maven 동시 지원), 오프라인/폐쇄망용 이미지 tar 추출 및 번들링 Zip 생성(`packageDocker`), 원격 레지스트리 Push 및 서버 배포 가이드 패키지 생성(`packageDockerRemote`), CLI/DSL 파라미터(`dockerRegistry`, `dockerImageTag`) 신설, 기존 `package` 패키징 체계 100% 호환 보장.

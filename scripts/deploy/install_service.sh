@@ -26,32 +26,31 @@ else
     PKG_ROOT="$SCRIPT_DIR"
 fi
 
-# 기본 설치 위치 정의 (환경 변수 INSTALL_DIR 또는 첫 번째 인자로 재정의 가능)
-DEFAULT_INSTALL_DIR="${1:-${INSTALL_DIR:-/opt/$APP_NAME}}"
+# 배포 권한 모드 설정: 기본값은 일반 사용자(Non-root) 배포 모드 (Default: User Mode)
+IS_USER_MODE=1
 
-# 실행 유저 확인 (sudo로 실행 시 실제 유저)
-REAL_USER=${SUDO_USER:-$USER}
-USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
-SERVICE_GROUP=$(id -gn "$REAL_USER")
+# 시스템/루트(sudo) 배포 모드 환경변수 감지
+if [ "${SUDO_MODE:-}" = "true" ] || [ "${ROOT_MODE:-}" = "true" ] || [ "${USE_SUDO:-}" = "true" ] || [ "${SYSTEM_MODE:-}" = "true" ]; then
+    IS_USER_MODE=0
+elif [ "${NON_ROOT:-}" = "true" ] || [ "${USER_MODE:-}" = "true" ]; then
+    IS_USER_MODE=1
+fi
 
-# 전역 변수 (함수 내에서 설정됨)
-DEST_DIR=""
-LOG_PATH=""
-# 초기화 (런타임에 결정됨)
-DEPLOY_MODE=""
-# 기존 서비스 감지 및 덮어쓰기 플래그
-EXISTING_SERVICE_FOUND=0
-OVERWRITE_EXISTING=""
-PREVIOUS_INSTALL_LOC=""
-PREVIOUS_LOG_PATH=""
 RUNTIME_ENGINE="${RUNTIME_ENGINE:-${TYPE:-}}"
-
+DEPLOY_MODE=""
 TARGET_CATALINA_HOME="${CATALINA_HOME:-}"
 SYSTEMD_EXTRA_ENV=""
+POSITIONAL_INSTALL_DIR=""
 
-# CLI 인자 분석 (--type=..., --mode=..., --tomcat-home=...)
+# CLI 인자 분석 (--sudo, --root, --user, --type=..., --mode=..., --tomcat-home=...)
 for arg in "$@"; do
     case "$arg" in
+        --sudo|--root|--system|--system-mode)
+            IS_USER_MODE=0
+            ;;
+        --user|--non-root|--user-mode)
+            IS_USER_MODE=1
+            ;;
         --type=*)
             RUNTIME_ENGINE="${arg#*=}"
             ;;
@@ -61,10 +60,209 @@ for arg in "$@"; do
         --tomcat-home=*|--catalina-home=*)
             TARGET_CATALINA_HOME="${arg#*=}"
             ;;
+        --*)
+            ;;
+        *)
+            if [ -z "$POSITIONAL_INSTALL_DIR" ]; then
+                POSITIONAL_INSTALL_DIR="$arg"
+            fi
+            ;;
     esac
 done
 
+# 실행 유저 확인 (sudo로 실행 시 실제 유저, 일반 사용자 모드 시 현재 유저)
+REAL_USER=${SUDO_USER:-$USER}
+USER_HOME=$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6)
+[ -z "$USER_HOME" ] && USER_HOME="$HOME"
+SERVICE_GROUP=$(id -gn "$REAL_USER" 2>/dev/null || id -gn 2>/dev/null || echo "users")
+
+# 기본 설치 및 로그 위치 정의
+if [ "$IS_USER_MODE" -eq 1 ]; then
+    DEFAULT_INSTALL_DIR="${POSITIONAL_INSTALL_DIR:-${INSTALL_DIR:-$USER_HOME/apps/$APP_NAME}}"
+    DEFAULT_LOG_BASE="$USER_HOME/logs/$APP_NAME"
+else
+    DEFAULT_INSTALL_DIR="${POSITIONAL_INSTALL_DIR:-${INSTALL_DIR:-/opt/$APP_NAME}}"
+    DEFAULT_LOG_BASE="/log/$APP_NAME"
+fi
+
+# 전역 변수 (함수 내에서 설정됨)
+DEST_DIR=""
+LOG_PATH=""
+# 기존 서비스 감지 및 덮어쓰기 플래그
+EXISTING_SERVICE_FOUND=0
+OVERWRITE_EXISTING=""
+PREVIOUS_INSTALL_LOC=""
+PREVIOUS_LOG_PATH=""
+
 # --- [Functions] ---
+
+# @description 유저 모드에서는 chown을 안전하게 bypass (권한 에러 방지)
+chown() {
+    if [ "$IS_USER_MODE" -eq 1 ]; then
+        return 0
+    fi
+    command chown "$@"
+}
+
+# @description 경로 쓰기 권한 검사 (디렉토리가 없으면 생성 가능한 부모 디렉토리까지 검사)
+validate_path_writable() {
+    local target_path="$1"
+    local path_type="${2:-경로}"
+
+    if [ -z "$target_path" ]; then
+        return 0
+    fi
+
+    # 디렉토리가 이미 존재할 경우 쓰기 권한 직접 확인
+    if [ -e "$target_path" ]; then
+        if [ ! -w "$target_path" ]; then
+            echo ""
+            log_error "${path_type}에 쓰기 권한이 없습니다: $target_path"
+            echo -e "   ${YELLOW}현재 사용자($REAL_USER)는 해당 경로에 파일을 쓸 권한이 없습니다.${NC}"
+            if [ "$IS_USER_MODE" -eq 1 ]; then
+                echo -e "   ${CYAN}💡 일반 사용자 모드 권장 경로:${NC}"
+                echo -e "      - 설치 위치: ${GREEN}$USER_HOME/apps/$APP_NAME${NC}"
+                echo -e "      - 로그 경로: ${GREEN}$USER_HOME/logs/$APP_NAME${NC}"
+            fi
+            echo ""
+            exit 1
+        fi
+        return 0
+    fi
+
+    # 디렉토리가 아직 없는 경우 가장 가까운 존재하는 상위 디렉토리 탐색
+    local curr_path="$target_path"
+    while [ ! -e "$curr_path" ] && [ "$curr_path" != "/" ] && [ "$curr_path" != "." ]; do
+        curr_path=$(dirname "$curr_path")
+    done
+
+    if [ ! -w "$curr_path" ]; then
+        echo ""
+        log_error "${path_type}를 생성할 권한이 없습니다: $target_path"
+        echo -e "   ${YELLOW}상위 디렉토리(${curr_path})에 디렉토리 생성(쓰기) 권한이 없습니다.${NC}"
+        if [ "$IS_USER_MODE" -eq 1 ]; then
+            echo -e "   ${CYAN}💡 일반 사용자 모드 권장 경로:${NC}"
+            echo -e "      - 설치 위치: ${GREEN}$USER_HOME/apps/$APP_NAME${NC}"
+            echo -e "      - 로그 경로: ${GREEN}$USER_HOME/logs/$APP_NAME${NC}"
+        fi
+        echo ""
+        exit 1
+    fi
+
+    return 0
+}
+
+# @description 일반 사용자 모드(--user) 사전 요구사항 및 설정 검증
+validate_user_mode_prerequisites() {
+    [ "$IS_USER_MODE" -ne 1 ] && return 0
+
+    log_step "일반 사용자 모드(--user) 사전 유효성 검증..."
+
+    # 1. 서비스 포트 검증 (1~1023 특권 포트 바인딩 차단)
+    local CHECK_PORT=""
+    if [ -n "$HTTP_PORT" ] && [[ "$HTTP_PORT" =~ ^[0-9]+$ ]]; then
+        CHECK_PORT="$HTTP_PORT"
+    fi
+    if [ -z "$CHECK_PORT" ]; then
+        local APP_YML="$PKG_ROOT/config/application.yml"
+        if [ -f "$APP_YML" ]; then
+            local PARSED_PORT
+            PARSED_PORT=$(grep -E "^\s*port:\s*[0-9]+" "$APP_YML" 2>/dev/null | awk '{print $2}')
+            if [ -n "$PARSED_PORT" ] && [[ "$PARSED_PORT" =~ ^[0-9]+$ ]]; then
+                CHECK_PORT="$PARSED_PORT"
+            fi
+        fi
+    fi
+    if [ -z "$CHECK_PORT" ]; then
+        local TOKEN_PORT="@httpPort@"
+        if [[ "$TOKEN_PORT" =~ ^[0-9]+$ ]]; then
+            CHECK_PORT="$TOKEN_PORT"
+        fi
+    fi
+
+    if [ -n "$CHECK_PORT" ] && [ "$CHECK_PORT" -lt 1024 ]; then
+        echo ""
+        log_error "특권 포트(Privileged Port: ${CHECK_PORT}번) 사용 불가"
+        echo -e "   ${YELLOW}Linux 커널 보안 정책상 1024 미만의 포트는 root(sudo) 권한 없이 바인딩할 수 없습니다.${NC}"
+        echo ""
+        echo -e "   ${BOLD}권장 해결 방법:${NC}"
+        echo -e "   1) 포트를 1024 이상(예: 8080, 8443)으로 변경하여 배포"
+        echo -e "   2) 또는 앞단에 Nginx/HAProxy 등 리버스 프록시를 두고 80/443 포트 포워딩"
+        echo -e "   3) 또는 시스템 관리자가 Java 바이너리에 포트 바인딩 권한 부여:"
+        echo -e "      ${CYAN}sudo setcap 'cap_net_bind_service=+ep' \$(readlink -f \$(which java))${NC}"
+        echo ""
+        log_error "일반 사용자 모드 배포를 안전하게 중단합니다."
+        exit 1
+    fi
+
+    # 2. Docker 배포 모드일 때 Docker 실행 권한 검증
+    if [ "$DEPLOY_MODE" = "docker" ]; then
+        if ! docker ps >/dev/null 2>&1; then
+            echo ""
+            log_error "Docker 데몬 접근 권한 부족 (sudo 필요)"
+            echo -e "   ${YELLOW}현재 사용자($REAL_USER)는 sudo 없이 Docker 데몬을 제어할 수 없습니다.${NC}"
+            echo ""
+            echo -e "   ${BOLD}권장 해결 방법:${NC}"
+            echo -e "   1) 시스템 관리자에게 docker 그룹 등록 요청:"
+            echo -e "      ${CYAN}sudo usermod -aG docker $REAL_USER${NC}"
+            echo -e "   2) 등록 후 터미널 재접속 또는 다음 명령 실행:"
+            echo -e "      ${CYAN}newgrp docker${NC}"
+            echo ""
+            log_error "일반 사용자 모드 배포를 안전하게 중단합니다."
+            exit 1
+        fi
+    fi
+
+    # 3. systemd user 세션 유효성 검증 및 환경변수 보정
+    if command -v systemctl >/dev/null 2>&1; then
+        local USER_UID
+        USER_UID=$(id -u "$REAL_USER" 2>/dev/null)
+        if [ -z "$XDG_RUNTIME_DIR" ] && [ -d "/run/user/$USER_UID" ]; then
+            export XDG_RUNTIME_DIR="/run/user/$USER_UID"
+        fi
+        if [ -z "$DBUS_SESSION_BUS_ADDRESS" ] && [ -S "/run/user/$USER_UID/bus" ]; then
+            export DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/$USER_UID/bus"
+        fi
+    fi
+
+    log_success "일반 사용자 모드 사전 점검 완료."
+}
+
+# @description 일반 사용자 모드 배포 완료 후 필수 후속 조치 안내 카드 출력
+print_user_mode_post_instructions() {
+    [ "$IS_USER_MODE" -ne 1 ] && return 0
+
+    echo ""
+    echo -e "${BOLD}${CYAN}╔════════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${BOLD}${CYAN}║              💡 일반 사용자 모드(User Mode) 안내 사항        ║${NC}"
+    echo -e "${BOLD}${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+
+    # Linger 설정 점검
+    local LINGER_STATUS=""
+    if command -v loginctl >/dev/null 2>&1; then
+        LINGER_STATUS=$(loginctl show-user "$REAL_USER" --property=Linger 2>/dev/null | cut -d= -f2)
+    fi
+
+    if [ "$LINGER_STATUS" != "yes" ]; then
+        echo -e "${BOLD}${CYAN}║${NC} 🔹 ${BOLD}부팅 시 자동 실행(Linger) 설정 권고${NC}"
+        echo -e "${BOLD}${CYAN}║${NC}   로그아웃하거나 서버 재부팅 후에도 서비스가 유지되려면"
+        echo -e "${BOLD}${CYAN}║${NC}   시스템 관리자(root)에게 아래 명령을 1회 실행 요청해 주세요:"
+        echo -e "${BOLD}${CYAN}║${NC}   👉 ${YELLOW}sudo loginctl enable-linger $REAL_USER${NC}"
+        echo -e "${BOLD}${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+    else
+        echo -e "${BOLD}${CYAN}║${NC} 🔹 ${GREEN}✓ 부팅 시 자동 실행(Linger)이 이미 활성화되어 있습니다.${NC}"
+        echo -e "${BOLD}${CYAN}╠════════════════════════════════════════════════════════════════╣${NC}"
+    fi
+
+    echo -e "${BOLD}${CYAN}║${NC} 🔹 ${BOLD}서비스 제어 명령어 (sudo 불필요)${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}   - 상태 확인 : ${GREEN}systemctl --user status $APP_NAME${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}   - 서비스 중지 : ${GREEN}systemctl --user stop $APP_NAME${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}   - 서비스 시작 : ${GREEN}systemctl --user start $APP_NAME${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}   - 서비스 재시작 : ${GREEN}systemctl --user restart $APP_NAME${NC}"
+    echo -e "${BOLD}${CYAN}║${NC}   - 실시간 로그 : ${GREEN}tail-log-${APP_NAME}.sh${NC}"
+    echo -e "${BOLD}${CYAN}╚════════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+}
 
 # @description 애플리케이션 런타임 엔진 선택 (jar / tomcat)
 select_runtime_engine() {
@@ -155,7 +353,7 @@ select_deploy_mode() {
     fi
 
     # 2. 이미 지정된 경우
-    if [ "$DEPLOY_MODE" = "docker" ]; then
+    if [ "$DEPLOY_MODE" = "docker" ] || [ "$DEPLOY_MODE" = "legacy" ]; then
         log_info "지정된 배포 방식($DEPLOY_MODE)으로 진행합니다."
         return 0
     fi
@@ -197,8 +395,30 @@ check_and_handle_existing_service() {
     PREVIOUS_LOG_PATH=""
     EXISTING_SERVICE_FOUND=0
 
-    # 1. Systemd 감지
-    if command -v systemctl >/dev/null 2>&1; then
+    # 0. User Mode Systemd 감지 (IS_USER_MODE=1 이거나 사용자 서비스 파일이 존재하는 경우)
+    if [ "$IS_USER_MODE" -eq 1 ] || [ -f "$USER_HOME/.config/systemd/user/$APP_NAME.service" ]; then
+        local USER_SVC="$USER_HOME/.config/systemd/user/$APP_NAME.service"
+        if [ -f "$USER_SVC" ]; then
+            local WORK_DIR
+            WORK_DIR=$(grep "WorkingDirectory=" "$USER_SVC" 2>/dev/null | cut -d= -f2 | sed 's/^"//;s/"$//')
+            if [ -n "$WORK_DIR" ] && [ -d "$WORK_DIR" ]; then
+                PREVIOUS_INSTALL_LOC="$WORK_DIR"
+            fi
+            if [ -z "$PREVIOUS_INSTALL_LOC" ]; then
+                local EXEC_START
+                EXEC_START=$(grep "ExecStart=" "$USER_SVC" 2>/dev/null | cut -d= -f2 | sed 's/^"//;s/"$//')
+                if [ -n "$EXEC_START" ]; then
+                    PREVIOUS_INSTALL_LOC=$(dirname "$(dirname "$EXEC_START")")
+                fi
+            fi
+            if [ -n "$PREVIOUS_INSTALL_LOC" ] && [ -d "$PREVIOUS_INSTALL_LOC" ]; then
+                IS_USER_MODE=1
+            fi
+        fi
+    fi
+
+    # 1. Systemd 감지 (System Mode)
+    if [ -z "$PREVIOUS_INSTALL_LOC" ] && command -v systemctl >/dev/null 2>&1; then
         local SERVICE_PATH
         SERVICE_PATH=$(systemctl show -p FragmentPath "$APP_NAME.service" 2>/dev/null | cut -d= -f2)
         if [ -n "$SERVICE_PATH" ] && [ -f "$SERVICE_PATH" ]; then
@@ -282,11 +502,20 @@ check_and_handle_existing_service() {
 
             if [ -n "$UNINSTALL_SCRIPT" ] && [ -f "$UNINSTALL_SCRIPT" ]; then
                 log_step "기존 서비스 삭제 실행 ($UNINSTALL_SCRIPT)..."
-                bash "$UNINSTALL_SCRIPT"
+                local UNINSTALL_ARGS=()
+                if [ "$IS_USER_MODE" -eq 1 ]; then
+                    UNINSTALL_ARGS+=("--user")
+                else
+                    UNINSTALL_ARGS+=("--sudo")
+                fi
+                bash "$UNINSTALL_SCRIPT" "${UNINSTALL_ARGS[@]}"
                 log_success "기존 서비스가 삭제되었습니다."
             else
                 log_warning "uninstall_service.sh를 찾을 수 없어 기존 서비스 중지만 시도합니다."
-                if command -v systemctl >/dev/null 2>&1; then
+                if [ "$IS_USER_MODE" -eq 1 ] && command -v systemctl >/dev/null 2>&1; then
+                    systemctl --user stop "$APP_NAME" 2>/dev/null || true
+                    systemctl --user disable "$APP_NAME" 2>/dev/null || true
+                elif command -v systemctl >/dev/null 2>&1; then
                     systemctl stop "$APP_NAME" 2>/dev/null || true
                     systemctl disable "$APP_NAME" 2>/dev/null || true
                 fi
@@ -306,14 +535,24 @@ check_and_handle_existing_service() {
 install_service() {
     log_header "서비스 설치 시작 ($APP_NAME)"
 
-    # 0. 기존 설치 감지 및 덮어쓰기/삭제 분기 확인
+    # 0. 배포 모드 안내
+    if [ "$IS_USER_MODE" -eq 1 ]; then
+        echo -e "   👤 ${BOLD}배포 모드 : ${CYAN}일반 사용자 모드 (Non-root / User Mode)${NC}"
+    else
+        echo -e "   🛡️ ${BOLD}배포 모드 : ${CYAN}시스템 모드 (Root / System Mode)${NC}"
+    fi
+
+    # 1. 기존 설치 감지 및 덮어쓰기/삭제 분기 확인
     check_and_handle_existing_service
 
-    # 배포 방식 선택
+    # 2. 배포 방식 선택
     select_deploy_mode
 
-    # 런타임 엔진 선택 (JAR vs Tomcat)
+    # 3. 런타임 엔진 선택 (JAR vs Tomcat)
     select_runtime_engine
+
+    # 4. 일반 사용자 모드 사전 유효성 검증
+    validate_user_mode_prerequisites
 
     if [ "$DEPLOY_MODE" = "docker" ]; then
         install_docker_mode
@@ -420,7 +659,7 @@ prompt_log_path() {
         fi
     fi
 
-    local DEFAULT_LOG_PATH="/log/$APP_NAME"
+    local DEFAULT_LOG_PATH="${DEFAULT_LOG_BASE:-/log/$APP_NAME}"
     if [ -n "$LOG_PATH" ]; then
         DEFAULT_LOG_PATH="$LOG_PATH"
     fi
@@ -439,8 +678,16 @@ determine_install_dir() {
         # 기존 설치 감지 (사전 감지가 안 되었을 경우의 Fallback)
         PREVIOUS_INSTALL_LOC=""
 
-        # 1. Systemd 감지
-        if command -v systemctl >/dev/null 2>&1; then
+        # 0. User Mode Systemd 감지
+        if [ -f "$USER_HOME/.config/systemd/user/$APP_NAME.service" ]; then
+            EXEC_START=$(grep "ExecStart=" "$USER_HOME/.config/systemd/user/$APP_NAME.service" 2>/dev/null | cut -d= -f2 | sed 's/^"//;s/"$//')
+            if [ -n "$EXEC_START" ]; then
+                PREVIOUS_INSTALL_LOC=$(dirname "$(dirname "$EXEC_START")")
+            fi
+        fi
+
+        # 1. Systemd 감지 (System Mode)
+        if [ -z "$PREVIOUS_INSTALL_LOC" ] && command -v systemctl >/dev/null 2>&1; then
             # 서비스 파일 경로 확인
             SERVICE_PATH=$(systemctl show -p FragmentPath "$APP_NAME.service" 2>/dev/null | cut -d= -f2)
             if [ -n "$SERVICE_PATH" ] && [ -f "$SERVICE_PATH" ]; then
@@ -483,6 +730,10 @@ determine_install_dir() {
     prompt_log_path
     
     log_info "서비스 실행 유저: $REAL_USER"
+
+    # 경로 쓰기 권한 검증 (일반 사용자 모드 및 시스템 모드 공통 검증)
+    validate_path_writable "$DEST_DIR" "설치 위치"
+    validate_path_writable "$LOG_PATH" "로그 경로"
 
     # 디렉토리 생성 및 권한 설정
     mkdir -p "$DEST_DIR/bin"
@@ -743,6 +994,57 @@ register_legacy_service() {
     START_SCRIPT="$DEST_DIR/bin/start.sh"
     STOP_SCRIPT="$DEST_DIR/bin/stop.sh"
 
+    # 1. 일반 사용자 모드 (--user)
+    if [ "$IS_USER_MODE" -eq 1 ]; then
+        if command -v systemctl >/dev/null 2>&1; then
+            local USER_SYSTEMD_DIR="$USER_HOME/.config/systemd/user"
+            mkdir -p "$USER_SYSTEMD_DIR"
+            SERVICE_FILE="$USER_SYSTEMD_DIR/$APP_NAME.service"
+
+            cat <<EOF > "$SERVICE_FILE"
+[Unit]
+Description=$APP_NAME 서비스 (User Mode)
+After=network.target
+
+[Service]
+Type=forking
+WorkingDirectory=$DEST_DIR
+$( [ -n "$SYSTEMD_EXTRA_ENV" ] && echo -e "$SYSTEMD_EXTRA_ENV" )
+ExecStart=$START_SCRIPT
+ExecStop=$STOP_SCRIPT
+PIDFile=$DEST_DIR/run/application.pid
+Restart=always
+
+[Install]
+WantedBy=default.target
+EOF
+
+            log_success "$SERVICE_FILE 파일이 갱신되었습니다 (User Mode)."
+            systemctl --user daemon-reload
+            systemctl --user enable $APP_NAME
+            if systemctl --user is-active --quiet $APP_NAME 2>/dev/null; then
+                log_info "서비스가 실행 중입니다. 재시작합니다..."
+                systemctl --user restart $APP_NAME
+            else
+                systemctl --user start $APP_NAME
+                log_success "서비스가 시작되었습니다 (User Mode)."
+            fi
+
+            register_cron
+            check_legacy_service_status
+            print_user_mode_post_instructions
+            return 0
+        else
+            log_warning "systemctl 명령을 찾을 수 없어 직접 백그라운드로 실행합니다."
+            "$START_SCRIPT"
+            register_cron
+            check_legacy_service_status
+            print_user_mode_post_instructions
+            return 0
+        fi
+    fi
+
+    # 2. 시스템 모드 (Root Mode)
     INIT_SYSTEM="unknown"
     if command -v systemctl >/dev/null 2>&1; then
         INIT_SYSTEM="systemd"
@@ -882,10 +1184,26 @@ determine_docker_install_dir() {
 
     # 기존 서비스 덮어쓰기(OVERWRITE_EXISTING=Y)인 경우 추가 입력 없이 기존 위치 유지
     if [ "$OVERWRITE_EXISTING" != "Y" ] || [ -z "$DEST_DIR" ]; then
-        # 기존 설치 위치 감지 (Systemd - 사전 감지가 안 되었을 경우의 Fallback)
+        # 기존 설치 위치 감지 (사전 감지가 안 되었을 경우의 Fallback)
         DEST_DIR=""
-        if [ -f "/etc/systemd/system/$APP_NAME.service" ]; then
-            EXISTING_DIR=$(grep "WorkingDirectory=" "/etc/systemd/system/$APP_NAME.service" | cut -d= -f2)
+
+        # 0. User Mode Systemd 감지
+        if [ -f "$USER_HOME/.config/systemd/user/$APP_NAME.service" ]; then
+            local EXISTING_USER_DIR
+            EXISTING_USER_DIR=$(grep "WorkingDirectory=" "$USER_HOME/.config/systemd/user/$APP_NAME.service" 2>/dev/null | cut -d= -f2 | sed 's/^"//;s/"$//')
+            if [ -n "$EXISTING_USER_DIR" ] && [ -d "$EXISTING_USER_DIR" ]; then
+                log_info "기존 설치 위치 감지 (User Mode): $EXISTING_USER_DIR"
+                read -p "   기존 위치에 덮어쓰시겠습니까? (Y/n): " REUSE_LOC
+                REUSE_LOC=${REUSE_LOC:-Y}
+                if [[ "$REUSE_LOC" =~ ^[Yy]$ ]]; then
+                    DEST_DIR="$EXISTING_USER_DIR"
+                fi
+            fi
+        fi
+
+        # 1. System Mode Systemd 감지
+        if [ -z "$DEST_DIR" ] && [ -f "/etc/systemd/system/$APP_NAME.service" ]; then
+            EXISTING_DIR=$(grep "WorkingDirectory=" "/etc/systemd/system/$APP_NAME.service" 2>/dev/null | cut -d= -f2 | sed 's/^"//;s/"$//')
             if [ -d "$EXISTING_DIR" ]; then
                 log_info "기존 설치 위치 감지: $EXISTING_DIR"
                 read -p "   기존 위치에 덮어쓰시겠습니까? (Y/n): " REUSE_LOC
@@ -906,6 +1224,10 @@ determine_docker_install_dir() {
     log_info "설치 위치: $DEST_DIR"
 
     prompt_log_path
+
+    # 경로 쓰기 권한 검증 (일반 사용자 모드 및 시스템 모드 공통)
+    validate_path_writable "$DEST_DIR" "설치 위치"
+    validate_path_writable "$LOG_PATH" "로그 경로"
 
     mkdir -p "$DEST_DIR/bin"
     mkdir -p "$DEST_DIR/config"
@@ -1124,17 +1446,6 @@ EOF
 
 # @description Docker 서비스를 Systemd 또는 SysVinit에 등록
 register_docker_service() {
-    # Init 시스템 감지
-    local INIT_SYSTEM="sysvinit"
-    if command -v systemctl >/dev/null 2>&1; then
-        INIT_SYSTEM="systemd"
-    elif [ -f /etc/init.d/cron ] || [ -f /etc/init.d/functions ]; then
-        INIT_SYSTEM="sysvinit"
-    else
-        log_error "알 수 없는 Init 시스템입니다."
-        exit 1
-    fi
-
     # Docker Compose 명령어 감지
     detect_docker_compose_cmd "true"
     log_info "Docker Compose 명령어: $DOCKER_COMPOSE_CMD"
@@ -1145,6 +1456,81 @@ register_docker_service() {
     local STATUS_SCRIPT="$DEST_DIR/bin/status.sh"
 
     log_step "서비스 등록 및 시작 (스크립트 래퍼 연동)..."
+
+    # 1. 일반 사용자 모드 (--user)
+    if [ "$IS_USER_MODE" -eq 1 ]; then
+        if command -v systemctl >/dev/null 2>&1; then
+            local USER_SYSTEMD_DIR="$USER_HOME/.config/systemd/user"
+            mkdir -p "$USER_SYSTEMD_DIR"
+            local SERVICE_FILE="$USER_SYSTEMD_DIR/$APP_NAME.service"
+
+            cat <<EOF > "$SERVICE_FILE"
+[Unit]
+Description=$APP_NAME Docker Container Service (User Mode)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=$DEST_DIR
+ExecStart=$START_SCRIPT
+ExecStop=$STOP_SCRIPT
+Restart=always
+
+[Install]
+WantedBy=default.target
+EOF
+
+            log_success "$SERVICE_FILE 파일이 생성되었습니다 (User Mode)."
+            systemctl --user daemon-reload
+            systemctl --user enable $APP_NAME
+
+            if systemctl --user is-active --quiet $APP_NAME 2>/dev/null; then
+                log_info "서비스가 실행 중입니다. 재시작합니다..."
+                systemctl --user restart $APP_NAME
+            else
+                systemctl --user start $APP_NAME
+                log_success "서비스가 시작되었습니다 (User Mode)."
+            fi
+
+            register_cron
+
+            sleep 2
+            local CONTAINER_STATUS
+            local CONTAINER_ID
+            CONTAINER_STATUS=$(docker ps -f "name=${APP_NAME}" --format "{{.Status}}")
+            CONTAINER_ID=$(docker ps -f "name=${APP_NAME}" --format "{{.ID}}")
+
+            echo -e "${BOLD}${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
+            echo -e "${BOLD}${BLUE}║                  🐳 DOCKER SERVICE STARTED                     ║${NC}"
+            echo -e "${BOLD}${BLUE}╠════════════════════════════════════════════════════════════════╣${NC}"
+            echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}SERVICE${NC}    : ${CYAN}$APP_NAME${NC} (User Mode)"
+            echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}CONTAINER${NC}  : ${GREEN}$CONTAINER_ID${NC}"
+            echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}STATUS${NC}     : ${GREEN}$CONTAINER_STATUS${NC}"
+            echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}LOG${NC}        : ${YELLOW}$LOG_PATH/${NC}"
+            echo -e "${BOLD}${BLUE}╚════════════════════════════════════════════════════════════════╝${NC}"
+
+            print_user_mode_post_instructions
+            return 0
+        else
+            log_warning "systemctl 명령을 찾을 수 없어 Docker Compose를 직접 백그라운드로 실행합니다."
+            "$START_SCRIPT" -d
+            register_cron
+            print_user_mode_post_instructions
+            return 0
+        fi
+    fi
+
+    # 2. 시스템 모드 (Root Mode)
+    local INIT_SYSTEM="sysvinit"
+    if command -v systemctl >/dev/null 2>&1; then
+        INIT_SYSTEM="systemd"
+    elif [ -f /etc/init.d/cron ] || [ -f /etc/init.d/functions ]; then
+        INIT_SYSTEM="sysvinit"
+    else
+        log_error "알 수 없는 Init 시스템입니다."
+        exit 1
+    fi
 
     if [ "$INIT_SYSTEM" = "systemd" ]; then
         local SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
@@ -1249,8 +1635,30 @@ EOF
 register_cron() {
     log_step "Cron 작업 등록..."
     local SRC_CRON_FILE="$PKG_ROOT/bin/cron/crond"
-    local TARGET_CRON_FILE="/etc/cron.d/$APP_NAME"
 
+    if [ "$IS_USER_MODE" -eq 1 ]; then
+        if [ -f "$SRC_CRON_FILE" ] && command -v crontab >/dev/null 2>&1; then
+            local CRON_LINE
+            CRON_LINE=$(sed -e "s|@LOG_PATH@|$LOG_PATH|g" \
+                            -e "s|@APP_NAME@|$APP_NAME|g" \
+                            -e "s|@REAL_USER@ ||g" \
+                            "$SRC_CRON_FILE" | grep -v "^#" | grep -v "^\s*$" | head -n 1)
+
+            if [ -n "$CRON_LINE" ]; then
+                local TMP_CRON=$(mktemp)
+                (crontab -l 2>/dev/null | grep -v "$APP_NAME" || true) > "$TMP_CRON"
+                echo "$CRON_LINE # $APP_NAME auto log cleanup" >> "$TMP_CRON"
+                crontab "$TMP_CRON" 2>/dev/null || true
+                rm -f "$TMP_CRON"
+                log_success "사용자 Cron 작업이 등록되었습니다 (crontab)."
+            fi
+        else
+            log_info "Cron 등록을 건너뜁니다."
+        fi
+        return 0
+    fi
+
+    local TARGET_CRON_FILE="/etc/cron.d/$APP_NAME"
     if [ -d "/etc/cron.d" ] && [ -f "$SRC_CRON_FILE" ]; then
         sed -e "s|@REAL_USER@|$REAL_USER|g" \
             -e "s|@LOG_PATH@|$LOG_PATH|g" \
@@ -1414,13 +1822,24 @@ register_path() {
 # @description Legacy 배포 완료 후 서비스 상태 확인
 check_legacy_service_status() {
     sleep 2
-    local CURRENT_PID
-    CURRENT_PID=$(systemctl show --property MainPID --value $APP_NAME)
+    local CURRENT_PID=""
+    if [ "$IS_USER_MODE" -eq 1 ] && command -v systemctl >/dev/null 2>&1; then
+        CURRENT_PID=$(systemctl --user show --property MainPID --value "$APP_NAME" 2>/dev/null)
+    elif command -v systemctl >/dev/null 2>&1; then
+        CURRENT_PID=$(systemctl show --property MainPID --value "$APP_NAME" 2>/dev/null)
+    fi
+
+    if [ -z "$CURRENT_PID" ] || [ "$CURRENT_PID" = "0" ]; then
+        if [ -f "$DEST_DIR/run/application.pid" ]; then
+            CURRENT_PID=$(cat "$DEST_DIR/run/application.pid" 2>/dev/null)
+        fi
+    fi
+    CURRENT_PID="${CURRENT_PID:-Unknown}"
 
     local DETECTED_PORT="Unknown"
-    if command -v ss >/dev/null 2>&1; then
+    if [ "$CURRENT_PID" != "Unknown" ] && command -v ss >/dev/null 2>&1; then
         local SS_OUT
-        SS_OUT=$(ss -tlnp | grep "pid=$CURRENT_PID")
+        SS_OUT=$(ss -tlnp 2>/dev/null | grep "pid=$CURRENT_PID" || true)
         if [ -n "$SS_OUT" ]; then
             DETECTED_PORT=$(echo "$SS_OUT" | awk '{print $4}' | awk -F':' '{print $NF}')
         fi
@@ -1430,17 +1849,22 @@ check_legacy_service_status() {
         local APP_YML="$DEST_DIR/config/application.yml"
         if [ -f "$APP_YML" ]; then
             local PARSED_PORT
-            PARSED_PORT=$(grep -E "^\s*port:\s*[0-9]+" "$APP_YML" | awk '{print $2}')
+            PARSED_PORT=$(grep -E "^\s*port:\s*[0-9]+" "$APP_YML" 2>/dev/null | awk '{print $2}')
             if [ -n "$PARSED_PORT" ]; then
                 DETECTED_PORT="$PARSED_PORT (Configured)"
             fi
         fi
     fi
 
+    local MODE_LABEL=""
+    if [ "$IS_USER_MODE" -eq 1 ]; then
+        MODE_LABEL=" (User Mode)"
+    fi
+
     echo -e "${BOLD}${BLUE}╔════════════════════════════════════════════════════════════════╗${NC}"
     echo -e "${BOLD}${BLUE}║                  🚀 SERVICE STARTED                            ║${NC}"
     echo -e "${BOLD}${BLUE}╠════════════════════════════════════════════════════════════════╣${NC}"
-    echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}SERVICE${NC} : ${CYAN}$APP_NAME${NC}"
+    echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}SERVICE${NC} : ${CYAN}$APP_NAME${MODE_LABEL}${NC}"
     echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}PID${NC}     : ${GREEN}$CURRENT_PID${NC}"
     echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}PORT${NC}    : ${GREEN}$DETECTED_PORT${NC}"
     echo -e "${BOLD}${BLUE}║${NC} 🔹 ${BOLD}LOG${NC}     : ${YELLOW}$LOG_PATH/${APP_NAME}.log${NC}"
@@ -1449,10 +1873,22 @@ check_legacy_service_status() {
 
 # --- [Execution] ---
 
-# 루트 권한 확인
-if [ "$EUID" -ne 0 ]; then
-  echo "Error: 이 스크립트는 root 권한으로 실행해야 합니다."
-  exit 1
+# 실행 권한 검사
+if [ "$IS_USER_MODE" -eq 1 ]; then
+    if [ "$EUID" -eq 0 ]; then
+        log_warning "일반 사용자 모드(기본값)로 실행 중이나 root 계정으로 실행되었습니다."
+        log_info "일반 사용자 권한($REAL_USER) 환경 기준으로 배포를 진행합니다."
+    fi
+else
+    # 시스템 배포 모드(--sudo/--root)는 root 권한 필수
+    if [ "$EUID" -ne 0 ]; then
+        log_error "이 스크립트는 시스템 배포 모드(--sudo / --root)로 지정되어 root 권한(sudo)으로 실행해야 합니다."
+        echo -e "   ${YELLOW}sudo 명령어로 실행해주세요:${NC}"
+        echo -e "   👉 ${GREEN}sudo ./install_service.sh --sudo${NC}  또는  ${GREEN}SUDO_MODE=true sudo ./install_service.sh${NC}"
+        echo -e "   ${CYAN}💡 일반 사용자 모드로 배포하려면 옵션 없이 단독 실행하세요:${NC}"
+        echo -e "   👉 ${GREEN}./install_service.sh${NC}"
+        exit 1
+    fi
 fi
 
 install_service

@@ -39,9 +39,31 @@ else
     PROP_FILE="$SCRIPT_DIR/.env"
 fi
 
+# 배포 권한 모드 설정: 기본값은 일반 사용자(Non-root) 배포 모드 (Default: User Mode)
+IS_USER_MODE=1
+
+# 시스템/루트(sudo) 배포 모드 환경변수 감지
+if [ "${SUDO_MODE:-}" = "true" ] || [ "${ROOT_MODE:-}" = "true" ] || [ "${USE_SUDO:-}" = "true" ] || [ "${SYSTEM_MODE:-}" = "true" ]; then
+    IS_USER_MODE=0
+elif [ "${NON_ROOT:-}" = "true" ] || [ "${USER_MODE:-}" = "true" ]; then
+    IS_USER_MODE=1
+fi
+
+for arg in "$@"; do
+    case "$arg" in
+        --sudo|--root|--system|--system-mode)
+            IS_USER_MODE=0
+            ;;
+        --user|--non-root|--user-mode)
+            IS_USER_MODE=1
+            ;;
+    esac
+done
+
 # 실행 유저 확인
 REAL_USER=${SUDO_USER:-$USER}
-USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+USER_HOME=$(getent passwd "$REAL_USER" 2>/dev/null | cut -d: -f6)
+[ -z "$USER_HOME" ] && USER_HOME="$HOME"
 
 # 배포 방식 (자동 감지 또는 사용자 선택)
 DEPLOY_MODE=""
@@ -56,9 +78,26 @@ DOCKER_COMPOSE_CMD=""
 detect_deploy_mode() {
     log_step "배포 방식 감지 중..."
 
+    local USER_SERVICE_FILE="$USER_HOME/.config/systemd/user/$APP_NAME.service"
     local SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
 
-    # 1. Systemd 서비스 파일에서 감지
+    # 0. User Mode Systemd 서비스 파일 감지
+    if [ "$IS_USER_MODE" -eq 1 ] || [ -f "$USER_SERVICE_FILE" ]; then
+        IS_USER_MODE=1
+        if [ -f "$USER_SERVICE_FILE" ]; then
+            if grep -q "docker" "$USER_SERVICE_FILE" 2>/dev/null; then
+                DEPLOY_MODE="docker"
+                log_info "Docker 배포 방식 감지됨 (User Mode Systemd 서비스 파일 기반)"
+                return
+            else
+                DEPLOY_MODE="legacy"
+                log_info "Legacy 배포 방식 감지됨 (User Mode Systemd 서비스 파일 기반)"
+                return
+            fi
+        fi
+    fi
+
+    # 1. Systemd 서비스 파일에서 감지 (System Mode)
     if [ -f "$SERVICE_FILE" ]; then
         if grep -q "docker" "$SERVICE_FILE" 2>/dev/null; then
             DEPLOY_MODE="docker"
@@ -173,9 +212,6 @@ confirm_uninstall() {
 stop_and_disable_service() {
     log_step "서비스 중지 및 비활성화..."
 
-    local SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
-    local INIT_SCRIPT="/etc/init.d/$APP_NAME"
-
     # Docker 모드: docker-compose down으로 컨테이너 먼저 정리
     if [ "$DEPLOY_MODE" = "docker" ]; then
         local COMPOSE_FILE="$INSTALL_DIR/docker-compose.yml"
@@ -186,7 +222,31 @@ stop_and_disable_service() {
         fi
     fi
 
-    # Systemd 서비스 제거
+    # 1. User Mode Systemd 서비스 제거
+    if [ "$IS_USER_MODE" -eq 1 ] && command -v systemctl >/dev/null 2>&1; then
+        local USER_SERVICE_FILE="$USER_HOME/.config/systemd/user/$APP_NAME.service"
+        if systemctl --user is-active --quiet $APP_NAME 2>/dev/null; then
+            log_info "서비스 중지 중 (User Mode)..."
+            systemctl --user stop $APP_NAME
+        fi
+        if systemctl --user is-enabled --quiet $APP_NAME 2>/dev/null; then
+            log_info "서비스 비활성화 중 (User Mode)..."
+            systemctl --user disable $APP_NAME
+        fi
+
+        if [ -f "$USER_SERVICE_FILE" ]; then
+            log_info "서비스 파일 삭제: $USER_SERVICE_FILE"
+            rm -f "$USER_SERVICE_FILE"
+            systemctl --user daemon-reload
+        fi
+        log_success "서비스가 사용자 데몬에서 제거되었습니다."
+        return 0
+    fi
+
+    # 2. System Mode 서비스 제거
+    local SERVICE_FILE="/etc/systemd/system/$APP_NAME.service"
+    local INIT_SCRIPT="/etc/init.d/$APP_NAME"
+
     if command -v systemctl >/dev/null 2>&1; then
         if systemctl is-active --quiet $APP_NAME 2>/dev/null; then
             log_info "서비스 중지 중..."
@@ -217,6 +277,17 @@ stop_and_disable_service() {
 
 # @description Cron 작업 제거
 remove_cron() {
+    if [ "$IS_USER_MODE" -eq 1 ]; then
+        if command -v crontab >/dev/null 2>&1; then
+            local TMP_CRON=$(mktemp)
+            (crontab -l 2>/dev/null | grep -v "$APP_NAME" || true) > "$TMP_CRON"
+            crontab "$TMP_CRON" 2>/dev/null || true
+            rm -f "$TMP_CRON"
+            log_success "사용자 Cron 작업이 제거되었습니다."
+        fi
+        return 0
+    fi
+
     local CRON_FILE="/etc/cron.d/$APP_NAME"
     if [ -f "$CRON_FILE" ]; then
         log_info "Cron 작업 삭제: $CRON_FILE"
@@ -334,10 +405,27 @@ remove_install_dir() {
 
 # --- [Execution] ---
 
-# 루트 권한 확인
-if [ "$EUID" -ne 0 ]; then
-  echo "Error: 이 스크립트는 root 권한으로 실행해야 합니다."
-  exit 1
+# 실행 권한 확인
+if [ "$IS_USER_MODE" -ne 1 ]; then
+    # 시스템 배포 모드(--sudo/--root)는 root 권한 필수
+    if [ "$EUID" -ne 0 ]; then
+        log_error "이 스크립트는 시스템 배포 모드(--sudo / --root)로 지정되어 root 권한(sudo)으로 실행해야 합니다."
+        echo -e "   ${YELLOW}sudo 명령어로 실행해주세요:${NC}"
+        echo -e "   👉 ${GREEN}sudo ./uninstall_service.sh --sudo${NC}"
+        echo -e "   ${CYAN}💡 일반 사용자 모드로 설치된 서비스를 삭제하려면 옵션 없이 단독 실행하세요:${NC}"
+        echo -e "   👉 ${GREEN}./uninstall_service.sh${NC}"
+        exit 1
+    fi
+else
+    # 일반 사용자 모드(기본값)인 경우: 시스템 환경(/opt 또는 /etc/systemd/system)에만 존재하는 서비스인지 확인
+    if [ "$EUID" -ne 0 ] && [ ! -f "$USER_HOME/.config/systemd/user/$APP_NAME.service" ] && [[ "$INSTALL_DIR" != "$USER_HOME"* ]]; then
+        if [ -f "/etc/systemd/system/$APP_NAME.service" ] || [[ "$INSTALL_DIR" == "/opt/"* ]]; then
+            log_error "시스템 환경(/opt 또는 /etc/systemd/system)에 설치된 서비스가 감지되었습니다."
+            echo -e "   ${YELLOW}해당 시스템 서비스를 삭제하려면 sudo 권한과 '--sudo' 옵션을 사용해주세요:${NC}"
+            echo -e "   👉 ${GREEN}sudo ./uninstall_service.sh --sudo${NC}"
+            exit 1
+        fi
+    fi
 fi
 
 uninstall_service

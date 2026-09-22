@@ -511,3 +511,65 @@ sequenceDiagram
     Server-->>Dev: 컨테이너 실행 완료
     deactivate Server
 ```
+
+---
+
+## 🛡️ 5. 배포 권한 모델: 일반 사용자 모드(기본값) vs 시스템 모드(Root/Sudo)
+
+`build-template`은 금융권, 공공기관 및 클라우드 컨테이너 환경의 까다로운 보안 요구사항(최소 권한의 원칙: Least Privilege)에 부응하기 위해, **sudo 권한이 전혀 필요 없는 일반 사용자 모드(User Mode)를 기본 배포 모드로 제공**합니다. 또한 기존의 운영체제 레벨 통합 관리가 필요한 환경을 위해 **`sudo` 권한 기반 시스템 배포(System Mode, `--sudo` / `-Psudo`)** 역시 완벽하게 지원합니다.
+
+### 1) 권한 모드별 차이점 비교
+
+| 항목 | 👤 일반 사용자 모드 (기본값) | 🛡️ 시스템 모드 (`--sudo` / `-Psudo`) |
+| :--- | :--- | :--- |
+| **필요 권한** | **일반 사용자 계정 (sudo 불필요)** | `sudo` (root 권한 필수) |
+| **기본 설치 위치** | **`~/apps/<appName>`** (`$HOME/apps/...`) | `/opt/<appName>` |
+| **기본 로그 경로** | **`~/logs/<appName>`** (`$HOME/logs/...`) | `/log/<appName>` |
+| **서비스 데몬 등록** | **`~/.config/systemd/user/<appName>.service`** | `/etc/systemd/system/<appName>.service` |
+| **서비스 제어 명령** | **`systemctl --user start/stop/status <appName>`** | `systemctl start/stop/status <appName>` |
+| **Cron 작업 등록** | **사용자 crontab (`crontab -e`)** | `/etc/cron.d/<appName>` |
+| **소유권 관리** | **본인 소유이므로 `chown` 생략 (chmod만 적용)** | `chown $REAL_USER:$GROUP` 강제 적용 |
+| **보안 격리 수준** | **사용자 공간으로 격리 (Sandbox 효과)** | OS 전체 권한 (침해 시 root 장악 위험) |
+
+### 2) 배포 실행 방법
+
+빌드(패키징) 타임이 아니라 **배포 실행 타임에 필요 시 옵션으로 지정**합니다:
+
+```bash
+# 1. build_deploy.sh 원스탑 스크립트 실행 시
+./build_deploy.sh dev                 # 👤 일반 사용자 모드 배포 (기본값, sudo 불필요)
+./build_deploy.sh prod --sudo         # 🛡️ 시스템 모드 배포 (sudo 필요, /opt 배포)
+
+# 2. 압축 해제 후 install_service.sh 직접 실행 시
+./install_service.sh                  # 👤 일반 사용자 모드 배포 (기본값)
+sudo ./install_service.sh --sudo      # 🛡️ 시스템 모드 배포 (sudo 필요)
+
+# 3. Gradle / Maven 원스탑 배포 태스크 실행 시
+./gradlew deployService -Penv=dev            # 👤 기본 일반 사용자 모드 배포
+./gradlew deployService -Penv=prod -Psudo    # 🛡️ 시스템 모드 배포
+mvn distribution:deploy -Denv=dev            # 👤 기본 일반 사용자 모드 배포
+mvn distribution:deploy -Denv=prod -Dsudo    # 🛡️ 시스템 모드 배포
+
+# 4. 서비스 삭제 시
+./uninstall_service.sh                # 👤 일반 사용자 서비스 삭제 (기본값)
+sudo ./uninstall_service.sh --sudo    # 🛡️ 시스템 서비스 삭제
+```
+
+### 3) 일반 사용자 모드 엄격 사전 유효성 검증 (위배 시 배포 즉시 차단)
+
+일반 사용자 모드로 배포할 때 다음 사항을 사전에 검사하여 안전하게 배포를 제어합니다:
+1. **특권 포트 검증 (Privileged Port)**:
+   - 포트 번호가 1024 미만(1~1023)인 경우, Linux 커널 보안 정책상 일반 유저 바인딩이 불가하므로 **명확한 원인 및 해결책 안내 후 즉시 배포를 중단**합니다.
+2. **설치 및 로그 경로 쓰기 권한 검증**:
+   - 지정된 설치 디렉토리 및 로그 디렉토리에 현재 사용자의 쓰기 권한(`-w`)이 없으면 즉시 배포를 중단하고 권장 경로를 안내합니다.
+3. **Docker 실행 권한 검증 (Docker 모드)**:
+   - Docker 배포 모드 선택 시 `docker` 명령어 접근 권한이 없으면 즉시 중단하고 `sudo usermod -aG docker $USER` 요청 가이드를 출력합니다.
+
+### 4) 부팅 시 자동 실행 유지 (Linger 설정)
+
+`systemctl --user`를 사용하는 유저 서비스는 기본적으로 사용자가 로그인 세션을 유지할 때 구동됩니다. 서버 재부팅 후에도 사용자가 로그인하지 않은 상태에서 백그라운드로 서비스를 지속 구동하려면, 시스템 관리자(root)에게 아래 1회성 명령 실행을 요청해야 합니다:
+
+```bash
+sudo loginctl enable-linger $USER
+```
+> 배포 완료 시 `install_service.sh`가 Linger 설정 여부를 자동 점검하여 미설정 상태일 경우 가이드 카드를 터미널에 출력합니다.

@@ -50,6 +50,8 @@ ${YELLOW}${BOLD}주요 배포 환경 (필수):${NC}
   dev | prod | local | test | stage | qa
 
 ${YELLOW}${BOLD}주요 지원 파라미터 (Gradle -P / Maven -D 호환):${NC}
+  ${GREEN}--sudo, --root${NC}         : 시스템 모드로 배포 (sudo 필요, /opt 및 /etc/systemd 시스템 데몬 배포)
+  ${GREEN}--user${NC}                 : 일반 사용자 모드로 배포 (기본값, sudo 없이 ~/apps 및 systemctl --user 배포)
   ${GREEN}-Penv=<환경>${NC}           : 활성화할 배포 환경 프로파일 (기본값: 위치인자)
   ${GREEN}-Ptype=jar|tomcat${NC}     : 배포 유형 오버라이드 (기본값: jar)
                            - jar    : Spring Boot Executable JAR 기반 배포
@@ -61,17 +63,20 @@ ${YELLOW}${BOLD}주요 지원 파라미터 (Gradle -P / Maven -D 호환):${NC}
   ${GREEN}-h, --help${NC}            : 이 도움말 출력
 
 ${YELLOW}${BOLD}실행 예시:${NC}
-  ${CYAN}# 1. 개발 환경 표준 JAR 배포${NC}
+  ${CYAN}# 1. 개발 환경 일반 사용자 모드 배포 (기본값, sudo 불필요)${NC}
   ./build_deploy.sh dev
 
-  ${CYAN}# 2. 운영 환경 외장 Tomcat 배포 (포트 8080)${NC}
+  ${CYAN}# 2. 운영 환경 시스템(sudo/root) 모드 배포 (sudo 필요)${NC}
+  ./build_deploy.sh prod --sudo
+
+  ${CYAN}# 3. 운영 환경 외장 Tomcat 일반 사용자 배포 (포트 8080)${NC}
   ./build_deploy.sh prod -Ptype=tomcat
 
-  ${CYAN}# 3. 개발 환경 포트 8443 변경 배포${NC}
+  ${CYAN}# 4. 개발 환경 포트 8443 변경 배포${NC}
   ./build_deploy.sh dev -Pport=8443
 
-  ${CYAN}# 4. Git pull 없이 즉시 톰캣 8081 배포${NC}
-  ./build_deploy.sh prod -Ptype=tomcat -Pport=8081 --no-pull
+  ${CYAN}# 5. Git pull 없이 즉시 톰캣 8081 시스템 모드 배포${NC}
+  ./build_deploy.sh prod -Ptype=tomcat -Pport=8081 --sudo --no-pull
 
 ${BOLD}================================================================================${NC}
 EOF
@@ -85,6 +90,12 @@ TYPE_VALUE=""
 PORT_VALUE=""
 SKIP_GIT_PULL=false
 
+# 배포 모드: 기본값은 일반 사용자 모드 (Non-root / User Mode)
+IS_USER_MODE=true
+if [ "${SUDO_MODE:-}" = "true" ] || [ "${ROOT_MODE:-}" = "true" ] || [ "${USE_SUDO:-}" = "true" ] || [ "${SYSTEM_MODE:-}" = "true" ]; then
+    IS_USER_MODE=false
+fi
+
 GRADLE_EXTRA_ARGS=()
 MAVEN_EXTRA_ARGS=()
 
@@ -96,6 +107,14 @@ for ARG in "$@"; do
             ;;
         --no-pull)
             SKIP_GIT_PULL=true
+            ;;
+        --sudo|--root|--system|-Psudo|-Proot|-Psystem|-Dsudo|-Droot|-Dsystem)
+            IS_USER_MODE=false
+            GRADLE_EXTRA_ARGS+=("-Psudo")
+            MAVEN_EXTRA_ARGS+=("-Dsudo")
+            ;;
+        --user|--non-root|--user-mode|-Puser|-Duser|-PuserMode|-DuserMode)
+            IS_USER_MODE=true
             ;;
         -Penv=*)
             ENV_VALUE="${ARG#-Penv=}"
@@ -152,13 +171,18 @@ fi
 if [ -z "${ENV_VALUE}" ]; then
     echo -e "${RED}❌ 환경 파라미터가 필요합니다.${NC}"
     echo -e "${YELLOW}사용법: ./build_deploy.sh <환경명> [옵션...]  또는  ./build_deploy.sh --help${NC}"
-    echo -e "${YELLOW}예시:   ./build_deploy.sh dev -Ptype=tomcat -Pport=8443${NC}"
+    echo -e "${YELLOW}예시:   ./build_deploy.sh dev --user -Ptype=tomcat -Pport=8443${NC}"
     exit 1
 fi
 
 echo -e "${CYAN}======================================================${NC}"
 echo -e "${CYAN}🚀 빌드 및 배포 자동화 시작 (build_deploy.sh)${NC}"
 echo -e "   - ${BOLD}배포 환경${NC}    : ${GREEN}${ENV_VALUE}${NC}"
+if [ "${IS_USER_MODE}" = true ]; then
+    echo -e "   - ${BOLD}배포 권한${NC}    : ${GREEN}일반 사용자 모드 (--user / Non-root)${NC}"
+else
+    echo -e "   - ${BOLD}배포 권한${NC}    : ${CYAN}시스템 모드 (Root / Sudo)${NC}"
+fi
 if [ -n "${TYPE_VALUE}" ]; then
     TYPE_UPPER=$(echo "${TYPE_VALUE}" | tr '[:lower:]' '[:upper:]')
     echo -e "   - ${BOLD}배포 유형${NC}    : ${MAGENTA}${TYPE_UPPER}${NC}"
@@ -218,11 +242,20 @@ if [ -f "${SCRIPT_DIR}/gradlew" ] || [ -f "${SCRIPT_DIR}/build.gradle" ] || [ -f
     INSTALL_SCRIPT=$(find "${EXTRACT_DIR}" -name "install_service.sh" 2>/dev/null | head -n 1)
     if [ -f "${INSTALL_SCRIPT}" ]; then
         chmod +x "${INSTALL_SCRIPT}"
-        echo -e "${GREEN}🚀 서비스 설치 및 실행을 시작합니다...${NC}"
-        if [ "$EUID" -eq 0 ]; then
-            "${INSTALL_SCRIPT}"
+        local INSTALL_ARGS=()
+        if [ "${IS_USER_MODE}" = true ]; then
+            INSTALL_ARGS+=("--user")
+            echo -e "${GREEN}🚀 일반 사용자 모드로 서비스 설치 및 실행을 시작합니다 (기본값)...${NC}"
+            "${INSTALL_SCRIPT}" "${INSTALL_ARGS[@]}"
         else
-            sudo "${INSTALL_SCRIPT}"
+            INSTALL_ARGS+=("--sudo")
+            if [ "$EUID" -eq 0 ]; then
+                echo -e "${GREEN}🚀 시스템 모드(--sudo)로 서비스 설치 및 실행을 시작합니다...${NC}"
+                "${INSTALL_SCRIPT}" "${INSTALL_ARGS[@]}"
+            else
+                echo -e "${GREEN}🚀 sudo 권한으로 서비스 설치 및 실행을 시작합니다 (--sudo)...${NC}"
+                sudo "${INSTALL_SCRIPT}" "${INSTALL_ARGS[@]}"
+            fi
         fi
     else
         echo -e "${RED}❌ install_service.sh 를 찾을 수 없습니다.${NC}"
@@ -258,11 +291,20 @@ elif [ -f "${SCRIPT_DIR}/mvnw" ] || [ -f "${SCRIPT_DIR}/pom.xml" ]; then
     INSTALL_SCRIPT=$(find "${EXTRACT_DIR}" -name "install_service.sh" 2>/dev/null | head -n 1)
     if [ -f "${INSTALL_SCRIPT}" ]; then
         chmod +x "${INSTALL_SCRIPT}"
-        echo -e "${GREEN}🚀 서비스 설치 및 실행을 시작합니다...${NC}"
-        if [ "$EUID" -eq 0 ]; then
-            "${INSTALL_SCRIPT}"
+        local INSTALL_ARGS=()
+        if [ "${IS_USER_MODE}" = true ]; then
+            INSTALL_ARGS+=("--user")
+            echo -e "${GREEN}🚀 일반 사용자 모드로 서비스 설치 및 실행을 시작합니다 (기본값)...${NC}"
+            "${INSTALL_SCRIPT}" "${INSTALL_ARGS[@]}"
         else
-            sudo "${INSTALL_SCRIPT}"
+            INSTALL_ARGS+=("--sudo")
+            if [ "$EUID" -eq 0 ]; then
+                echo -e "${GREEN}🚀 시스템 모드(--sudo)로 서비스 설치 및 실행을 시작합니다...${NC}"
+                "${INSTALL_SCRIPT}" "${INSTALL_ARGS[@]}"
+            else
+                echo -e "${GREEN}🚀 sudo 권한으로 서비스 설치 및 실행을 시작합니다 (--sudo)...${NC}"
+                sudo "${INSTALL_SCRIPT}" "${INSTALL_ARGS[@]}"
+            fi
         fi
     else
         echo -e "${RED}❌ install_service.sh 를 찾을 수 없습니다.${NC}"

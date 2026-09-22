@@ -90,12 +90,22 @@ public class DeployMojo extends DistributionMojo {
             List<String> command = new ArrayList<>();
             boolean isWindows = System.getProperty("os.name", "").toLowerCase().contains("win");
             boolean isRoot = "root".equals(System.getProperty("user.name"));
+            // 기본 배포는 일반 사용자(User) 모드
+            // -Dsudo, -Droot, -Dsystem 또는 환경변수 SUDO=true, ROOT_MODE=true 등이 지정되었을 때만 시스템(root/sudo) 모드로 전환
+            boolean isSudoMode = System.getProperty("sudo") != null
+                    || System.getProperty("root") != null
+                    || System.getProperty("system") != null
+                    || "true".equalsIgnoreCase(System.getenv("SUDO"))
+                    || "true".equalsIgnoreCase(System.getenv("SUDO_MODE"))
+                    || "true".equalsIgnoreCase(System.getenv("ROOT_MODE"));
 
-            // Unix/Linux 환경이면서 root가 아닐 경우 sudo 사용
-            if (!isWindows && !isRoot) {
+            if (!isWindows && !isRoot && isSudoMode) {
                 command.add("sudo");
             }
             command.add("./install_service.sh");
+            if (isSudoMode) {
+                command.add("--sudo");
+            }
 
             ProcessBuilder pb = new ProcessBuilder(command);
             pb.directory(installScript.getParentFile());
