@@ -48,6 +48,55 @@
           <description>활성화할 배포 프로파일 환경 (기본값: dev)</description>
         </parameter>
         <parameter>
+          <name>type</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>배포 유형 (jar 또는 tomcat)</description>
+        </parameter>
+        <parameter>
+          <name>packageType</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>배포 유형 (jar 또는 tomcat)</description>
+        </parameter>
+        <parameter>
+          <name>tomcatVersion</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Apache Tomcat 버전 (기본값: 11.0.15)</description>
+        </parameter>
+        <parameter>
+          <name>httpPort</name>
+          <type>int</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>HTTP 서비스 포트 (기본값: 8443)</description>
+        </parameter>
+        <parameter>
+          <name>os</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>배포 대상 OS (linux | windows | all, 기본값: linux)</description>
+        </parameter>
+        <parameter>
+          <name>dockerRegistry</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Docker 원격 레지스트리 URL</description>
+        </parameter>
+        <parameter>
+          <name>dockerImageTag</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Docker 이미지 태그</description>
+        </parameter>
+        <parameter>
           <name>outputDirectory</name>
           <type>java.io.File</type>
           <required>false</required>
@@ -66,6 +115,13 @@
         <project default-value="${project}" />
         <appName default-value="${project.artifactId}" />
         <env default-value="${env}" />
+        <type implementation="java.lang.String">${type}</type>
+        <packageType default-value="jar">${packageType}</packageType>
+        <tomcatVersion default-value="11.0.15">${tomcatVersion}</tomcatVersion>
+        <httpPort default-value="8443">${httpPort}</httpPort>
+        <os default-value="linux">${os}</os>
+        <dockerRegistry implementation="java.lang.String">${dockerRegistry}</dockerRegistry>
+        <dockerImageTag implementation="java.lang.String">${dockerImageTag}</dockerImageTag>
         <extraDirs implementation="java.lang.String">${extraDirs}</extraDirs>
         <outputDirectory default-value="${project.build.directory}" />
       </configuration>
@@ -108,6 +164,34 @@
           <description>활성화할 배포 프로파일 환경 (기본값: dev)</description>
         </parameter>
         <parameter>
+          <name>httpPort</name>
+          <type>int</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>HTTP 서비스 포트 (기본값: 8443)</description>
+        </parameter>
+        <parameter>
+          <name>os</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>배포 대상 OS (linux | windows | all, 기본값: linux)</description>
+        </parameter>
+        <parameter>
+          <name>dockerRegistry</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Docker 원격 레지스트리 URL</description>
+        </parameter>
+        <parameter>
+          <name>dockerImageTag</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Docker 이미지 태그</description>
+        </parameter>
+        <parameter>
           <name>outputDirectory</name>
           <type>java.io.File</type>
           <required>false</required>
@@ -126,6 +210,10 @@
         <project default-value="${project}" />
         <appName default-value="${project.artifactId}" />
         <env default-value="${env}" />
+        <httpPort default-value="8443">${httpPort}</httpPort>
+        <os default-value="linux">${os}</os>
+        <dockerRegistry implementation="java.lang.String">${dockerRegistry}</dockerRegistry>
+        <dockerImageTag implementation="java.lang.String">${dockerImageTag}</dockerImageTag>
         <extraDirs implementation="java.lang.String">${extraDirs}</extraDirs>
         <outputDirectory default-value="${project.build.directory}" />
       </configuration>
@@ -168,6 +256,41 @@
           <description>활성화할 배포 프로파일 환경 (기본값: dev)</description>
         </parameter>
         <parameter>
+          <name>tomcatVersion</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Apache Tomcat 버전 (기본값: 11.0.15)</description>
+        </parameter>
+        <parameter>
+          <name>httpPort</name>
+          <type>int</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>HTTP 서비스 포트 (기본값: 8443)</description>
+        </parameter>
+        <parameter>
+          <name>os</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>배포 대상 OS (linux | windows | all, 기본값: linux)</description>
+        </parameter>
+        <parameter>
+          <name>dockerRegistry</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Docker 원격 레지스트리 URL</description>
+        </parameter>
+        <parameter>
+          <name>dockerImageTag</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>Docker 이미지 태그</description>
+        </parameter>
+        <parameter>
           <name>outputDirectory</name>
           <type>java.io.File</type>
           <required>false</required>
@@ -186,6 +309,11 @@
         <project default-value="${project}" />
         <appName default-value="${project.artifactId}" />
         <env default-value="${env}" />
+        <tomcatVersion default-value="11.0.15">${tomcatVersion}</tomcatVersion>
+        <httpPort default-value="8443">${httpPort}</httpPort>
+        <os default-value="linux">${os}</os>
+        <dockerRegistry implementation="java.lang.String">${dockerRegistry}</dockerRegistry>
+        <dockerImageTag implementation="java.lang.String">${dockerImageTag}</dockerImageTag>
         <extraDirs implementation="java.lang.String">${extraDirs}</extraDirs>
         <outputDirectory default-value="${project.build.directory}" />
       </configuration>
@@ -386,7 +514,7 @@
         <packageType default-value="jar">${packageType}</packageType>
         <type implementation="java.lang.String">${type}</type>
         <appName default-value="${project.artifactId}" />
-        <httpPort default-value="8080">${httpPort}</httpPort>
+        <httpPort default-value="8443">${httpPort}</httpPort>
         <tomcatVersion default-value="11.0.15">${tomcatVersion}</tomcatVersion>
       </configuration>
     </mojo>

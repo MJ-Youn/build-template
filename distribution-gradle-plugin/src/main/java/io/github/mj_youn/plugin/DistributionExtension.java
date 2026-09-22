@@ -33,7 +33,7 @@ public class DistributionExtension {
     private String appName;
     private String packageType = "jar";
     private String tomcatVersion = "11.0.15";
-    private int httpPort = 443;
+    private int httpPort = 8443;
     private String os = "linux";
     private String dockerRegistry;
     private String dockerImageTag;
@@ -120,7 +120,7 @@ public class DistributionExtension {
     /**
      * HTTP 서비스 포트 번호를 반환합니다.
      *
-     * @return HTTP 포트 (기본값: 443)
+     * @return HTTP 포트 (기본값: 8443)
      */
     public int getHttpPort() {
         return httpPort;

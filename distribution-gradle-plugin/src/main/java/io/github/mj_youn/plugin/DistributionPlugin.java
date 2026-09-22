@@ -27,6 +27,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 
 /**
@@ -320,7 +321,7 @@ public class DistributionPlugin implements Plugin<Project> {
                   distribution {
                       appName     = 'my-service'     // 서비스 이름 (기본값: rootProject.name)
                       packageType = 'jar'            // 기본 배포 유형: 'jar' 또는 'tomcat'
-                      httpPort    = 8080             // 서비스 포트 (기본값: 8080)
+                      httpPort    = 8443             // 서비스 포트 (기본값: 8443)
                       tomcatVersion = '11.0.15'     // Tomcat 버전 (Tomcat 모드 전용)
                   }
 
@@ -812,7 +813,108 @@ public class DistributionPlugin implements Plugin<Project> {
             } catch (NumberFormatException ignored) {
             }
         }
-        return extension.getHttpPort();
+
+        // 사용자가 build.gradle DSL에서 기본값(8443)이 아닌 값을 직접 설정한 경우
+        if (extension.getHttpPort() > 0 && extension.getHttpPort() != 8443) {
+            return extension.getHttpPort();
+        }
+
+        // 프로젝트 설정 파일(application.yml 등)에서 자동 감지
+        String activeEnv = project.hasProperty("env") ? String.valueOf(project.property("env")).trim() : "dev";
+        File projectDir = project.getProjectDir();
+
+        List<File> candidates = List.of(
+                new File(projectDir, "config.profiles/" + activeEnv + "/application.yml"),
+                new File(projectDir, "config.profiles/" + activeEnv + "/application.yaml"),
+                new File(projectDir, "config.profiles/" + activeEnv + "/application.properties"),
+                new File(projectDir, "config/" + activeEnv + "/application.yml"),
+                new File(projectDir, "config/" + activeEnv + "/application.yaml"),
+                new File(projectDir, "config/" + activeEnv + "/application.properties"),
+                new File(projectDir, "src/main/resources/application-" + activeEnv + ".yml"),
+                new File(projectDir, "src/main/resources/application-" + activeEnv + ".yaml"),
+                new File(projectDir, "src/main/resources/application-" + activeEnv + ".properties"),
+                new File(projectDir, "config/application.yml"),
+                new File(projectDir, "config/application.yaml"),
+                new File(projectDir, "config/application.properties"),
+                new File(projectDir, "src/main/resources/application.yml"),
+                new File(projectDir, "src/main/resources/application.yaml"),
+                new File(projectDir, "src/main/resources/application.properties")
+        );
+
+        for (File candidate : candidates) {
+            if (candidate.exists() && candidate.isFile()) {
+                Integer detected = parseServerPort(candidate);
+                if (detected != null && detected > 0) {
+                    project.getLogger().info("   🔍 [Distribution] 설정 파일에서 HTTP 서비스 포트를 자동 감지했습니다: {} ({})",
+                            detected, projectDir.toPath().relativize(candidate.toPath()));
+                    return detected;
+                }
+            }
+        }
+
+        return extension.getHttpPort() > 0 ? extension.getHttpPort() : 8443;
+    }
+
+    /**
+     * YAML 또는 Properties 설정 파일에서 server.port 값을 파싱합니다.
+     */
+    private Integer parseServerPort(File file) {
+        try {
+            if (file.getName().endsWith(".properties")) {
+                Properties props = new Properties();
+                try (InputStream is = new FileInputStream(file)) {
+                    props.load(is);
+                    String portStr = props.getProperty("server.port");
+                    if (portStr != null && !portStr.isBlank()) {
+                        return Integer.parseInt(portStr.trim().replaceAll("['\"]", ""));
+                    }
+                }
+            } else {
+                List<String> lines = Files.readAllLines(file.toPath(), StandardCharsets.UTF_8);
+                boolean inServerBlock = false;
+                int serverIndent = -1;
+
+                for (String line : lines) {
+                    String trimmed = line.trim();
+                    if (trimmed.startsWith("#") || trimmed.isEmpty()) {
+                        continue;
+                    }
+
+                    if (trimmed.startsWith("server.port:") || trimmed.startsWith("server.port =")) {
+                        String[] parts = trimmed.split("[:=]", 2);
+                        if (parts.length > 1) {
+                            String portStr = parts[1].trim().replaceAll("['\"]", "").replaceAll("#.*$", "").trim();
+                            return Integer.parseInt(portStr);
+                        }
+                    }
+
+                    int indent = 0;
+                    while (indent < line.length() && (line.charAt(indent) == ' ' || line.charAt(indent) == '\t')) {
+                        indent++;
+                    }
+
+                    if (trimmed.startsWith("server:") || trimmed.equals("server:")) {
+                        inServerBlock = true;
+                        serverIndent = indent;
+                        continue;
+                    }
+
+                    if (inServerBlock) {
+                        if (indent <= serverIndent && !trimmed.isEmpty()) {
+                            inServerBlock = false;
+                        } else if (trimmed.startsWith("port:") || trimmed.startsWith("port =")) {
+                            String[] parts = trimmed.split("[:=]", 2);
+                            if (parts.length > 1) {
+                                String portStr = parts[1].trim().replaceAll("['\"]", "").replaceAll("#.*$", "").trim();
+                                return Integer.parseInt(portStr);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     /**

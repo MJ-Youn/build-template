@@ -56,7 +56,7 @@ task 'package'(type: Zip) {
 
     def distName = "${project.name}-${project.version}"
     def envSuffix = ""
-    def resolvedHttpPort = project.hasProperty('port') ? project.property('port') : (project.hasProperty('httpPort') ? project.property('httpPort') : '8080')
+    def resolvedHttpPort = project.hasProperty('port') ? project.property('port') : (project.hasProperty('httpPort') ? project.property('httpPort') : '8443')
     def commonTokens = [
         appName: project.name,
         deployMode: '',
@@ -579,7 +579,7 @@ task initDocker {
             dockerImage: "${project.name}:${project.version}".toString(),
             appType: targetType,
             tomcatVersion: project.hasProperty('tomcatVersion') ? project.property('tomcatVersion').toString() : '11.0.15',
-            httpPort: project.hasProperty('httpPort') ? project.property('httpPort').toString() : (project.hasProperty('port') ? project.property('port').toString() : '8080')
+            httpPort: project.hasProperty('httpPort') ? project.property('httpPort').toString() : (project.hasProperty('port') ? project.property('port').toString() : '8443')
         ]
 
         def activeDockerTemplate = file(isTomcat ? 'docker/Dockerfile-tomcat' : 'docker/Dockerfile-jar')

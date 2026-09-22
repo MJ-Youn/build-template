@@ -155,7 +155,7 @@ start_application() {
 
     # 포트 정보 파싱 (application.yml)
     if [ -z "$SERVER_PORT" ]; then
-        SERVER_PORT="8080" # 기본값
+        SERVER_PORT="8443" # 기본값
         APP_YML="$PROJECT_ROOT/config/application.yml"
         if [ -f "$APP_YML" ]; then
            # 간단한 파싱: "port: 1234" 형태 검색

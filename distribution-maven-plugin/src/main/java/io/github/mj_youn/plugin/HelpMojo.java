@@ -54,14 +54,14 @@ public class HelpMojo extends AbstractMojo {
                                             all    : *.sh 및 *.bat 스크립트 모두 포함
   -DpackageType=jar|tomcat                : 배포 유형 CLI 오버라이드
   -Dtype=jar|tomcat                       : 배포 유형 CLI 오버라이드 (type alias)
-  -DhttpPort=8443                         : HTTP 서비스 포트 지정 (기본값: 8080)
+  -DhttpPort=8443                         : HTTP 서비스 포트 지정 (기본값: 8443)
   -DtomcatVersion=11.0.15                 : Apache Tomcat 버전 지정
 
 [🛠️ pom.xml DSL 설정]
   <configuration>
     <appName>my-service</appName>           <!-- 서비스 이름 (기본값: artifactId) -->
     <packageType>jar</packageType>          <!-- 기본 배포 유형: jar 또는 tomcat -->
-    <httpPort>8080</httpPort>               <!-- 서비스 포트 (기본값: 8080) -->
+    <httpPort>8443</httpPort>               <!-- 서비스 포트 (기본값: 8443) -->
     <tomcatVersion>11.0.15</tomcatVersion>  <!-- Tomcat 버전 (Tomcat 모드 전용) -->
   </configuration>
 

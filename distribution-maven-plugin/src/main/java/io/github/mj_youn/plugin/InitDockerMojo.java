@@ -38,7 +38,7 @@ public class InitDockerMojo extends AbstractMojo {
     @Parameter(property = "appName")
     private String appName;
 
-    @Parameter(property = "httpPort", defaultValue = "8080")
+    @Parameter(property = "httpPort", defaultValue = "8443")
     private int httpPort;
 
     @Parameter(property = "tomcatVersion", defaultValue = "11.0.15")

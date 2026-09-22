@@ -67,8 +67,8 @@ public class DistributionMojo extends AbstractMojo {
     @Parameter(property = "tomcatVersion", defaultValue = "11.0.15")
     private String tomcatVersion;
 
-    /** HTTP 서비스 포트 (기본값: 8080) */
-    @Parameter(property = "httpPort", defaultValue = "8080")
+    /** HTTP 서비스 포트 (기본값: 8443) */
+    @Parameter(property = "httpPort", defaultValue = "8443")
     private int httpPort;
 
     @Parameter(property = "os", defaultValue = "linux")
@@ -146,6 +146,7 @@ public class DistributionMojo extends AbstractMojo {
 
     @Override
     public void execute() throws MojoExecutionException {
+        this.httpPort = resolveHttpPort();
         boolean tomcatMode = isTomcat();
         String resolvedType = resolvePackageType();
         String targetOs = (os != null && !os.isBlank()) ? os.trim().toLowerCase() : "linux";
@@ -302,8 +303,130 @@ public class DistributionMojo extends AbstractMojo {
         tokens.put("dockerImage", name + ":" + project.getVersion());
         tokens.put("appType", resolvedType);
         tokens.put("tomcatVersion", tomcatVersion != null ? tomcatVersion : "11.0.15");
-        tokens.put("httpPort", String.valueOf(httpPort));
+        tokens.put("httpPort", String.valueOf(resolveHttpPort()));
         return tokens;
+    }
+
+    /**
+     * HTTP 서비스 포트를 결정합니다.
+     * <ol>
+     *   <li>사용자가 CLI(-DhttpPort=...) 또는 pom.xml configuration으로 기본값(8443)이 아닌 포트를 명시한 경우 우선 적용합니다.</li>
+     *   <li>그 외의 경우 프로젝트의 설정 파일(application.yml, application.properties 등)에서 server.port를 탐색합니다.</li>
+     *   <li>설정 파일에서도 찾지 못한 경우 기존 httpPort(> 0) 또는 기본값 8443을 반환합니다.</li>
+     * </ol>
+     *
+     * @return 결정된 HTTP 포트 번호
+     */
+    protected int resolveHttpPort() {
+        // 1. 사용자가 8443이 아닌 다른 포트를 명시적으로 지정한 경우 우선 적용
+        if (httpPort > 0 && httpPort != 8443) {
+            return httpPort;
+        }
+
+        if (project == null || project.getBasedir() == null) {
+            return httpPort > 0 ? httpPort : 8443;
+        }
+
+        File basedir = project.getBasedir();
+        String activeEnv = (env != null && !env.isBlank()) ? env.trim() : "dev";
+
+        // 2. 프로젝트 설정 파일 후보 경로 탐색 (우선순위 순서)
+        List<File> candidates = List.of(
+                new File(basedir, "config.profiles/" + activeEnv + "/application.yml"),
+                new File(basedir, "config.profiles/" + activeEnv + "/application.yaml"),
+                new File(basedir, "config.profiles/" + activeEnv + "/application.properties"),
+                new File(basedir, "config/" + activeEnv + "/application.yml"),
+                new File(basedir, "config/" + activeEnv + "/application.yaml"),
+                new File(basedir, "config/" + activeEnv + "/application.properties"),
+                new File(basedir, "src/main/resources/application-" + activeEnv + ".yml"),
+                new File(basedir, "src/main/resources/application-" + activeEnv + ".yaml"),
+                new File(basedir, "src/main/resources/application-" + activeEnv + ".properties"),
+                new File(basedir, "config/application.yml"),
+                new File(basedir, "config/application.yaml"),
+                new File(basedir, "config/application.properties"),
+                new File(basedir, "src/main/resources/application.yml"),
+                new File(basedir, "src/main/resources/application.yaml"),
+                new File(basedir, "src/main/resources/application.properties")
+        );
+
+        for (File candidate : candidates) {
+            if (candidate.exists() && candidate.isFile()) {
+                Integer detected = parseServerPort(candidate);
+                if (detected != null && detected > 0) {
+                    getLog().info("   🔍 [Distribution] 설정 파일에서 HTTP 서비스 포트를 자동 감지했습니다: "
+                            + detected + " (" + basedir.toPath().relativize(candidate.toPath()) + ")");
+                    return detected;
+                }
+            }
+        }
+
+        return httpPort > 0 ? httpPort : 8443;
+    }
+
+    /**
+     * YAML 또는 Properties 설정 파일에서 server.port 값을 파싱합니다.
+     *
+     * @param file 대상 설정 파일
+     * @return 파싱된 포트 번호 (없으면 null)
+     */
+    private Integer parseServerPort(File file) {
+        try {
+            if (file.getName().endsWith(".properties")) {
+                Properties props = new Properties();
+                try (InputStream is = new FileInputStream(file)) {
+                    props.load(is);
+                    String portStr = props.getProperty("server.port");
+                    if (portStr != null && !portStr.isBlank()) {
+                        return Integer.parseInt(portStr.trim().replaceAll("['\"]", ""));
+                    }
+                }
+            } else {
+                List<String> lines = Files.readAllLines(file.toPath(), StandardCharsets.UTF_8);
+                boolean inServerBlock = false;
+                int serverIndent = -1;
+
+                for (String line : lines) {
+                    String trimmed = line.trim();
+                    if (trimmed.startsWith("#") || trimmed.isEmpty()) {
+                        continue;
+                    }
+
+                    // server.port: 8082 형태
+                    if (trimmed.startsWith("server.port:") || trimmed.startsWith("server.port =")) {
+                        String[] parts = trimmed.split("[:=]", 2);
+                        if (parts.length > 1) {
+                            String portStr = parts[1].trim().replaceAll("['\"]", "").replaceAll("#.*$", "").trim();
+                            return Integer.parseInt(portStr);
+                        }
+                    }
+
+                    int indent = 0;
+                    while (indent < line.length() && (line.charAt(indent) == ' ' || line.charAt(indent) == '\t')) {
+                        indent++;
+                    }
+
+                    if (trimmed.startsWith("server:") || trimmed.equals("server:")) {
+                        inServerBlock = true;
+                        serverIndent = indent;
+                        continue;
+                    }
+
+                    if (inServerBlock) {
+                        if (indent <= serverIndent && !trimmed.isEmpty()) {
+                            inServerBlock = false;
+                        } else if (trimmed.startsWith("port:") || trimmed.startsWith("port =")) {
+                            String[] parts = trimmed.split("[:=]", 2);
+                            if (parts.length > 1) {
+                                String portStr = parts[1].trim().replaceAll("['\"]", "").replaceAll("#.*$", "").trim();
+                                return Integer.parseInt(portStr);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return null;
     }
 
     /**

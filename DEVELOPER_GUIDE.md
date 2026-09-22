@@ -110,7 +110,7 @@ Maven 플러그인은 컴파일 시점에 `META-INF/maven/plugin.xml`을 참조�
 | **배포 유형**     | 기본 패키징 방식            | `packageType = '...'`   | `<packageType>...</packageType>`     | `-Ptype=...` / `-Dtype=...`<br/>`-PpackageType=...` / `-DpackageType=...` | `jar`                        |
 | **배포 타겟 OS**  | 패키징 대상 OS 스크립트 필터링 | `os = 'linux'`          | `<os>linux</os>`                     | `-Pos=linux\|windows\|all`<br/>`-Dos=linux\|windows\|all`                  | `linux`                      |
 | **배포 환경**     | 활성 프로파일               | -                       | `<env>...</env>`                     | `-Penv=dev\|prod\|local` / `-Denv=...`                                    | `dev`                        |
-| **HTTP 포트**     | 서비스 포트                 | `httpPort = 8080`       | `<httpPort>8080</httpPort>`          | `-Pport=...` / `-PhttpPort=...`<br/>`-DhttpPort=...`                      | `8080`                       |
+| **HTTP 포트**     | 서비스 포트                 | `httpPort = 8443`       | `<httpPort>8443</httpPort>`          | `-Pport=...` / `-PhttpPort=...`<br/>`-DhttpPort=...`                      | `8443` (미지정 시 설정 파일 자동 감지) |
 | **Tomcat 버전**   | 외장 톰캣 버전              | `tomcatVersion = '...'` | `<tomcatVersion>...</tomcatVersion>` | `-PtomcatVersion=...` / `-DtomcatVersion=...`                             | `11.0.15`                    |
 | **추가 디렉토리** | 패키지 루트 포함 폴더       | `extraDirs = ['...']`   | `<extraDirs>...</extraDirs>`         | `-DextraDirs="..."`                                                       | 없음                         |
 

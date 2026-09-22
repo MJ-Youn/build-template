@@ -1408,6 +1408,23 @@ configure_compose() {
     local REAL_UID=$(id -u "$REAL_USER")
     local REAL_GID=$(id -g "$REAL_USER")
 
+    # HTTP 서비스 포트 안전 결정 (0 또는 빈 값 방지)
+    local RESOLVED_HTTP_PORT="${HTTP_PORT:-@httpPort@}"
+    if [ -z "$RESOLVED_HTTP_PORT" ] || [ "$RESOLVED_HTTP_PORT" = "0" ] || [ "$RESOLVED_HTTP_PORT" -le 0 ] 2>/dev/null; then
+        RESOLVED_HTTP_PORT=""
+        for yml in "$DEST_DIR/config/application.yml" "$PKG_ROOT/config/application.yml"; do
+            if [ -f "$yml" ]; then
+                local PARSED_PORT
+                PARSED_PORT=$(grep -E "^\s*port:\s*[0-9]+" "$yml" 2>/dev/null | awk '{print $2}')
+                if [ -n "$PARSED_PORT" ] && [[ "$PARSED_PORT" =~ ^[0-9]+$ ]] && [ "$PARSED_PORT" -gt 0 ]; then
+                    RESOLVED_HTTP_PORT="$PARSED_PORT"
+                    break
+                fi
+            fi
+        done
+        [ -z "$RESOLVED_HTTP_PORT" ] && RESOLVED_HTTP_PORT=8443
+    fi
+
     cat <<EOF > "$ENV_FILE"
 # ==========================================================
 # Docker Compose Environment Variables
@@ -1417,7 +1434,7 @@ APP_UID=$REAL_UID
 APP_GID=$REAL_GID
 
 APP_NAME=$APP_NAME
-HTTP_PORT=${HTTP_PORT:-@httpPort@}
+HTTP_PORT=$RESOLVED_HTTP_PORT
 
 # [호스트 환경] 로그 및 설치 디렉토리 (Legacy 모드 로그 경로 겸용)
 LOG_PATH=$LOG_PATH

@@ -167,7 +167,7 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
     distribution {
         packageType = 'jar'            // 기본 배포 유형: 'jar' 또는 'tomcat'
         os          = 'linux'          // 배포 타겟 OS ('linux', 'windows', 'all')
-        httpPort    = 8080
+        httpPort    = 8443
         tomcatVersion = '11.0.15'
         dockerRegistry = 'my.reg.com/repo' // (선택) 원격 레지스트리 URL
         dockerImageTag = '1.0.0'           // (선택) 이미지 태그 (기본값: version)
@@ -459,7 +459,7 @@ sudo ./deploy/install_service.sh
    - Docker 및 Docker Desktop 데몬 실행 상태(`docker info`) 자동 점검
    - Docker 이미지 자동 빌드 또는 로드
    - `docker compose -f docker\docker-compose.yml up -d` 백그라운드 컨테이너 구동
-   - 서비스 접속 URL(`http://localhost:8080`) 및 상태 안내 출력
+   - 서비스 접속 URL(`http://localhost:8443`) 및 상태 안내 출력
 
 #### 2. Windows 컨테이너 제어 명령어 (`bin/`)
 - **서비스 시작**: `bin\start.bat` (`docker compose up -d`)
@@ -565,7 +565,7 @@ mvn distribution:deploy -Denv=prod
 
 ### 1. 프로세스 및 포트 확인
 
-서비스가 실행 중이고 포트(8080)가 열려있는지 확인합니다.
+서비스가 실행 중이고 포트(8443)가 열려있는지 확인합니다.
 
 ```bash
 # 🐳 Docker 배포 시
@@ -574,7 +574,7 @@ docker ps | grep my-service
 # 🖥️ 일반 배포 시
 ps -ef | grep java
 # 또는
-netstat -anlp | grep :8080
+netstat -anlp | grep :8443
 ```
 
 ### 2. 로그 확인 (필수)
@@ -596,7 +596,7 @@ tail-log-my-service.sh
 
 ```bash
 # 로컬에서 테스트
-curl -v http://localhost:8080/
+curl -v http://localhost:8443/
 
 # 응답 예시
 # < HTTP/1.1 200 OK ...
@@ -672,7 +672,7 @@ curl -v http://localhost:8080/
 |                        | `JVM_XMX`             | _(미지정)_            | JVM 최대 힙 메모리 크기 (예: `-Xmx2048m`, `-Xmx4g`)                                                                        |
 | **JVM 추가 옵션**      | `EXTRA_JAVA_OPTS`     | _(공백)_              | GC 설정, 파일 인코딩, 타임존 등 추가 옵션<br/>`"-XX:+UseG1GC -Dfile.encoding=UTF-8 -Duser.timezone=Asia/Seoul"`            |
 | **Spring Boot 인수**   | `APP_ARGS`            | _(공백)_              | JAR 실행 시 뒤에 붙을 프로그램 커맨드라인 인수<br/>`"--server.port=9090 --custom.flag=true --spring.main.banner-mode=off"` |
-| **프로세스 관리**      | `SERVER_PORT`         | `8080` (자동 감지)    | 서비스 포트 (미지정 시 `application.yml`의 port 자동 파싱)                                                                 |
+| **프로세스 관리**      | `SERVER_PORT`         | `8443` (자동 감지)    | 서비스 포트 (미지정 시 `application.yml`의 port 자동 파싱)                                                                 |
 |                        | `LOG_PATH`            | `{PROJECT_ROOT}/log`  | 애플리케이션 로그 파일이 저장될 절대/상대 경로                                                                             |
 |                        | `PID_FILE`            | `bin/application.pid` | 프로세스 ID(PID)가 기록될 파일 경로                                                                                        |
 |                        | `STOP_TIMEOUT`        | `10` (초)             | 서비스 정상 종료(Graceful Shutdown) 대기 시간                                                                              |
@@ -707,7 +707,7 @@ Docker Compose와 Bash 스크립트 모두 표준적인 `KEY="VALUE"` 문법을 
 ```bash
 # ⭐️ 패키지 루트의 .env (Legacy와 Docker Compose 통합 예시)
 # 1) Docker Compose용 호스트 설정
-SERVER_PORT=8080
+SERVER_PORT=8443
 TZ=Asia/Seoul
 APP_UID=1000
 APP_GID=1000

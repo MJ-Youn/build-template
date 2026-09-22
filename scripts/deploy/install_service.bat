@@ -18,7 +18,7 @@ set "HTTP_PORT=@httpPort@"
 
 if "%APP_NAME%"=="" set "APP_NAME=app"
 if "%IMAGE_TAG%"=="" set "IMAGE_TAG=%APP_NAME%:latest"
-if "%HTTP_PORT%"=="" set "HTTP_PORT=8080"
+if "%HTTP_PORT%"=="" set "HTTP_PORT=8443"
 
 echo.
 echo ================================================================

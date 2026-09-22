@@ -56,7 +56,7 @@ ${YELLOW}${BOLD}주요 지원 파라미터 (Gradle -P / Maven -D 호환):${NC}
   ${GREEN}-Ptype=jar|tomcat${NC}     : 배포 유형 오버라이드 (기본값: jar)
                            - jar    : Spring Boot Executable JAR 기반 배포
                            - tomcat : Standalone Apache Tomcat 11 기반 배포
-  ${GREEN}-Pport=<포트>${NC}          : HTTP 서비스 포트 오버라이드 (기본값: 8080)
+  ${GREEN}-Pport=<포트>${NC}          : HTTP 서비스 포트 오버라이드 (기본값: 8443)
   ${GREEN}-PtomcatVersion=<버전>${NC} : Tomcat 버전 지정 (기본값: 11.0.15)
   ${GREEN}-PappName=<앱이름>${NC}     : 배포 서비스명 오버라이드 (기본값: 프로젝트명)
   ${GREEN}--no-pull${NC}             : 배포 전 Git pull 건너뛰기
@@ -69,11 +69,11 @@ ${YELLOW}${BOLD}실행 예시:${NC}
   ${CYAN}# 2. 운영 환경 시스템(sudo/root) 모드 배포 (sudo 필요)${NC}
   ./build_deploy.sh prod --sudo
 
-  ${CYAN}# 3. 운영 환경 외장 Tomcat 일반 사용자 배포 (포트 8080)${NC}
+  ${CYAN}# 3. 운영 환경 외장 Tomcat 일반 사용자 배포 (포트 8443)${NC}
   ./build_deploy.sh prod -Ptype=tomcat
 
-  ${CYAN}# 4. 개발 환경 포트 8443 변경 배포${NC}
-  ./build_deploy.sh dev -Pport=8443
+  ${CYAN}# 4. 개발 환경 커스텀 포트 8082 변경 배포${NC}
+  ./build_deploy.sh dev -Pport=8082
 
   ${CYAN}# 5. Git pull 없이 즉시 톰캣 8081 시스템 모드 배포${NC}
   ./build_deploy.sh prod -Ptype=tomcat -Pport=8081 --sudo --no-pull

@@ -4,7 +4,7 @@
 
 ## 🎯 [3.2.0] - 2026-09-22
 
-> 🚀 **Minor Release** — 일반 사용자 배포 모드(Non-root / User Mode) 기본화 및 시스템 모드 옵션(`--sudo`, `--root`, `-Psudo`, `-Dsudo`) 공식 지원. 보안 요구사항(최소 권한의 원칙: Least Privilege)에 맞추어 `sudo` 권한이 전혀 없는 일반 계정에서도 기본으로 안전하게 서비스를 배포·운영할 수 있도록 systemd 사용자 모드(`systemctl --user`) 데몬 등록, 엄격한 사전 유효성 검증(1024 미만 특권 포트 차단, 디렉토리 쓰기 권한 및 Docker 그룹 권한 검증), 사용자 crontab 등록, 재부팅 시 백그라운드 구동 유지를 위한 Linger 설정 점검 기능 탑재. 기존 OS 레벨 통합 관리가 필요한 경우 `--sudo` / `-Psudo` 옵션으로 시스템 모드 배포 지원.
+> 🚀 **Minor Release** — 일반 사용자 배포 모드(Non-root / User Mode) 기본화 및 시스템 모드 옵션(`--sudo`, `--root`, `-Psudo`, `-Dsudo`) 공식 지원, 기본 서비스 포트 `8443` 변경 및 Spring Boot 설정 스마트 포트 자동 감지, Maven 플러그인 파라미터 메타데이터 복구 및 `.env` 포트 방어 로직 강화. 보안 요구사항(최소 권한의 원칙: Least Privilege)에 맞추어 `sudo` 권한이 전혀 없는 일반 계정에서도 기본으로 안전하게 서비스를 배포·운영할 수 있도록 systemd 사용자 모드(`systemctl --user`) 데몬 등록, 엄격한 사전 유효성 검증(1024 미만 특권 포트 차단, 디렉토리 쓰기 권한 및 Docker 그룹 권한 검증), 사용자 crontab 등록, 재부팅 시 백그라운드 구동 유지를 위한 Linger 설정 점검 기능 탑재.
 
 ### ✨ 신규 기능 및 개선 사항 (Features & Improvements)
 
@@ -14,7 +14,21 @@
   - OS 전역 데몬 등록 및 `/opt` 배포가 필요한 경우 `--sudo`, `--root`, `-Psudo`, `-Dsudo` 옵션을 부여하여 시스템 모드로 전환 가능.
   - 기존 옵션(`--user`, `-Puser`, `-Duser`) 역시 호환성을 위해 유저 모드로 정상 처리.
 
-#### 2. 🔍 엄격한 사전 유효성 검증 (배포 전 안전 차단)
+#### 2. 🔌 기본 서비스 포트 8443 변경 및 설정 파일 스마트 자동 감지
+- **기본 HTTP 서비스 포트 8443 통일**:
+  - Linux 일반 사용자 모드의 비특권 포트(1024 이상) 바인딩 정책에 부합하도록 플러그인 기본 포트를 `8443`으로 표준화.
+- **Spring Boot `server.port` 스마트 감지 (Fallback)**:
+  - 사용자가 CLI 파라미터(`-Pport` / `-DhttpPort`)나 빌드 스크립트 설정을 생략한 경우, 플러그인이 프로젝트의 설정 파일(`config.profiles/${env}/application.yml`, `src/main/resources/application.yml` 등)에서 `server.port`를 자동으로 파싱하여 패키지 배너 및 토큰에 반영.
+  - 설정 파일에 포트 지정이 없는 경우 기본값 `8443` 적용.
+
+#### 3. 🐛 Maven 플러그인 메타데이터(`plugin.xml`) 파라미터 복구 및 0번 포트 버그 해결
+- `distribution-maven-plugin`의 `package`, `packageJar`, `packageTomcat` 골(Goal)에서 누락되었던 `httpPort`(기본값: 8443), `os`, `tomcatVersion`, `type`, `dockerRegistry`, `dockerImageTag` 파라미터 매핑을 완벽히 복구.
+- 파라미터 주입 누락으로 인해 `httpPort`가 primitive int 기본값 `0`으로 초기화되던 문제를 원천 해결.
+
+#### 4. 🛡️ `install_service.sh` 환경변수(`.env`) 포트 생성 방어 로직 보강
+- 배포 스크립트 실행 시 `.env` 파일의 `HTTP_PORT`가 `0` 또는 빈 값으로 기록되지 않도록, 호스트의 `config/application.yml` 파싱 및 8443 fallback 이중 안전장치 추가.
+
+#### 5. 🔍 엄격한 사전 유효성 검증 (배포 전 안전 차단)
 - **특권 포트(Privileged Port: 1~1023) 바인딩 차단**:
   - 1024 미만 포트 바인딩 시도 시 배포를 즉시 중단하고 1024 이상 포트 변경 또는 리버스 프록시 연동 가이드 제공.
 - **설치 및 로그 경로 쓰기 권한 검증**:
@@ -22,16 +36,16 @@
 - **Docker 데몬 제어 권한 검증**:
   - Docker 배포 모드 구동 시 현재 사용자가 sudo 없이 docker 명령어 실행 가능한지 검증하고, 권한 부족 시 `sudo usermod -aG docker $USER` 요청 가이드 출력.
 
-#### 3. ⚙️ `systemd` 사용자 모드(`systemctl --user`) 기반 데몬 등록
+#### 6. ⚙️ `systemd` 사용자 모드(`systemctl --user`) 기반 데몬 등록
 - `~/.config/systemd/user/<appName>.service`에 서비스 유닛을 생성하고 `systemctl --user`로 데몬 제어.
 - `chown` 명령어 호출을 안전하게 bypass 처리하여 불필요한 권한 오류 완전 방지.
 - 시스템 전역 크론 대신 사용자 크론탭(`crontab`)에 자동 로그 정리 작업 등록.
 
-#### 4. 💡 배포 완료 후 Linger 및 서비스 제어 안내 가이드 자동 출력
+#### 7. 💡 배포 완료 후 Linger 및 서비스 제어 안내 가이드 자동 출력
 - 재부팅 후에도 백그라운드 구동 유지를 위한 `sudo loginctl enable-linger $USER` 설정 여부 자동 확인 및 미설정 시 가이드 카드 출력.
 - `systemctl --user status|start|stop|restart` 및 로그 모니터링 명령어 가이드 제공.
 
-#### 5. 🖥️ `initDeployScript` 현재 시스템 OS 자동 감지 및 필요 스크립트만 생성
+#### 8. 🖥️ `initDeployScript` 현재 시스템 OS 자동 감지 및 필요 스크립트만 생성
 - `initDeployScript` (Gradle / Maven 공통) 실행 시 현재 호스트 OS를 자동 감지하여 불필요한 스크립트 생성을 방지:
   - **Linux / macOS 환경**: `build_deploy.sh`만 생성하고 실행 권한(`0755`) 자동 부여 (`build_deploy.bat` 생성 방지)
   - **Windows 환경**: `build_deploy.bat`만 생성
