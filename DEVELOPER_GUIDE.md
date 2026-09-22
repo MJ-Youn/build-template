@@ -80,7 +80,7 @@ build_template (루트 / SSOT)
 | **JAR 원스탑 배포**    | `./gradlew deployJar`        | `mvn distribution:deploy -DpackageType=jar`    | JAR 기반 원스탑 배포                          |
 | **Tomcat 원스탑 배포** | `./gradlew deployTomcat`     | `mvn distribution:deploy -DpackageType=tomcat` | Tomcat 기반 원스탑 배포                       |
 | **배포 가이드 출력**   | `./gradlew distHelp`         | `mvn distribution:help` (또는 `distHelp`)      | 명령어 및 옵션 도움말 출력                    |
-| **배포 스크립트 생성** | `./gradlew initDeployScript` | `mvn distribution:initDeployScript`            | 루트에 `build_deploy.sh` 자동 생성            |
+| **배포 스크립트 생성** | `./gradlew initDeployScript` | `mvn distribution:initDeployScript`            | 현재 OS에 맞는 `build_deploy.sh`(.bat) 자동 생성 |
 
 ---
 
@@ -96,7 +96,7 @@ Maven 플러그인은 컴파일 시점에 `META-INF/maven/plugin.xml`을 참조�
 | `deploy`           | `DeployMojo`           | `project`, `appName`, `env`, `outputDirectory`                                                                  |
 | `help`             | `HelpMojo`             | `requiresProject = false` (프로젝트 없이 단독 실행 가능)                                                        |
 | `distHelp`         | `DistHelpMojo`         | `requiresProject = false` (`help` 단축 별칭)                                                                    |
-| `initDeployScript` | `InitDeployScriptMojo` | `basedir`                                                                                                       |
+| `initDeployScript` | `InitDeployScriptMojo` | `basedir`, `os`, `targetOs`                                                                                     |
 
 ---
 
@@ -180,7 +180,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 ./gradlew packageJar -Penv=dev    # JAR 배포 Zip 생성
 ./gradlew packageTomcat -Penv=dev # Tomcat 배포 Zip 생성 (webapps/ROOT 포함)
 ./gradlew deployJar -Penv=dev     # 원스탑 JAR 배포 및 구동
-./gradlew initDeployScript        # build_deploy.sh 및 build_deploy.bat 자동 생성
+./gradlew initDeployScript        # 현재 OS에 맞는 build_deploy.sh(.bat) 자동 생성
 ./gradlew initDocker              # 배포 유형에 맞는 Dockerfile & docker-compose 자동 생성
 ./gradlew initDocker -Ptype=tomcat # Tomcat 전용 Dockerfile 생성
 ./gradlew showDocker              # 🐳 JAR vs Tomcat Dockerfile 아키텍처 비교 가이드 출력

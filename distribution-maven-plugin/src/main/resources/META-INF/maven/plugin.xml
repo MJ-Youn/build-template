@@ -293,9 +293,25 @@
           <editable>false</editable>
           <description>프로젝트 루트 디렉토리</description>
         </parameter>
+        <parameter>
+          <name>os</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>배포 스크립트 대상 OS (linux | windows | all)</description>
+        </parameter>
+        <parameter>
+          <name>targetOs</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>배포 스크립트 대상 OS 별칭</description>
+        </parameter>
       </parameters>
       <configuration>
         <basedir default-value="${project.basedir}" />
+        <os default-value="${os}" />
+        <targetOs default-value="${targetOs}" />
       </configuration>
     </mojo>
     <mojo>

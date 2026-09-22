@@ -31,6 +31,12 @@
 - 재부팅 후에도 백그라운드 구동 유지를 위한 `sudo loginctl enable-linger $USER` 설정 여부 자동 확인 및 미설정 시 가이드 카드 출력.
 - `systemctl --user status|start|stop|restart` 및 로그 모니터링 명령어 가이드 제공.
 
+#### 5. 🖥️ `initDeployScript` 현재 시스템 OS 자동 감지 및 필요 스크립트만 생성
+- `initDeployScript` (Gradle / Maven 공통) 실행 시 현재 호스트 OS를 자동 감지하여 불필요한 스크립트 생성을 방지:
+  - **Linux / macOS 환경**: `build_deploy.sh`만 생성하고 실행 권한(`0755`) 자동 부여 (`build_deploy.bat` 생성 방지)
+  - **Windows 환경**: `build_deploy.bat`만 생성
+  - **수동 오버라이드 지원**: 필요 시 `-Pos=all` (또는 `-Dos=all`) 옵션으로 두 스크립트 모두 생성 가능
+
 ---
 
 ## 🎯 [3.1.0] - 2026-09-21

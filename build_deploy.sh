@@ -242,7 +242,7 @@ if [ -f "${SCRIPT_DIR}/gradlew" ] || [ -f "${SCRIPT_DIR}/build.gradle" ] || [ -f
     INSTALL_SCRIPT=$(find "${EXTRACT_DIR}" -name "install_service.sh" 2>/dev/null | head -n 1)
     if [ -f "${INSTALL_SCRIPT}" ]; then
         chmod +x "${INSTALL_SCRIPT}"
-        local INSTALL_ARGS=()
+        INSTALL_ARGS=()
         if [ "${IS_USER_MODE}" = true ]; then
             INSTALL_ARGS+=("--user")
             echo -e "${GREEN}🚀 일반 사용자 모드로 서비스 설치 및 실행을 시작합니다 (기본값)...${NC}"
@@ -291,7 +291,7 @@ elif [ -f "${SCRIPT_DIR}/mvnw" ] || [ -f "${SCRIPT_DIR}/pom.xml" ]; then
     INSTALL_SCRIPT=$(find "${EXTRACT_DIR}" -name "install_service.sh" 2>/dev/null | head -n 1)
     if [ -f "${INSTALL_SCRIPT}" ]; then
         chmod +x "${INSTALL_SCRIPT}"
-        local INSTALL_ARGS=()
+        INSTALL_ARGS=()
         if [ "${IS_USER_MODE}" = true ]; then
             INSTALL_ARGS+=("--user")
             echo -e "${GREEN}🚀 일반 사용자 모드로 서비스 설치 및 실행을 시작합니다 (기본값)...${NC}"

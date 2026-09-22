@@ -174,7 +174,7 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
     }
 
   [🔧 유틸리티]
-    ./gradlew initDeployScript         : 프로젝트 루트에 build_deploy.sh 자동 생성
+    ./gradlew initDeployScript         : 현재 OS에 맞는 build_deploy.sh(.bat) 자동 생성
     ./gradlew initDocker               : 배포 유형에 맞는 Dockerfile & docker-compose 생성
     ./gradlew initDocker -Ptype=jar    : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
     ./gradlew initDocker -Ptype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
@@ -233,7 +233,7 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
     -DdockerImageTag=v1.0.0                 : Docker 이미지 태그 (기본값: 버전)
 
   [🔧 유틸리티]
-    mvn distribution:initDeployScript       : 프로젝트 루트에 build_deploy.sh 자동 생성
+    mvn distribution:initDeployScript       : 현재 OS에 맞는 build_deploy.sh(.bat) 자동 생성
     mvn distribution:initDocker             : 배포 유형에 맞는 Dockerfile & docker-compose 생성
     mvn distribution:initDocker -Dtype=jar  : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
     mvn distribution:initDocker -Dtype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)

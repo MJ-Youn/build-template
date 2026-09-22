@@ -121,42 +121,69 @@ public class DistributionPlugin implements Plugin<Project> {
         // 8. 'initDeployScript' 태스크 등록
         project.getTasks().register("initDeployScript", task -> {
             task.setGroup("distribution");
-            task.setDescription("프로젝트 루트에 배포 자동화 쉘 스크립트(build_deploy.sh)를 생성합니다.");
+            task.setDescription("프로젝트 루트에 현재 OS에 맞는 배포 자동화 스크립트(build_deploy.sh 또는 build_deploy.bat)를 생성합니다.");
             task.doLast(t -> {
-                File targetFile = project.file("build_deploy.sh");
-                InputStream stream = getClass().getClassLoader().getResourceAsStream("template/build_deploy.sh");
-                if (stream == null) {
-                    project.getLogger().error("❌ [Distribution] template/build_deploy.sh 템플릿을 찾을 수 없습니다.");
-                    return;
-                }
-                try (stream) {
-                    Files.copy(stream, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                    targetFile.setExecutable(true, false);
-                    project.getLogger().lifecycle("================================================================");
-                    project.getLogger().lifecycle("✅ [Distribution] build_deploy.sh 가 프로젝트 루트에 생성되었습니다!");
-                    project.getLogger().lifecycle("   - 파일 경로: {}", targetFile.getAbsolutePath());
-                    project.getLogger().lifecycle("   - 사용법: ./build_deploy.sh -Penv=dev");
-                    project.getLogger().lifecycle("================================================================");
-                } catch (IOException e) {
-                    throw new RuntimeException("build_deploy.sh 생성 실패: " + e.getMessage(), e);
+                String currentOsName = System.getProperty("os.name", "");
+                boolean isSystemWindows = currentOsName.toLowerCase().contains("win");
+                String osOption = project.hasProperty("os") ? String.valueOf(project.property("os")).trim().toLowerCase()
+                        : (project.hasProperty("targetOs") ? String.valueOf(project.property("targetOs")).trim().toLowerCase() : null);
+
+                boolean generateSh;
+                boolean generateBat;
+
+                if ("windows".equals(osOption) || "win".equals(osOption)) {
+                    generateSh = false;
+                    generateBat = true;
+                } else if ("linux".equals(osOption) || "unix".equals(osOption) || "mac".equals(osOption) || "macos".equals(osOption)) {
+                    generateSh = true;
+                    generateBat = false;
+                } else if ("all".equals(osOption)) {
+                    generateSh = true;
+                    generateBat = true;
+                } else {
+                    // 기본값: 현재 호스트 시스템 OS 감지
+                    generateSh = !isSystemWindows;
+                    generateBat = isSystemWindows;
                 }
 
-                // Windows용 build_deploy.bat 생성
-                File batTargetFile = project.file("build_deploy.bat");
-                InputStream batStream = getClass().getClassLoader().getResourceAsStream("template/build_deploy.bat");
-                if (batStream != null) {
-                    try (batStream) {
-                        Files.copy(batStream, batTargetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
-                        project.getLogger()
-                                .lifecycle("✅ [Distribution] build_deploy.bat (Windows용)이 프로젝트 루트에 생성되었습니다!");
-                        project.getLogger().lifecycle("   - 파일 경로: {}", batTargetFile.getAbsolutePath());
-                        project.getLogger().lifecycle("   - 사용법: build_deploy.bat dev");
-                        project.getLogger()
-                                .lifecycle("================================================================");
-                    } catch (IOException e) {
-                        project.getLogger().warn("⚠️ [Distribution] build_deploy.bat 생성 실패: {}", e.getMessage());
+                project.getLogger().lifecycle("================================================================");
+                project.getLogger().lifecycle("🚀 [Distribution] 배포 스크립트 생성 (현재 OS: {})", currentOsName);
+
+                if (generateSh) {
+                    File targetFile = project.file("build_deploy.sh");
+                    InputStream stream = getClass().getClassLoader().getResourceAsStream("template/build_deploy.sh");
+                    if (stream == null) {
+                        project.getLogger().error("❌ [Distribution] template/build_deploy.sh 템플릿을 찾을 수 없습니다.");
+                    } else {
+                        try (stream) {
+                            Files.copy(stream, targetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                            targetFile.setExecutable(true, false);
+                            project.getLogger().lifecycle("✅ build_deploy.sh (Linux/macOS용) 생성 완료!");
+                            project.getLogger().lifecycle("   - 파일 경로: {}", targetFile.getAbsolutePath());
+                            project.getLogger().lifecycle("   - 사용법: ./build_deploy.sh dev (또는 ./build_deploy.sh prod --sudo)");
+                        } catch (IOException e) {
+                            throw new RuntimeException("build_deploy.sh 생성 실패: " + e.getMessage(), e);
+                        }
                     }
                 }
+
+                if (generateBat) {
+                    File batTargetFile = project.file("build_deploy.bat");
+                    InputStream batStream = getClass().getClassLoader().getResourceAsStream("template/build_deploy.bat");
+                    if (batStream == null) {
+                        project.getLogger().error("❌ [Distribution] template/build_deploy.bat 템플릿을 찾을 수 없습니다.");
+                    } else {
+                        try (batStream) {
+                            Files.copy(batStream, batTargetFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+                            project.getLogger().lifecycle("✅ build_deploy.bat (Windows용) 생성 완료!");
+                            project.getLogger().lifecycle("   - 파일 경로: {}", batTargetFile.getAbsolutePath());
+                            project.getLogger().lifecycle("   - 사용법: build_deploy.bat dev");
+                        } catch (IOException e) {
+                            throw new RuntimeException("build_deploy.bat 생성 실패: " + e.getMessage(), e);
+                        }
+                    }
+                }
+                project.getLogger().lifecycle("================================================================");
             });
         });
 
@@ -298,13 +325,13 @@ public class DistributionPlugin implements Plugin<Project> {
                   }
 
                 [🔧 유틸리티]
-                  ./gradlew initDeployScript         : 프로젝트 루트에 build_deploy.sh 자동 생성
+                  ./gradlew initDeployScript         : 현재 OS에 맞는 build_deploy.sh(.bat) 자동 생성 (옵션: -Pos=all)
                   ./gradlew initDocker               : 배포 유형(기본 설정)에 맞는 Dockerfile & docker-compose 생성
                   ./gradlew initDocker -Ptype=jar    : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
                   ./gradlew initDocker -Ptype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
                   ./gradlew showDocker               : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
                   ./gradlew distHelp                 : 이 도움말 출력
-                  ./build_deploy.sh                  : 쉘 스크립트 기반 원스탑 배포
+                  ./build_deploy.sh                  : 쉘 스크립트 기반 원스탑 배포 (Windows: build_deploy.bat)
 
                 ================================================================================
                 """;

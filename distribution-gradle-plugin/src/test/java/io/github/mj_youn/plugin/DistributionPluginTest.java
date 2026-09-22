@@ -45,4 +45,40 @@ class DistributionPluginTest {
         assertEquals("my-registry.com/team", extension.getDockerRegistry());
         assertEquals("v1.2.3", extension.getDockerImageTag());
     }
+
+    @Test
+    @DisplayName("initDeployScript 태스크는 OS 및 옵션에 따라 필요한 배포 스크립트만 생성해야 한다.")
+    void testInitDeployScriptByOs() {
+        Project project = ProjectBuilder.builder().build();
+        project.getPlugins().apply("java");
+        project.getPlugins().apply("io.github.mj-youn.distribution");
+
+        Task initTask = project.getTasks().findByName("initDeployScript");
+        assertNotNull(initTask, "initDeployScript 태스크가 등록되어 있어야 합니다.");
+
+        // 1. Windows 옵션 지정 시 build_deploy.bat만 생성
+        project.getExtensions().getExtraProperties().set("os", "windows");
+        initTask.getActions().get(0).execute(initTask);
+
+        java.io.File batFile = project.file("build_deploy.bat");
+        java.io.File shFile = project.file("build_deploy.sh");
+        assertTrue(batFile.exists(), "build_deploy.bat 파일이 생성되어야 합니다.");
+        assertFalse(shFile.exists(), "build_deploy.sh 파일은 생성되지 않아야 합니다.");
+
+        // 2. Linux/Unix 옵션 지정 시 build_deploy.sh만 생성
+        batFile.delete();
+        project.getExtensions().getExtraProperties().set("os", "linux");
+        initTask.getActions().get(0).execute(initTask);
+
+        assertTrue(shFile.exists(), "build_deploy.sh 파일이 생성되어야 합니다.");
+        assertFalse(batFile.exists(), "build_deploy.bat 파일은 생성되지 않아야 합니다.");
+        assertTrue(shFile.canExecute(), "build_deploy.sh 파일에 실행 권한이 부여되어야 합니다.");
+
+        // 3. all 옵션 지정 시 둘 다 생성
+        project.getExtensions().getExtraProperties().set("os", "all");
+        initTask.getActions().get(0).execute(initTask);
+
+        assertTrue(shFile.exists(), "build_deploy.sh 파일이 생성되어야 합니다.");
+        assertTrue(batFile.exists(), "build_deploy.bat 파일이 생성되어야 합니다.");
+    }
 }
