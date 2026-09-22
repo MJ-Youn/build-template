@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.mj-youn'
-version = '3.1.0'
+version = '3.2.0'
 description = 'Maven distribution packaging plugin with JAR/Tomcat dual deployment support'
 
 java {
@@ -83,7 +83,7 @@ tasks.named('processResources') {
                 filesList << relative
             }
             manifestFile.text = filesList.join('\n')
-            println "📋 [Maven Plugin v3.1.0] 템플릿 매니페스트 생성 완료 (${filesList.size()}개 파일 - JAR/Tomcat 통합 원본 동기화)"
+            println "📋 [Maven Plugin v3.2.0] 템플릿 매니페스트 생성 완료 (${filesList.size()}개 파일 - JAR/Tomcat 통합 원본 동기화)"
         }
     }
 }

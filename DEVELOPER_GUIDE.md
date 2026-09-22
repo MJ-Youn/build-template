@@ -172,7 +172,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 
 #### ② 플러그인이 적용된 개별 Spring Boot 프로젝트 사용자 명령어
 
-`plugins { id 'io.github.mj-youn.distribution' version '3.1.0' }`를 적용한 실제 프로젝트에서 실행하는 명령어:
+`plugins { id 'io.github.mj-youn.distribution' version '3.2.0' }`를 적용한 실제 프로젝트에서 실행하는 명령어:
 
 ```bash
 # 🐘 Gradle 환경

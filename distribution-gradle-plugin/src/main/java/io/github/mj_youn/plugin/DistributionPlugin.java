@@ -249,7 +249,7 @@ public class DistributionPlugin implements Plugin<Project> {
     private void printGuide(Project project) {
         String msg = """
                 ================================================================================
-                🚀 [Distribution Plugin 3.1.0] 빌드 및 배포 가이드
+                🚀 [Distribution Plugin 3.2.0] 빌드 및 배포 가이드
                 ================================================================================
 
                 [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -358,7 +358,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         zipTask.doFirst(task -> {
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("🚀 [Distribution 3.1.0] 배포 패키지 생성 시작");
+            project.getLogger().lifecycle("🚀 [Distribution 3.2.0] 배포 패키지 생성 시작");
             project.getLogger().lifecycle("   - 대상 프로젝트    : {}", project.getName());
             project.getLogger().lifecycle("   - 배포 유형       : {} ({})", packageType.toUpperCase(),
                     isTomcat ? "Standalone Tomcat" : "Executable JAR");
@@ -540,7 +540,7 @@ public class DistributionPlugin implements Plugin<Project> {
             File archive = zipTask.getArchiveFile().get().getAsFile();
             long sizeInMb = archive.length() / (1024 * 1024);
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("✅ [Distribution 3.1.0] 배포 패키지 생성 완료!");
+            project.getLogger().lifecycle("✅ [Distribution 3.2.0] 배포 패키지 생성 완료!");
             project.getLogger().lifecycle("   - 산출물 경로: {}", archive.getAbsolutePath());
             project.getLogger().lifecycle("   - 파일 크기  : {} MB ({} bytes)", sizeInMb, archive.length());
             project.getLogger().lifecycle("================================================================");
@@ -943,7 +943,7 @@ public class DistributionPlugin implements Plugin<Project> {
     private void printDockerComparisonGuide(Project project) {
         String guide = """
                 ================================================================================
-                🐳 [Distribution 3.1.0] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
+                🐳 [Distribution 3.2.0] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
                 ================================================================================
 
                 ┌─────────────────┬──────────────────────────────────┬──────────────────────────────────┐
@@ -1022,7 +1022,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         long sizeMb = outputZip.length() / (1024 * 1024);
         project.getLogger().lifecycle("================================================================");
-        project.getLogger().lifecycle("✅ [Distribution 3.1.0] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
+        project.getLogger().lifecycle("✅ [Distribution 3.2.0] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
         project.getLogger().lifecycle("   - 산출물 경로: {}", outputZip.getAbsolutePath());
         project.getLogger().lifecycle("   - 파일 크기  : {} MB ({} bytes)", sizeMb, outputZip.length());
         project.getLogger().lifecycle("   - 배포 방법  : 서버에 zip 전송 -> unzip -> sudo ./deploy/install_service.sh");
