@@ -404,6 +404,7 @@
       <instantiationStrategy>per-lookup</instantiationStrategy>
       <executionStrategy>once-per-lookup</executionStrategy>
       <threadSafe>true</threadSafe>
+    </mojo>
     <mojo>
       <goal>packageDocker</goal>
       <description>Docker 이미지를 빌드하고 배포용 스크립트와 함께 Zip으로 패키징합니다. (Strategy 1 - 오프라인/폐쇄망용)</description>

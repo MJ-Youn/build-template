@@ -700,6 +700,8 @@ public class DistributionMojo extends AbstractMojo {
 
     /**
      * Docker 이미지 빌드 및 오프라인 배포용 Zip 패키지를 생성합니다. (Strategy 1)
+     *
+     * @throws MojoExecutionException Docker 빌드 또는 패키징 중 오류 발생 시
      */
     public void executePackageDocker() throws MojoExecutionException {
         File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
@@ -749,6 +751,8 @@ public class DistributionMojo extends AbstractMojo {
 
     /**
      * Docker 이미지를 빌드하고 원격 레지스트리에 Push합니다. (Strategy 2)
+     *
+     * @throws MojoExecutionException Docker 빌드 또는 이미지 푸시 중 오류 발생 시
      */
     public void executePackageDockerRemote() throws MojoExecutionException {
         File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
