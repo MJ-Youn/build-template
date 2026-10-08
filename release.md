@@ -2,6 +2,31 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [3.2.1] - 2026-10-08
+
+> 🚀 **Patch Release** — 기존 서비스 감지 시 대화형 프롬프트(덮어쓰기 여부 확인 질의) 제거 및 동일 위치 자동 덮어쓰기 배포 지원, 런타임 엔진/로그 경로 자동 승계 강화, Windows 환경 기존 컨테이너 감지 및 자동 배포 안내 보강.
+
+### ✨ 신규 기능 및 개선 사항 (Features & Improvements)
+
+#### 1. ⚡ 기존 서비스 감지 시 대화형 프롬프트 제거 및 동일 위치 자동 배포 (`install_service.sh`)
+- **원클릭 자동 덮어쓰기 배포 (Zero-Prompt Auto Redeploy)**:
+  - 기존에 설치된 서비스(`systemd` 유닛 또는 `sysvinit`) 및 로그 경로(`.env`)가 감지되었을 때 표시되던 `read -p "❓ 기존 서비스 정보를 덮어 씌우시겠습니까? (Y/n): "` 대화형 질의를 제거했습니다.
+  - 서비스가 이미 설치되어 있는 경우 사용자의 수동 입력 대기 없이 감지된 기존 설치 위치(`$PREVIOUS_INSTALL_LOC`)와 로그 경로(`$PREVIOUS_LOG_PATH`)를 즉시 승계(`OVERWRITE_EXISTING="Y"`)하여 동일한 위치에 바로 덮어쓰기 배포를 진행합니다.
+- **배포 설정 및 런타임 엔진 스마트 자동 승계**:
+  - **런타임 엔진(`select_runtime_engine`)**: 기존 배포 디렉토리의 구조(`webapps/`/`tomcat` vs `libs/`)를 분석하여 Standalone Apache Tomcat 또는 Spring Boot Executable JAR 방식을 자동으로 승계합니다.
+  - **배포 방식(`select_deploy_mode`)**: 기존 설치 경로에 `docker-compose.yml`이 있으면 Docker 방식을, 실행 스크립트/JAR가 있으면 Legacy 방식을 자동 유지합니다.
+  - **로그 경로(`prompt_log_path`)**: 기존 로그 경로를 그대로 유지하며, 누락 시에도 기본 로그 경로를 즉시 적용하여 사용자 입력을 요구하지 않습니다.
+  - **Fallback 감지 분기 간소화**: `determine_install_dir` 및 `determine_docker_install_dir`의 보조 감지 로직에서도 재배포 확인 질의(`[Y/n]`)를 제거하고 감지된 위치를 즉시 적용합니다.
+
+#### 2. 🪟 Windows 환경 기존 서비스 컨테이너 자동 감지 및 안내 보강 (`install_service.bat`)
+- 기존에 실행 중이거나 생성된 Docker 서비스 컨테이너가 감지될 경우, 사용자 확인 대기 없이 기존 패키지 루트 위치에 자동으로 갱신(덮어쓰기) 배포가 진행되도록 안내 메시지 및 상태 점검을 보강했습니다.
+
+#### 3. 📦 전체 플러그인 메타데이터 및 문서 버전 동기화
+- `distribution-gradle-plugin` (Gradle) & `distribution-maven-plugin` (Maven) 버전 `3.2.1` 갱신.
+- 사용자 및 개발자 가이드(`README.md`, `README_EN.md`, `DEVELOPER_GUIDE.md`) 내 플러그인 의존성 설정 버전 `3.2.1` 반영.
+
+---
+
 ## 🎯 [3.2.0] - 2026-09-22
 
 > 🚀 **Minor Release** — 일반 사용자 배포 모드(Non-root / User Mode) 기본화 및 시스템 모드 옵션(`--sudo`, `--root`, `-Psudo`, `-Dsudo`) 공식 지원, 기본 서비스 포트 `8443` 변경 및 Spring Boot 설정 스마트 포트 자동 감지, Maven 플러그인 파라미터 메타데이터 복구 및 `.env` 포트 방어 로직 강화. 보안 요구사항(최소 권한의 원칙: Least Privilege)에 맞추어 `sudo` 권한이 전혀 없는 일반 계정에서도 기본으로 안전하게 서비스를 배포·운영할 수 있도록 systemd 사용자 모드(`systemctl --user`) 데몬 등록, 엄격한 사전 유효성 검증(1024 미만 특권 포트 차단, 디렉토리 쓰기 권한 및 Docker 그룹 권한 검증), 사용자 crontab 등록, 재부팅 시 백그라운드 구동 유지를 위한 Linger 설정 점검 기능 탑재.

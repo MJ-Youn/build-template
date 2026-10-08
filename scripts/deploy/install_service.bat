@@ -118,7 +118,17 @@ if not exist "%COMPOSE_FILE%" (
     exit /b 1
 )
 
-@rem 6. 환경 변수 설정 및 Docker Compose 실행
+@rem 6. 기존 서비스 감지 및 Docker Compose 실행
+set "EXISTING_CONTAINER="
+for /f "tokens=*" %%i in ('docker ps -a --filter "name=^/%APP_NAME%$" --format "{{.Names}}" 2^>nul') do (
+    set "EXISTING_CONTAINER=%%i"
+)
+
+if defined EXISTING_CONTAINER (
+    echo ⚠️  기존 서비스 컨테이너가 감지되었습니다: !EXISTING_CONTAINER!
+    echo ✅  기존 서비스 위치(%PKG_ROOT%)에 자동으로 덮어쓰기 배포를 진행합니다.
+)
+
 echo ➡️  Docker Compose 서비스 시작 중...
 set "DOCKER_IMAGE=%IMAGE_TAG%"
 set "CONTAINER_NAME=%APP_NAME%"

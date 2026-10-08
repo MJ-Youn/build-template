@@ -277,6 +277,19 @@ select_runtime_engine() {
         return 0
     fi
 
+    # 0. 기존 서비스 덮어쓰기인 경우 기존 런타임 엔진 자동 승계
+    if [ "$OVERWRITE_EXISTING" = "Y" ] && [ -n "$PREVIOUS_INSTALL_LOC" ]; then
+        if [ -d "$PREVIOUS_INSTALL_LOC/webapps" ] || [ -d "$PREVIOUS_INSTALL_LOC/tomcat" ]; then
+            RUNTIME_ENGINE="tomcat"
+            log_info "기존 런타임 엔진(Standalone Apache Tomcat)을 유지합니다."
+            return 0
+        elif [ -d "$PREVIOUS_INSTALL_LOC/libs" ] || [ -d "$PREVIOUS_INSTALL_LOC/lib" ]; then
+            RUNTIME_ENGINE="jar"
+            log_info "기존 런타임 엔진(Spring Boot Executable JAR)을 유지합니다."
+            return 0
+        fi
+    fi
+
     # 1. 자동 감지: 외장 톰캣 패키지(webapps/ROOT 또는 tomcat 디렉토리) 감지 시
     if [ -d "$PKG_ROOT/webapps/ROOT" ] || [ -d "$PKG_ROOT/tomcat" ]; then
         RUNTIME_ENGINE="tomcat"
@@ -386,10 +399,9 @@ select_deploy_mode() {
     done
 }
 
-# @description 기존 설치 감지 및 덮어쓰기 여부 확인
-# 기존 서비스가 존재하면 덮어쓰기(Y/n)를 묻고,
-# Y인 경우 기존 경로/설정을 그대로 유지하여 추가 질문을 생략함.
-# n인 경우 기존 uninstall_service.sh를 실행하여 완전히 제거한 후 새로 설치 진행함.
+# @description 기존 설치 감지 및 동일 위치 자동 배포
+# 기존 서비스가 감지되면 사용자에게 별도 확인 질의(Y/n)를 하지 않고,
+# 감지된 기존 배포 위치 및 설정을 승계하여 동일한 위치에 바로 덮어쓰기 배포를 진행함.
 check_and_handle_existing_service() {
     PREVIOUS_INSTALL_LOC=""
     PREVIOUS_LOG_PATH=""
@@ -474,60 +486,12 @@ check_and_handle_existing_service() {
             echo -e "   📝 로그 경로 : ${CYAN}$PREVIOUS_LOG_PATH${NC}"
         fi
         echo ""
-        read -p "   ❓ 기존 서비스 정보를 덮어 씌우시겠습니까? (Y/n): " USER_OVERWRITE_CHOICE
-        USER_OVERWRITE_CHOICE=${USER_OVERWRITE_CHOICE:-Y}
 
-        if [[ "$USER_OVERWRITE_CHOICE" =~ ^[Yy]$ ]]; then
-            OVERWRITE_EXISTING="Y"
-            DEST_DIR="$PREVIOUS_INSTALL_LOC"
-            LOG_PATH="$PREVIOUS_LOG_PATH"
-            echo ""
-            log_success "기존 설정을 유지하여 덮어쓰기 설치를 진행합니다."
-        else
-            OVERWRITE_EXISTING="N"
-            echo ""
-            log_info "기존 서비스를 삭제하고 새로 설치를 진행합니다..."
-
-            # uninstall_service.sh 탐색 및 실행
-            local UNINSTALL_SCRIPT=""
-            if [ -f "$PREVIOUS_INSTALL_LOC/bin/uninstall_service.sh" ]; then
-                UNINSTALL_SCRIPT="$PREVIOUS_INSTALL_LOC/bin/uninstall_service.sh"
-            elif [ -f "$PREVIOUS_INSTALL_LOC/uninstall_service.sh" ]; then
-                UNINSTALL_SCRIPT="$PREVIOUS_INSTALL_LOC/uninstall_service.sh"
-            elif [ -f "$SCRIPT_DIR/uninstall_service.sh" ]; then
-                UNINSTALL_SCRIPT="$SCRIPT_DIR/uninstall_service.sh"
-            elif [ -f "$PKG_ROOT/scripts/deploy/uninstall_service.sh" ]; then
-                UNINSTALL_SCRIPT="$PKG_ROOT/scripts/deploy/uninstall_service.sh"
-            fi
-
-            if [ -n "$UNINSTALL_SCRIPT" ] && [ -f "$UNINSTALL_SCRIPT" ]; then
-                log_step "기존 서비스 삭제 실행 ($UNINSTALL_SCRIPT)..."
-                local UNINSTALL_ARGS=()
-                if [ "$IS_USER_MODE" -eq 1 ]; then
-                    UNINSTALL_ARGS+=("--user")
-                else
-                    UNINSTALL_ARGS+=("--sudo")
-                fi
-                bash "$UNINSTALL_SCRIPT" "${UNINSTALL_ARGS[@]}"
-                log_success "기존 서비스가 삭제되었습니다."
-            else
-                log_warning "uninstall_service.sh를 찾을 수 없어 기존 서비스 중지만 시도합니다."
-                if [ "$IS_USER_MODE" -eq 1 ] && command -v systemctl >/dev/null 2>&1; then
-                    systemctl --user stop "$APP_NAME" 2>/dev/null || true
-                    systemctl --user disable "$APP_NAME" 2>/dev/null || true
-                elif command -v systemctl >/dev/null 2>&1; then
-                    systemctl stop "$APP_NAME" 2>/dev/null || true
-                    systemctl disable "$APP_NAME" 2>/dev/null || true
-                fi
-            fi
-
-            # 상태 초기화
-            EXISTING_SERVICE_FOUND=0
-            PREVIOUS_INSTALL_LOC=""
-            PREVIOUS_LOG_PATH=""
-            DEST_DIR=""
-            LOG_PATH=""
-        fi
+        OVERWRITE_EXISTING="Y"
+        DEST_DIR="$PREVIOUS_INSTALL_LOC"
+        LOG_PATH="$PREVIOUS_LOG_PATH"
+        [ -z "$LOG_PATH" ] && LOG_PATH="$DEFAULT_LOG_BASE"
+        log_success "기존 배포 위치($PREVIOUS_INSTALL_LOC)에 동일하게 자동 배포를 진행합니다."
     fi
 }
 
@@ -664,6 +628,13 @@ prompt_log_path() {
         DEFAULT_LOG_PATH="$LOG_PATH"
     fi
 
+    # 기존 서비스 덮어쓰기인 경우 질의 없이 기본/기존 로그 경로 적용
+    if [ "$OVERWRITE_EXISTING" = "Y" ]; then
+        LOG_PATH="$DEFAULT_LOG_PATH"
+        log_info "로그 경로: $LOG_PATH"
+        return 0
+    fi
+
     log_info "기본 로그 경로: $DEFAULT_LOG_PATH"
     read -p "   📝 로그 경로를 입력하세요 (엔터 시 기본값 사용): " INPUT_LOG_PATH
     LOG_PATH="${INPUT_LOG_PATH:-$DEFAULT_LOG_PATH}"
@@ -711,11 +682,9 @@ determine_install_dir() {
 
         if [ -n "$PREVIOUS_INSTALL_LOC" ] && [ -d "$PREVIOUS_INSTALL_LOC" ]; then
             log_info "기존 설치 위치가 감지되었습니다: $PREVIOUS_INSTALL_LOC"
-            read -p "   🔄 기존 위치에 재배포하시겠습니까? [Y/n] " REUSE_LOC
-            REUSE_LOC=${REUSE_LOC:-Y}
-            if [[ "$REUSE_LOC" =~ ^[Yy]$ ]]; then
-                DEST_DIR="$PREVIOUS_INSTALL_LOC"
-            fi
+            DEST_DIR="$PREVIOUS_INSTALL_LOC"
+            OVERWRITE_EXISTING="Y"
+            log_success "기존 설치 위치($DEST_DIR)를 유지하여 배포를 진행합니다."
         fi
 
         if [ -z "$DEST_DIR" ]; then
@@ -1193,11 +1162,9 @@ determine_docker_install_dir() {
             EXISTING_USER_DIR=$(grep "WorkingDirectory=" "$USER_HOME/.config/systemd/user/$APP_NAME.service" 2>/dev/null | cut -d= -f2 | sed 's/^"//;s/"$//')
             if [ -n "$EXISTING_USER_DIR" ] && [ -d "$EXISTING_USER_DIR" ]; then
                 log_info "기존 설치 위치 감지 (User Mode): $EXISTING_USER_DIR"
-                read -p "   기존 위치에 덮어쓰시겠습니까? (Y/n): " REUSE_LOC
-                REUSE_LOC=${REUSE_LOC:-Y}
-                if [[ "$REUSE_LOC" =~ ^[Yy]$ ]]; then
-                    DEST_DIR="$EXISTING_USER_DIR"
-                fi
+                DEST_DIR="$EXISTING_USER_DIR"
+                OVERWRITE_EXISTING="Y"
+                log_success "기존 설치 위치($DEST_DIR)에 자동으로 배포합니다."
             fi
         fi
 
@@ -1206,11 +1173,9 @@ determine_docker_install_dir() {
             EXISTING_DIR=$(grep "WorkingDirectory=" "/etc/systemd/system/$APP_NAME.service" 2>/dev/null | cut -d= -f2 | sed 's/^"//;s/"$//')
             if [ -d "$EXISTING_DIR" ]; then
                 log_info "기존 설치 위치 감지: $EXISTING_DIR"
-                read -p "   기존 위치에 덮어쓰시겠습니까? (Y/n): " REUSE_LOC
-                REUSE_LOC=${REUSE_LOC:-Y}
-                if [[ "$REUSE_LOC" =~ ^[Yy]$ ]]; then
-                    DEST_DIR="$EXISTING_DIR"
-                fi
+                DEST_DIR="$EXISTING_DIR"
+                OVERWRITE_EXISTING="Y"
+                log_success "기존 설치 위치($DEST_DIR)에 자동으로 배포합니다."
             fi
         fi
 

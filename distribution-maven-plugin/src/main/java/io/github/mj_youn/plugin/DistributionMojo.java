@@ -154,7 +154,7 @@ public class DistributionMojo extends AbstractMojo {
         File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
 
         getLog().info("================================================================");
-        getLog().info("🚀 [Distribution 3.2.0] 배포 패키지 생성 시작");
+        getLog().info("🚀 [Distribution 3.2.1] 배포 패키지 생성 시작");
         getLog().info("   - 대상 프로젝트    : " + (appName != null && !appName.isBlank() ? appName : project.getArtifactId()));
         getLog().info("   - 배포 유형       : " + resolvedType.toUpperCase() + " ("
                 + (tomcatMode ? "Standalone Tomcat" : "Executable JAR") + ")");
@@ -281,7 +281,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeInMb = targetZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("\u2705 [Distribution 3.2.0] 배포 패키지 생성 완료!");
+        getLog().info("\u2705 [Distribution 3.2.1] 배포 패키지 생성 완료!");
         getLog().info("   - 산출물 경로: " + targetZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeInMb + " MB (" + targetZip.length() + " bytes)");
         getLog().info("================================================================");
@@ -865,7 +865,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeMb = outputZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("✅ [Distribution 3.2.0 - Maven] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
+        getLog().info("✅ [Distribution 3.2.1 - Maven] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
         getLog().info("   - 산출물 경로: " + outputZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeMb + " MB (" + outputZip.length() + " bytes)");
         getLog().info("   - 배포 방법  : 서버에 zip 전송 -> unzip -> sudo ./deploy/install_service.sh");
