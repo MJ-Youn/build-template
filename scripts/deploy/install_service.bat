@@ -82,28 +82,35 @@ if exist "%TAR_FILE%" (
         exit /b 1
     )
     echo ✅  Docker 이미지 로드 완료
-) else if exist "%DOCKERFILE_PATH%" if exist "%PKG_ROOT%\\libs" (
-    echo ➡️  Docker 이미지 빌드 중 (Dockerfile 기반)...
-    echo    - 빌드 컨텍스트: %PKG_ROOT%
-    echo    - Dockerfile    : %DOCKERFILE_PATH%
-    echo    - 이미지 태그  : %IMAGE_TAG%
-    docker build --build-arg APP_NAME="%APP_NAME%" -t "%IMAGE_TAG%" -f "%DOCKERFILE_PATH%" "%PKG_ROOT%"
-    if !ERRORLEVEL! neq 0 (
-        echo ❌ [오류] Docker 이미지 빌드에 실패했습니다.
-        pause
-        exit /b 1
-    )
-    echo ✅  Docker 이미지 빌드 완료: %IMAGE_TAG%
 ) else (
-    echo ➡️  원격 레지스트리에서 Docker 이미지 다운로드 중 (docker pull %IMAGE_TAG%)...
-    docker pull "%IMAGE_TAG%"
-    if !ERRORLEVEL! neq 0 (
-        echo ❌ [오류] Docker 이미지 다운로드에 실패했습니다: %IMAGE_TAG%
-        echo    사설 레지스트리인 경우 'docker login' 및 Docker 데몬 설정을 확인해주세요.
-        pause
-        exit /b 1
+    set "CAN_BUILD=0"
+    if exist "%DOCKERFILE_PATH%" (
+        if exist "%PKG_ROOT%\libs" set "CAN_BUILD=1"
+        if exist "%PKG_ROOT%\webapps" set "CAN_BUILD=1"
     )
-    echo ✅  Docker 이미지 다운로드 완료: %IMAGE_TAG%
+    if "!CAN_BUILD!"=="1" (
+        echo ➡️  Docker 이미지 빌드 중 (Dockerfile 기반)...
+        echo    - 빌드 컨텍스트: %PKG_ROOT%
+        echo    - Dockerfile    : %DOCKERFILE_PATH%
+        echo    - 이미지 태그  : %IMAGE_TAG%
+        docker build --build-arg APP_NAME="%APP_NAME%" -t "%IMAGE_TAG%" -t "%APP_NAME%:latest" -f "%DOCKERFILE_PATH%" "%PKG_ROOT%"
+        if !ERRORLEVEL! neq 0 (
+            echo ❌ [오류] Docker 이미지 빌드에 실패했습니다.
+            pause
+            exit /b 1
+        )
+        echo ✅  Docker 이미지 빌드 완료: %IMAGE_TAG%
+    ) else (
+        echo ➡️  원격 레지스트리에서 Docker 이미지 다운로드 중 (docker pull %IMAGE_TAG%)...
+        docker pull "%IMAGE_TAG%"
+        if !ERRORLEVEL! neq 0 (
+            echo ❌ [오류] Docker 이미지 다운로드에 실패했습니다: %IMAGE_TAG%
+            echo    사설 레지스트리인 경우 'docker login' 및 Docker 데몬 설정을 확인해주세요.
+            pause
+            exit /b 1
+        )
+        echo ✅  Docker 이미지 다운로드 완료: %IMAGE_TAG%
+    )
 )
 
 @rem 5. docker-compose.yml 탐색
@@ -118,7 +125,27 @@ if not exist "%COMPOSE_FILE%" (
     exit /b 1
 )
 
-@rem 6. 기존 서비스 감지 및 Docker Compose 실행
+@rem 6. .env 환경 변수 파일 생성/보장
+set "ENV_FILE=%PKG_ROOT%\.env"
+if not exist "%ENV_FILE%" (
+    echo ➡️  Docker Compose 환경 변수 파일(.env) 생성 중...
+    (
+        echo APP_UID=1000
+        echo APP_GID=1000
+        echo.
+        echo APP_NAME=%APP_NAME%
+        echo HTTP_PORT=%HTTP_PORT%
+        echo.
+        echo LOG_PATH=%PKG_ROOT%\log
+        echo DEST_DIR=%PKG_ROOT%
+        echo.
+        echo CONTAINER_LOG_PATH=/log
+        echo DOCKER_IMAGE=%IMAGE_TAG%
+    ) > "%ENV_FILE%"
+    echo ✅  .env 파일 생성 완료: %ENV_FILE%
+)
+
+@rem 7. 기존 서비스 감지 및 Docker Compose 실행
 set "EXISTING_CONTAINER="
 for /f "tokens=*" %%i in ('docker ps -a --filter "name=^/%APP_NAME%$" --format "{{.Names}}" 2^>nul') do (
     set "EXISTING_CONTAINER=%%i"
@@ -138,7 +165,7 @@ set "LOG_PATH=%PKG_ROOT%\log"
 
 if not exist "%PKG_ROOT%\log" mkdir "%PKG_ROOT%\log"
 
-%DOCKER_COMPOSE_CMD% -f "%COMPOSE_FILE%" up -d
+%DOCKER_COMPOSE_CMD% --env-file "%ENV_FILE%" -f "%COMPOSE_FILE%" up -d
 if %ERRORLEVEL% neq 0 (
     echo ❌ [오류] Docker Compose 컨테이너 시작에 실패했습니다.
     pause

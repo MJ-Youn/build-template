@@ -2,6 +2,43 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [3.3.0] - 2026-10-12
+
+> 🚀 **Minor Release** — 환경별 Docker 프로파일(`docker.profiles/{profile}/`) 디렉토리 감지 및 파일 오버레이 지원, `.env` 런타임 설정 4단계 우선순위 오버레이 및 누락 시 자동 생성 체계 확립, `initDocker` 실행 시 `.env.example` 및 환경별 샘플 동시 생성 지원, 배포 도움말(`distHelp` / `mvn distribution:help`) 가이드 개선, Windows 배치 스크립트(`.bat`) CRLF 줄바꿈 규격 및 다중 이미지 태깅 보강, Gradle과 Maven 플러그인 100% 동일 동작 완벽 동기화.
+
+### ✨ 신규 기능 및 개선 사항 (Features & Improvements)
+
+#### 1. 🐳 환경별 Docker 프로파일(`docker.profiles/{profile}/`) 디렉토리 자동 감지 및 패키징 오버레이 지원
+- **환경별 Docker 설정 분리 지원**:
+  - `docker.profiles/{profile}/` 디렉토리에 환경별 `Dockerfile-{profile}`, `docker-compose-{profile}.yml`, `.env-{profile}` 파일을 배치하면, 빌드 프로파일(`-Penv={env}` 또는 `-Denv={env}`)에 따라 파일명 접미사(`-{env}`)를 자동으로 제거하여 최종 패키지의 `docker/` 및 루트 경로에 오버레이 배포합니다.
+- **`.env` 파일 4단계 우선순위 오버레이 및 누락 시 자동 생성 체계 동기화 (Gradle & Maven)**:
+  - **1순위**: `docker.profiles/{env}/.env-{env}` (또는 `docker.profiles/{env}/.env`) [Docker 전용 1순위]
+  - **2순위**: `config.profiles/{env}/.env-{env}` (또는 `config.profiles/{env}/.env`) [공통 프로파일 2순위]
+  - **3순위**: 프로젝트 루트의 `.env` [기본 fallback 3순위]
+  - **4순위**: 소스 상에 `.env`가 전혀 없는 경우, 플러그인이 `APP_UID`, `APP_GID`, `APP_NAME`, `HTTP_PORT`, `LOG_PATH`, `DOCKER_IMAGE`를 포함한 **표준 기본 `.env`를 배포 패키지 루트에 자동 생성**하여 포함.
+
+#### 2. 🛠️ `initDocker` 유틸리티 기능 강화 (원클릭 환경 설정 샘플 생성)
+- `initDeployScript`와 동일한 방식으로, `./gradlew initDocker` 또는 `mvn distribution:initDocker` 실행 시 다음 파일들이 함께 자동 생성됩니다:
+  - `docker/Dockerfile` 및 `docker/docker-compose.yml` (배포 유형 맞춤형)
+  - `docker/.env.example` (호스트 포트 토큰 치환 `@httpPort@` 적용된 환경변수 템플릿)
+  - `docker.profiles/dev/.env-dev` 및 `docker.profiles/prod/.env-prod` (환경별 프로파일 디렉토리 및 기본 샘플 파일 자동 초기화, 기존 파일 보존)
+
+#### 3. 📖 배포 도움말(`distHelp` & `mvn distribution:help`) 환경 설정 가이드 추가
+- 콘솔 도움말에 **`[🌱 환경 설정 (.env) 파일 위치 및 우선순위 안내]`** 전용 섹션을 신설하여 개발자가 프로파일 디렉토리 구조 및 우선순위를 즉시 확인하고 구성할 수 있도록 개선.
+
+#### 4. 🪟 Windows 환경 배치 스크립트(`.bat`) 안정성 및 호환성 강화
+- **CRLF 줄바꿈 보장**:
+  - Windows `cmd.exe`에서 다중 행 괄호 블록 파싱 오류를 원천 방지하도록 `.gitattributes` 및 패키징 시 CRLF(`\r\n`) 자동 정규화 적용.
+- **다중 이미지 태깅 및 환경 파일 안전 전달 (`install_service.bat`)**:
+  - `docker build` 시 `-t "%IMAGE_TAG%" -t "%APP_NAME%:latest"` 다중 태깅 적용.
+  - `docker compose --env-file "%ENV_FILE%"` 플래그를 명시하여 `.env` 설정 안전 로드.
+
+#### 5. 📦 전체 플러그인 메타데이터 및 문서 버전 동기화
+- `distribution-gradle-plugin` (Gradle) & `distribution-maven-plugin` (Maven) 버전 `3.3.0` 갱신.
+- 사용자 및 개발자 가이드(`README.md`, `README_EN.md`, `DEVELOPER_GUIDE.md`) 내 플러그인 의존성 설정 버전 `3.3.0` 반영.
+
+---
+
 ## 🎯 [3.2.1] - 2026-10-08
 
 > 🚀 **Patch Release** — 기존 서비스 감지 시 대화형 프롬프트(덮어쓰기 여부 확인 질의) 제거 및 동일 위치 자동 덮어쓰기 배포 지원, 런타임 엔진/로그 경로 자동 승계 강화, Windows 환경 기존 컨테이너 감지 및 자동 배포 안내 보강.

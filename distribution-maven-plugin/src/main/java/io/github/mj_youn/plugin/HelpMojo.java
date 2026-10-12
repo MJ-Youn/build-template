@@ -22,7 +22,7 @@ public class HelpMojo extends AbstractMojo {
     public void execute() throws MojoExecutionException {
         String msg = """
 ================================================================================
-🚀 [Distribution Maven Plugin 3.2.1] 빌드 및 배포 가이드
+🚀 [Distribution Maven Plugin 3.3.0] 빌드 및 배포 가이드
 ================================================================================
 
 [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -43,6 +43,15 @@ public class HelpMojo extends AbstractMojo {
   mvn distribution:packageDocker -Denv=prod             : Docker 이미지 빌드 후 .tar 추출 + Zip 패키징 (Strategy 1: 오프라인용)
   mvn distribution:packageDockerRemote -Denv=prod -DdockerRegistry=my.reg.com/repo : Docker 이미지 빌드 & 원격 레지스트리 Push
   (별칭: mvn distribution:package-docker / mvn distribution:package-docker-remote / mvn distribution:docker-build-remote)
+
+[🌱 환경 설정 (.env) 파일 위치 및 우선순위 안내]
+  빌드/패키징 시 프로파일(-Denv={env})에 따라 .env 파일이 패키지 루트(.env)에 오버레이됩니다:
+    1순위: docker.profiles/{env}/.env-{env} (또는 docker.profiles/{env}/.env) [Docker 전용 1순위]
+    2순위: config.profiles/{env}/.env-{env} (또는 config.profiles/{env}/.env) [공통 프로파일 2순위]
+    3순위: 프로젝트 루트의 .env                                              [기본 fallback 3순위]
+  * 일반 서버 실행 시: 루트 .env -> config/.env -> bin/.env 순으로 자동 탐색하여 JVM 옵션 등 주입
+  * Docker 실행 시: docker-compose와 동일 경로의 .env 자동 로드 (또는 install_service 실행 시 자동 주입)
+  * 샘플 생성: mvn distribution:initDocker 실행 시 docker/.env.example 및 docker.profiles/dev/.env-dev 자동 생성
 
 [🎛️ CLI 파라미터 옵션]
   -Denv=dev|prod|local|test|stage         : 배포 환경 프로파일 지정

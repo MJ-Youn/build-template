@@ -126,8 +126,11 @@ public class DistributionPlugin implements Plugin<Project> {
             task.doLast(t -> {
                 String currentOsName = System.getProperty("os.name", "");
                 boolean isSystemWindows = currentOsName.toLowerCase().contains("win");
-                String osOption = project.hasProperty("os") ? String.valueOf(project.property("os")).trim().toLowerCase()
-                        : (project.hasProperty("targetOs") ? String.valueOf(project.property("targetOs")).trim().toLowerCase() : null);
+                String osOption = project.hasProperty("os")
+                        ? String.valueOf(project.property("os")).trim().toLowerCase()
+                        : (project.hasProperty("targetOs")
+                                ? String.valueOf(project.property("targetOs")).trim().toLowerCase()
+                                : null);
 
                 boolean generateSh;
                 boolean generateBat;
@@ -135,7 +138,8 @@ public class DistributionPlugin implements Plugin<Project> {
                 if ("windows".equals(osOption) || "win".equals(osOption)) {
                     generateSh = false;
                     generateBat = true;
-                } else if ("linux".equals(osOption) || "unix".equals(osOption) || "mac".equals(osOption) || "macos".equals(osOption)) {
+                } else if ("linux".equals(osOption) || "unix".equals(osOption) || "mac".equals(osOption)
+                        || "macos".equals(osOption)) {
                     generateSh = true;
                     generateBat = false;
                 } else if ("all".equals(osOption)) {
@@ -161,7 +165,8 @@ public class DistributionPlugin implements Plugin<Project> {
                             targetFile.setExecutable(true, false);
                             project.getLogger().lifecycle("✅ build_deploy.sh (Linux/macOS용) 생성 완료!");
                             project.getLogger().lifecycle("   - 파일 경로: {}", targetFile.getAbsolutePath());
-                            project.getLogger().lifecycle("   - 사용법: ./build_deploy.sh dev (또는 ./build_deploy.sh prod --sudo)");
+                            project.getLogger()
+                                    .lifecycle("   - 사용법: ./build_deploy.sh dev (또는 ./build_deploy.sh prod --sudo)");
                         } catch (IOException e) {
                             throw new RuntimeException("build_deploy.sh 생성 실패: " + e.getMessage(), e);
                         }
@@ -170,7 +175,8 @@ public class DistributionPlugin implements Plugin<Project> {
 
                 if (generateBat) {
                     File batTargetFile = project.file("build_deploy.bat");
-                    InputStream batStream = getClass().getClassLoader().getResourceAsStream("template/build_deploy.bat");
+                    InputStream batStream = getClass().getClassLoader()
+                            .getResourceAsStream("template/build_deploy.bat");
                     if (batStream == null) {
                         project.getLogger().error("❌ [Distribution] template/build_deploy.bat 템플릿을 찾을 수 없습니다.");
                     } else {
@@ -246,8 +252,7 @@ public class DistributionPlugin implements Plugin<Project> {
                     // 기본 배포는 일반 사용자(User) 모드
                     // -Psudo, -Proot, -Psystem 또는 환경변수 SUDO=true, ROOT_MODE=true 등이 지정되었을 때만 시스템(root/sudo) 모드로 전환
                     boolean isSudoMode = project.hasProperty("sudo") || project.hasProperty("root")
-                            || project.hasProperty("system")
-                            || "true".equalsIgnoreCase(System.getenv("SUDO"))
+                            || project.hasProperty("system") || "true".equalsIgnoreCase(System.getenv("SUDO"))
                             || "true".equalsIgnoreCase(System.getenv("SUDO_MODE"))
                             || "true".equalsIgnoreCase(System.getenv("ROOT_MODE"));
 
@@ -277,7 +282,7 @@ public class DistributionPlugin implements Plugin<Project> {
     private void printGuide(Project project) {
         String msg = """
                 ================================================================================
-                🚀 [Distribution Plugin 3.2.1] 빌드 및 배포 가이드
+                🚀 [Distribution Plugin 3.3.0] 빌드 및 배포 가이드
                 ================================================================================
 
                 [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -301,6 +306,15 @@ public class DistributionPlugin implements Plugin<Project> {
                   ./gradlew packageDocker -Penv=prod            : Docker 이미지 빌드 후 .tar 추출 + Zip 패키징 (Strategy 1: 오프라인/폐쇄망용)
                   ./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=my.reg.com/repo : Docker 이미지 빌드 & 원격 레지스트리 Push (Strategy 2: CI/CD용)
                   (별칭: ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=...)
+
+                [🌱 환경 설정 (.env) 파일 위치 및 우선순위 안내]
+                  배포 환경 프로파일(-Penv={env})에 따라 .env 파일이 패키지 루트(.env)에 오버레이됩니다:
+                    1순위: docker.profiles/{env}/.env-{env} (또는 docker.profiles/{env}/.env) [Docker 전용 1순위]
+                    2순위: config.profiles/{env}/.env-{env} (또는 config.profiles/{env}/.env) [공통 프로파일 2순위]
+                    3순위: 프로젝트 루트의 .env                                              [기본 fallback 3순위]
+                  * 일반 서버 실행 시: 루트 .env -> config/.env -> bin/.env 순으로 자동 탐색하여 JVM 옵션 등 주입
+                  * Docker 실행 시: docker-compose와 동일 경로의 .env 자동 로드 (또는 install_service 실행 시 자동 주입)
+                  * 샘플 생성: ./gradlew initDocker 실행 시 docker/.env.example 및 docker.profiles/dev/.env-dev 자동 생성
 
                 [🎛️ CLI 파라미터 옵션]
                   -Psudo, -Proot                     : 시스템 모드로 배포 (sudo 필요, /opt 및 /etc/systemd 배포)
@@ -386,12 +400,13 @@ public class DistributionPlugin implements Plugin<Project> {
 
         zipTask.doFirst(task -> {
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("🚀 [Distribution 3.2.1] 배포 패키지 생성 시작");
+            project.getLogger().lifecycle("🚀 [Distribution 3.3.0] 배포 패키지 생성 시작");
             project.getLogger().lifecycle("   - 대상 프로젝트    : {}", project.getName());
             project.getLogger().lifecycle("   - 배포 유형       : {} ({})", packageType.toUpperCase(),
                     isTomcat ? "Standalone Tomcat" : "Executable JAR");
             project.getLogger().lifecycle("   - 활성 프로파일    : {}", env);
-            project.getLogger().lifecycle("   - 타겟 OS        : {} (옵션: -Pos=linux|windows|all, 기본값: linux)", targetOs.toUpperCase());
+            project.getLogger().lifecycle("   - 타겟 OS        : {} (옵션: -Pos=linux|windows|all, 기본값: linux)",
+                    targetOs.toUpperCase());
             project.getLogger().lifecycle("   - HTTP 서비스 포트 : {}", tokens.get("httpPort"));
             project.getLogger().lifecycle("   - 산출물 이름      : {}", zipTask.getArchiveFileName().get());
             project.getLogger().lifecycle("================================================================");
@@ -456,11 +471,86 @@ public class DistributionPlugin implements Plugin<Project> {
             });
         }
 
+        // 1.4. 환경별 Docker 프로파일 디렉토리 (docker.profiles/${env} 또는 docker/${env})
+        File dockerProfileDir = project.file("docker.profiles/" + env);
+        if (!dockerProfileDir.exists()) {
+            dockerProfileDir = project.file("docker/" + env);
+        }
+        if (dockerProfileDir.exists()) {
+            File profileDirToUse = dockerProfileDir;
+            zipTask.from(profileDirToUse, spec -> {
+                spec.into("docker");
+                spec.rename(name -> name.replace("-" + env, ""));
+                spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
+            });
+        }
+
+        // 1.5. 루트 .env 파일 적재 (1순위: docker.profiles -> 2순위: config.profiles -> 3순위: 루트 .env -> 4순위: 기본 템플릿 자동 생성)
+        List<File> envCandidates = List.of(
+                project.file("docker.profiles/" + env + "/.env-" + env),
+                project.file("docker.profiles/" + env + "/.env"),
+                project.file("docker/" + env + "/.env-" + env),
+                project.file("docker/" + env + "/.env"),
+                project.file("config.profiles/" + env + "/.env-" + env),
+                project.file("config.profiles/" + env + "/.env"),
+                project.file(".env")
+        );
+        File resolvedEnvFile = null;
+        for (File candidate : envCandidates) {
+            if (candidate.exists() && candidate.isFile()) {
+                resolvedEnvFile = candidate;
+                break;
+            }
+        }
+        if (resolvedEnvFile != null) {
+            File targetEnvFile = resolvedEnvFile;
+            zipTask.from(targetEnvFile, spec -> {
+                spec.rename(name -> ".env");
+                spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
+            });
+            project.getLogger().info("📋 [Distribution] 환경별 .env 파일을 패키지 루트 .env로 적용했습니다 ({})",
+                    project.getProjectDir().toPath().relativize(targetEnvFile.toPath()));
+        } else {
+            // 소스에 .env가 전혀 없을 때 기본 표준 템플릿 자동 생성하여 포함
+            File defaultEnvFile = new File(builtinExtractDir, ".default.env");
+            String resolvedAppName = String.valueOf(tokens.getOrDefault("appName", project.getName()));
+            String resolvedHttpPort = String.valueOf(tokens.getOrDefault("httpPort", "8080"));
+            String resolvedDockerImage = String.valueOf(tokens.getOrDefault("dockerImage", resolvedAppName + ":" + project.getVersion()));
+            String envContent = String.format("""
+                    # ==============================================================================
+                    # Docker Compose & Service Environment Variables (.env)
+                    # Generated automatically by distribution plugin (Profile: %s)
+                    # ==============================================================================
+                    APP_UID=1000
+                    APP_GID=1000
+
+                    APP_NAME=%s
+                    HTTP_PORT=%s
+
+                    # 호스트 로그 및 설치 디렉토리
+                    LOG_PATH=./log
+                    DEST_DIR=.
+
+                    # 컨테이너 내부 서비스 로그 경로
+                    CONTAINER_LOG_PATH=/log
+
+                    DOCKER_IMAGE=%s
+                    """, env, resolvedAppName, resolvedHttpPort, resolvedDockerImage);
+            try {
+                Files.writeString(defaultEnvFile.toPath(), envContent, StandardCharsets.UTF_8);
+                zipTask.from(defaultEnvFile, spec -> {
+                    spec.rename(name -> ".env");
+                });
+            } catch (IOException e) {
+                project.getLogger().warn("기본 .env 파일 생성 실패: {}", e.getMessage());
+            }
+        }
+
         File localDockerDir = project.file("docker");
         if (localDockerDir.exists()) {
             zipTask.from(localDockerDir, spec -> {
                 spec.into("docker");
-                spec.exclude("*-jar*", "*-tomcat*");
+                spec.exclude("*-jar*", "*-tomcat*", "dev/**", "prod/**", "local/**", "test/**", "stage/**");
                 spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
             });
         }
@@ -503,7 +593,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         zipTask.from(new File(builtinExtractDir, "docker"), spec -> {
             spec.into("docker");
-            spec.exclude("*-jar*", "*-tomcat*");
+            spec.exclude("*-jar*", "*-tomcat*", "dev/**", "prod/**", "local/**", "test/**", "stage/**");
             spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
         });
 
@@ -568,7 +658,7 @@ public class DistributionPlugin implements Plugin<Project> {
             File archive = zipTask.getArchiveFile().get().getAsFile();
             long sizeInMb = archive.length() / (1024 * 1024);
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("✅ [Distribution 3.2.1] 배포 패키지 생성 완료!");
+            project.getLogger().lifecycle("✅ [Distribution 3.3.0] 배포 패키지 생성 완료!");
             project.getLogger().lifecycle("   - 산출물 경로: {}", archive.getAbsolutePath());
             project.getLogger().lifecycle("   - 파일 크기  : {} MB ({} bytes)", sizeInMb, archive.length());
             project.getLogger().lifecycle("================================================================");
@@ -823,8 +913,7 @@ public class DistributionPlugin implements Plugin<Project> {
         String activeEnv = project.hasProperty("env") ? String.valueOf(project.property("env")).trim() : "dev";
         File projectDir = project.getProjectDir();
 
-        List<File> candidates = List.of(
-                new File(projectDir, "config.profiles/" + activeEnv + "/application.yml"),
+        List<File> candidates = List.of(new File(projectDir, "config.profiles/" + activeEnv + "/application.yml"),
                 new File(projectDir, "config.profiles/" + activeEnv + "/application.yaml"),
                 new File(projectDir, "config.profiles/" + activeEnv + "/application.properties"),
                 new File(projectDir, "config/" + activeEnv + "/application.yml"),
@@ -833,20 +922,18 @@ public class DistributionPlugin implements Plugin<Project> {
                 new File(projectDir, "src/main/resources/application-" + activeEnv + ".yml"),
                 new File(projectDir, "src/main/resources/application-" + activeEnv + ".yaml"),
                 new File(projectDir, "src/main/resources/application-" + activeEnv + ".properties"),
-                new File(projectDir, "config/application.yml"),
-                new File(projectDir, "config/application.yaml"),
+                new File(projectDir, "config/application.yml"), new File(projectDir, "config/application.yaml"),
                 new File(projectDir, "config/application.properties"),
                 new File(projectDir, "src/main/resources/application.yml"),
                 new File(projectDir, "src/main/resources/application.yaml"),
-                new File(projectDir, "src/main/resources/application.properties")
-        );
+                new File(projectDir, "src/main/resources/application.properties"));
 
         for (File candidate : candidates) {
             if (candidate.exists() && candidate.isFile()) {
                 Integer detected = parseServerPort(candidate);
                 if (detected != null && detected > 0) {
-                    project.getLogger().info("   🔍 [Distribution] 설정 파일에서 HTTP 서비스 포트를 자동 감지했습니다: {} ({})",
-                            detected, projectDir.toPath().relativize(candidate.toPath()));
+                    project.getLogger().info("   🔍 [Distribution] 설정 파일에서 HTTP 서비스 포트를 자동 감지했습니다: {} ({})", detected,
+                            projectDir.toPath().relativize(candidate.toPath()));
                     return detected;
                 }
             }
@@ -1016,10 +1103,26 @@ public class DistributionPlugin implements Plugin<Project> {
             copyTemplateResource(activeDockerTemplate, activeDockerFile, tokens);
             copyTemplateResource(activeComposeTemplate, activeComposeFile, tokens);
 
+            // 2. .env.example 샘플 파일 생성
+            File activeEnvFile = new File(dockerDir, ".env.example");
+            copyTemplateResource("template/scripts/service/.env.example", activeEnvFile, tokens);
+
+            // 3. docker.profiles/ 환경별 .env 샘플 생성 (파일이 없을 경우에만 생성)
+            File devProfileEnv = project.file("docker.profiles/dev/.env-dev");
+            if (!devProfileEnv.exists()) {
+                copyTemplateResource("template/scripts/service/.env.example", devProfileEnv, tokens);
+            }
+            File prodProfileEnv = project.file("docker.profiles/prod/.env-prod");
+            if (!prodProfileEnv.exists()) {
+                copyTemplateResource("template/scripts/service/.env.example", prodProfileEnv, tokens);
+            }
+
             project.getLogger().lifecycle("================================================================");
             project.getLogger().lifecycle("🐳 [Distribution] Docker 설정 생성 완료 (배포 유형: {})", packageType.toUpperCase());
             project.getLogger().lifecycle("   - 생성된 Dockerfile     : {}", activeDockerFile.getAbsolutePath());
             project.getLogger().lifecycle("   - 생성된 docker-compose : {}", activeComposeFile.getAbsolutePath());
+            project.getLogger().lifecycle("   - 생성된 환경설정 샘플  : {}", activeEnvFile.getAbsolutePath());
+            project.getLogger().lifecycle("   - 생성된 프로파일 샘플  : {}", devProfileEnv.getAbsolutePath());
             project.getLogger().lifecycle("================================================================");
 
             // 생성 직후 터미널에 두 형식의 차이점 요약 가이드 즉시 출력
@@ -1072,7 +1175,7 @@ public class DistributionPlugin implements Plugin<Project> {
     private void printDockerComparisonGuide(Project project) {
         String guide = """
                 ================================================================================
-                🐳 [Distribution 3.2.1] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
+                🐳 [Distribution 3.3.0] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
                 ================================================================================
 
                 ┌─────────────────┬──────────────────────────────────┬──────────────────────────────────┐
@@ -1125,7 +1228,8 @@ public class DistributionPlugin implements Plugin<Project> {
         File tarFile = new File(dockerDistDir, ctx.appName + ".tar");
 
         // 1. docker save 실행
-        project.getLogger().lifecycle("💾 [Distribution] Docker 이미지 tar 저장 중 (docker save) -> {}", tarFile.getAbsolutePath());
+        project.getLogger().lifecycle("💾 [Distribution] Docker 이미지 tar 저장 중 (docker save) -> {}",
+                tarFile.getAbsolutePath());
         List<String> saveCmd = List.of("docker", "save", "-o", tarFile.getAbsolutePath(), ctx.fullImageName);
         runProcess(project, saveCmd, dockerDistDir, "Docker 이미지 저장");
 
@@ -1151,7 +1255,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         long sizeMb = outputZip.length() / (1024 * 1024);
         project.getLogger().lifecycle("================================================================");
-        project.getLogger().lifecycle("✅ [Distribution 3.2.1] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
+        project.getLogger().lifecycle("✅ [Distribution 3.3.0] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
         project.getLogger().lifecycle("   - 산출물 경로: {}", outputZip.getAbsolutePath());
         project.getLogger().lifecycle("   - 파일 크기  : {} MB ({} bytes)", sizeMb, outputZip.length());
         project.getLogger().lifecycle("   - 배포 방법  : 서버에 zip 전송 -> unzip -> sudo ./deploy/install_service.sh");
@@ -1206,12 +1310,13 @@ public class DistributionPlugin implements Plugin<Project> {
                 4. 또는 수동 실행 (docker compose 직접 기동):
                    cd /home/user/docker-dist
                    docker compose -f docker/docker-compose.yml up -d
-                """, ctx.appName, ctx.fullImageName, dockerDistDir.getAbsolutePath(),
-                dockerDistDir.getAbsolutePath(), ctx.registry);
+                """, ctx.appName, ctx.fullImageName, dockerDistDir.getAbsolutePath(), dockerDistDir.getAbsolutePath(),
+                ctx.registry);
 
         try {
             Files.writeString(guideFile.toPath(), guideContent, StandardCharsets.UTF_8);
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
 
         project.delete(ctx.dockerContextDir);
 
@@ -1276,7 +1381,8 @@ public class DistributionPlugin implements Plugin<Project> {
                     : "template/docker/docker-compose-jar.yml";
             try {
                 copyTemplateResource(composeTemplate, composeFile, tokens);
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
         }
 
         // 5. 이미지명 및 태그 계산
@@ -1299,19 +1405,13 @@ public class DistributionPlugin implements Plugin<Project> {
                     """);
         }
 
-        String fullImageName = (registry != null && !registry.isBlank())
-                ? registry + "/" + appName + ":" + tag
+        String fullImageName = (registry != null && !registry.isBlank()) ? registry + "/" + appName + ":" + tag
                 : appName + ":" + tag;
 
         // 6. docker build 실행
         project.getLogger().lifecycle("🔨 [Distribution] Docker 이미지 빌드 시작 -> {}", fullImageName);
-        List<String> buildCmd = List.of(
-                "docker", "build",
-                "--build-arg", "APP_NAME=" + appName,
-                "-t", fullImageName,
-                "-f", dockerFile.getAbsolutePath(),
-                dockerContextDir.getAbsolutePath()
-        );
+        List<String> buildCmd = List.of("docker", "build", "--build-arg", "APP_NAME=" + appName, "-t", fullImageName,
+                "-f", dockerFile.getAbsolutePath(), dockerContextDir.getAbsolutePath());
 
         runProcess(project, buildCmd, dockerContextDir, "Docker 이미지 빌드");
         project.getLogger().lifecycle("✨ [Distribution] Docker 이미지 빌드 성공: {}", fullImageName);
@@ -1371,7 +1471,8 @@ public class DistributionPlugin implements Plugin<Project> {
     }
 
     private void copyDirIfExists(File src, File dest) {
-        if (src == null || !src.exists()) return;
+        if (src == null || !src.exists())
+            return;
         if (src.isDirectory()) {
             dest.mkdirs();
             File[] files = src.listFiles();
@@ -1381,13 +1482,15 @@ public class DistributionPlugin implements Plugin<Project> {
                 }
             }
         } else {
-            if (dest.getParentFile() != null) dest.getParentFile().mkdirs();
+            if (dest.getParentFile() != null)
+                dest.getParentFile().mkdirs();
             try {
                 Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 if (src.getName().endsWith(".sh")) {
                     dest.setExecutable(true, false);
                 }
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
         }
     }
 
@@ -1399,7 +1502,8 @@ public class DistributionPlugin implements Plugin<Project> {
             try {
                 Files.copy(composeSrc.toPath(), new File(targetDockerDir, "docker-compose.yml").toPath(),
                         StandardCopyOption.REPLACE_EXISTING);
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
         }
     }
 
@@ -1431,13 +1535,14 @@ public class DistributionPlugin implements Plugin<Project> {
                 ║
                 ║  💡 상세 가이드: %s/DEPLOY-GUIDE.md
                 ╚══════════════════════════════════════════════════════════════════╝
-                """, ctx.fullImageName, distDir.getAbsolutePath(), distDir.getAbsolutePath(),
-                distDir.getAbsolutePath(), ctx.registry, distDir.getAbsolutePath());
+                """, ctx.fullImageName, distDir.getAbsolutePath(), distDir.getAbsolutePath(), distDir.getAbsolutePath(),
+                ctx.registry, distDir.getAbsolutePath());
         project.getLogger().lifecycle(msg);
     }
 
     private String cleanRegistryUrl(String raw) {
-        if (raw == null) return "";
+        if (raw == null)
+            return "";
         String reg = raw.trim().replaceAll("^https?://", "");
         if (reg.endsWith("/")) {
             reg = reg.substring(0, reg.length() - 1);
@@ -1446,9 +1551,11 @@ public class DistributionPlugin implements Plugin<Project> {
     }
 
     private void updateDockerImageInDir(File dir, String oldImage, String newImage) {
-        if (dir == null || !dir.exists()) return;
+        if (dir == null || !dir.exists())
+            return;
         File[] files = dir.listFiles();
-        if (files == null) return;
+        if (files == null)
+            return;
         for (File file : files) {
             if (file.isDirectory()) {
                 updateDockerImageInDir(file, oldImage, newImage);
@@ -1462,7 +1569,8 @@ public class DistributionPlugin implements Plugin<Project> {
                         if (!content.equals(updated)) {
                             Files.writeString(file.toPath(), updated, StandardCharsets.UTF_8);
                         }
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) {
+                    }
                 }
             }
         }
@@ -1476,8 +1584,8 @@ public class DistributionPlugin implements Plugin<Project> {
         final String fullImageName;
         final String packageType;
 
-        DockerBuildContext(File dockerContextDir, String appName, String tag, String registry,
-                String fullImageName, String packageType) {
+        DockerBuildContext(File dockerContextDir, String appName, String tag, String registry, String fullImageName,
+                String packageType) {
             this.dockerContextDir = dockerContextDir;
             this.appName = appName;
             this.tag = tag;

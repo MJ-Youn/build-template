@@ -154,8 +154,9 @@ public class DistributionMojo extends AbstractMojo {
         File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
 
         getLog().info("================================================================");
-        getLog().info("🚀 [Distribution 3.2.1] 배포 패키지 생성 시작");
-        getLog().info("   - 대상 프로젝트    : " + (appName != null && !appName.isBlank() ? appName : project.getArtifactId()));
+        getLog().info("🚀 [Distribution 3.3.0] 배포 패키지 생성 시작");
+        getLog().info(
+                "   - 대상 프로젝트    : " + (appName != null && !appName.isBlank() ? appName : project.getArtifactId()));
         getLog().info("   - 배포 유형       : " + resolvedType.toUpperCase() + " ("
                 + (tomcatMode ? "Standalone Tomcat" : "Executable JAR") + ")");
         getLog().info("   - 활성 프로파일    : " + env);
@@ -209,16 +210,14 @@ public class DistributionMojo extends AbstractMojo {
             }
 
             // --- 4.1. [우선순위 1] 로컬 프로젝트의 @Override 파일 적재 ---
-            addDirectoryIfExists(zos, new File(projectBasedir, "scripts/deploy"), "deploy/", 0755, tokens,
-                    addedEntries, scriptFilter);
+            addDirectoryIfExists(zos, new File(projectBasedir, "scripts/deploy"), "deploy/", 0755, tokens, addedEntries,
+                    scriptFilter);
             addDirectoryIfExists(zos, new File(projectBasedir, "scripts/service"), "bin/", 0755, tokens, addedEntries,
                     scriptFilter);
             addDirectoryIfExists(zos, new File(projectBasedir, "scripts/common"), "bin/", 0755, tokens, addedEntries,
                     scriptFilter);
-            addDirectoryIfExists(zos, new File(projectBasedir, "scripts/common"), "deploy/", 0755, tokens,
-                    addedEntries, scriptFilter);
-            addDirectoryIfExists(zos, new File(projectBasedir, "docker"), "docker/", 0644, tokens, addedEntries,
-                    f -> !f.getName().contains("-jar") && !f.getName().contains("-tomcat"));
+            addDirectoryIfExists(zos, new File(projectBasedir, "scripts/common"), "deploy/", 0755, tokens, addedEntries,
+                    scriptFilter);
             // 로컬 tomcat/ 오버라이드
             addDirectoryIfExists(zos, new File(projectBasedir, "tomcat"), "tomcat/", 0644, tokens, addedEntries);
 
@@ -227,12 +226,14 @@ public class DistributionMojo extends AbstractMojo {
                     addedEntries, scriptFilter);
             addDirectoryIfExists(zos, new File(builtinExtractDir, "scripts/service"), "bin/", 0755, tokens,
                     addedEntries, scriptFilter);
-            addDirectoryIfExists(zos, new File(builtinExtractDir, "scripts/common"), "bin/", 0755, tokens,
-                    addedEntries, scriptFilter);
+            addDirectoryIfExists(zos, new File(builtinExtractDir, "scripts/common"), "bin/", 0755, tokens, addedEntries,
+                    scriptFilter);
             addDirectoryIfExists(zos, new File(builtinExtractDir, "scripts/common"), "deploy/", 0755, tokens,
                     addedEntries, scriptFilter);
-            addDirectoryIfExists(zos, new File(builtinExtractDir, "docker"), "docker/", 0644, tokens, addedEntries,
-                    f -> !f.getName().contains("-jar") && !f.getName().contains("-tomcat"));
+
+            // --- 4.3. Docker 설정 적재 (환경별 docker-compose 자동 매핑 및 불필요한 타 환경 폴더 제거) ---
+            addDockerFiles(zos, new File(projectBasedir, "docker"), new File(builtinExtractDir, "docker"), env,
+                    tomcatMode, tokens, addedEntries);
 
             // Tomcat 모드: 내장 tomcat/ 설정 + webapps/ROOT 포함
             if (tomcatMode) {
@@ -271,9 +272,12 @@ public class DistributionMojo extends AbstractMojo {
                     getLog().info("\ud83d\udce6 추가 디렉토리 번들링: " + dirName);
                     addDirectoryIfExists(zos, extraDir, dirName + "/", 0755, tokens, addedEntries);
                 } else {
-                    getLog().warn("\u26a0\ufe0f 설정된 추가 디렉토리를 찾을 수 없습니다: " + dirName);
+                    getLog().warn("⚠️ 설정된 추가 디렉토리를 찾을 수 없습니다: " + dirName);
                 }
             }
+
+            // --- 4.6. 루트 .env 환경 변수 파일 번들링 (Docker Compose 및 배포 환경용) ---
+            addRootEnvFile(zos, tokens, addedEntries, env);
 
         } catch (IOException e) {
             throw new MojoExecutionException("배포 패키지 생성 실패: " + e.getMessage(), e);
@@ -281,7 +285,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeInMb = targetZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("\u2705 [Distribution 3.2.1] 배포 패키지 생성 완료!");
+        getLog().info("✅ [Distribution 3.3.0] 배포 패키지 생성 완료!");
         getLog().info("   - 산출물 경로: " + targetZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeInMb + " MB (" + targetZip.length() + " bytes)");
         getLog().info("================================================================");
@@ -310,9 +314,10 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * HTTP 서비스 포트를 결정합니다.
      * <ol>
-     *   <li>사용자가 CLI(-DhttpPort=...) 또는 pom.xml configuration으로 기본값(8443)이 아닌 포트를 명시한 경우 우선 적용합니다.</li>
-     *   <li>그 외의 경우 프로젝트의 설정 파일(application.yml, application.properties 등)에서 server.port를 탐색합니다.</li>
-     *   <li>설정 파일에서도 찾지 못한 경우 기존 httpPort(> 0) 또는 기본값 8443을 반환합니다.</li>
+     * <li>사용자가 CLI(-DhttpPort=...) 또는 pom.xml configuration으로 기본값(8443)이 아닌 포트를 명시한 경우 우선
+     * 적용합니다.</li>
+     * <li>그 외의 경우 프로젝트의 설정 파일(application.yml, application.properties 등)에서 server.port를 탐색합니다.</li>
+     * <li>설정 파일에서도 찾지 못한 경우 기존 httpPort(> 0) 또는 기본값 8443을 반환합니다.</li>
      * </ol>
      *
      * @return 결정된 HTTP 포트 번호
@@ -331,8 +336,7 @@ public class DistributionMojo extends AbstractMojo {
         String activeEnv = (env != null && !env.isBlank()) ? env.trim() : "dev";
 
         // 2. 프로젝트 설정 파일 후보 경로 탐색 (우선순위 순서)
-        List<File> candidates = List.of(
-                new File(basedir, "config.profiles/" + activeEnv + "/application.yml"),
+        List<File> candidates = List.of(new File(basedir, "config.profiles/" + activeEnv + "/application.yml"),
                 new File(basedir, "config.profiles/" + activeEnv + "/application.yaml"),
                 new File(basedir, "config.profiles/" + activeEnv + "/application.properties"),
                 new File(basedir, "config/" + activeEnv + "/application.yml"),
@@ -341,20 +345,18 @@ public class DistributionMojo extends AbstractMojo {
                 new File(basedir, "src/main/resources/application-" + activeEnv + ".yml"),
                 new File(basedir, "src/main/resources/application-" + activeEnv + ".yaml"),
                 new File(basedir, "src/main/resources/application-" + activeEnv + ".properties"),
-                new File(basedir, "config/application.yml"),
-                new File(basedir, "config/application.yaml"),
+                new File(basedir, "config/application.yml"), new File(basedir, "config/application.yaml"),
                 new File(basedir, "config/application.properties"),
                 new File(basedir, "src/main/resources/application.yml"),
                 new File(basedir, "src/main/resources/application.yaml"),
-                new File(basedir, "src/main/resources/application.properties")
-        );
+                new File(basedir, "src/main/resources/application.properties"));
 
         for (File candidate : candidates) {
             if (candidate.exists() && candidate.isFile()) {
                 Integer detected = parseServerPort(candidate);
                 if (detected != null && detected > 0) {
-                    getLog().info("   🔍 [Distribution] 설정 파일에서 HTTP 서비스 포트를 자동 감지했습니다: "
-                            + detected + " (" + basedir.toPath().relativize(candidate.toPath()) + ")");
+                    getLog().info("   🔍 [Distribution] 설정 파일에서 HTTP 서비스 포트를 자동 감지했습니다: " + detected + " ("
+                            + basedir.toPath().relativize(candidate.toPath()) + ")");
                     return detected;
                 }
             }
@@ -366,7 +368,8 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * YAML 또는 Properties 설정 파일에서 server.port 값을 파싱합니다.
      *
-     * @param file 대상 설정 파일
+     * @param file
+     *            대상 설정 파일
      * @return 파싱된 포트 번호 (없으면 null)
      */
     private Integer parseServerPort(File file) {
@@ -608,12 +611,7 @@ public class DistributionMojo extends AbstractMojo {
                 if (addedEntries.add(entryName)) {
                     byte[] content = tokens != null ? filterTokens(Files.readAllBytes(file.toPath()), tokens)
                             : Files.readAllBytes(file.toPath());
-                    ZipArchiveEntry entry = new ZipArchiveEntry(entryName);
-                    entry.setUnixMode(unixMode);
-                    entry.setSize(content.length);
-                    zos.putArchiveEntry(entry);
-                    zos.write(content);
-                    zos.closeArchiveEntry();
+                    addZipEntry(zos, entryName, content, unixMode);
                 }
             }
         }
@@ -727,6 +725,204 @@ public class DistributionMojo extends AbstractMojo {
         }
     }
 
+    /**
+     * 배포 패키지 루트에 Docker Compose 및 런타임 환경변수(.env) 파일을 번들링합니다. - 우선순위 1:
+     * docker.profiles/${env}/.env-${env} 또는 docker.profiles/${env}/.env - 우선순위 2:
+     * config.profiles/${env}/.env-${env} 또는 config.profiles/${env}/.env - 우선순위 3: 프로젝트 루트의 .env -
+     * 없으면 기본 표준 템플릿 자동 생성
+     */
+    private void addRootEnvFile(ZipArchiveOutputStream zos, Map<String, String> tokens, Set<String> addedEntries,
+            String currentEnv) throws IOException {
+        if (addedEntries.contains(".env")) {
+            return;
+        }
+
+        File basedir = project.getBasedir();
+        List<File> candidates = List.of(new File(basedir, "docker.profiles/" + currentEnv + "/.env-" + currentEnv),
+                new File(basedir, "docker.profiles/" + currentEnv + "/.env"),
+                new File(basedir, "docker/" + currentEnv + "/.env-" + currentEnv),
+                new File(basedir, "docker/" + currentEnv + "/.env"),
+                new File(basedir, "config.profiles/" + currentEnv + "/.env-" + currentEnv),
+                new File(basedir, "config.profiles/" + currentEnv + "/.env"), new File(basedir, ".env"));
+
+        for (File candidate : candidates) {
+            if (candidate.exists() && candidate.isFile()) {
+                byte[] raw = Files.readAllBytes(candidate.toPath());
+                byte[] content = tokens != null ? filterTokens(raw, tokens) : raw;
+                addZipEntry(zos, ".env", content, 0644);
+                addedEntries.add(".env");
+                getLog().info("📋 [Distribution] 환경별 .env 파일을 패키지 루트 .env로 적용했습니다 ("
+                        + basedir.toPath().relativize(candidate.toPath()) + ")");
+                return;
+            }
+        }
+
+        // 기본 표준 템플릿 생성
+        String resolvedAppName = tokens.getOrDefault("appName", project.getArtifactId());
+        String resolvedHttpPort = tokens.getOrDefault("httpPort", "8080");
+        String resolvedDockerImage = tokens.getOrDefault("dockerImage", resolvedAppName + ":" + project.getVersion());
+
+        String envContent = String.format("""
+                # ==============================================================================
+                # Docker Compose & Service Environment Variables (.env)
+                # Generated automatically by distribution plugin (Profile: %s)
+                # ==============================================================================
+                APP_UID=1000
+                APP_GID=1000
+
+                APP_NAME=%s
+                HTTP_PORT=%s
+
+                # 호스트 로그 및 설치 디렉토리
+                LOG_PATH=./log
+                DEST_DIR=.
+
+                # 컨테이너 내부 서비스 로그 경로
+                CONTAINER_LOG_PATH=/log
+
+                DOCKER_IMAGE=%s
+                """, currentEnv, resolvedAppName, resolvedHttpPort, resolvedDockerImage);
+
+        addZipEntry(zos, ".env", envContent.getBytes(StandardCharsets.UTF_8), 0644);
+        addedEntries.add(".env");
+    }
+
+    /**
+     * docker/ 디렉토리의 파일들을 환경(env) 및 배포 유형에 맞게 선택하여 Zip에 적재합니다. - application.yml의 config.profiles
+     * 처리와 동일하게 docker.profiles/{profile}/ 디렉토리의 파일들을 접미사(-{env})를 제거하여 docker/ 에 표준 명칭으로 적재합니다. -
+     * 추가로 로컬 docker/ 및 내장 템플릿 파일을 폴백으로 보완합니다.
+     */
+    private void addDockerFiles(ZipArchiveOutputStream zos, File localDockerDir, File builtinDockerDir,
+            String currentEnv, boolean tomcatMode, Map<String, String> tokens, Set<String> addedEntries)
+            throws IOException {
+        String packageType = tomcatMode ? "tomcat" : "jar";
+        File basedir = project.getBasedir();
+
+        // 1. [우선순위 1] docker.profiles/${env} (또는 docker/${env}) 환경별 디렉토리 적재
+        File dockerProfileDir = new File(basedir, "docker.profiles/" + currentEnv);
+        if (!dockerProfileDir.exists()) {
+            dockerProfileDir = new File(basedir, "docker/" + currentEnv);
+        }
+
+        if (dockerProfileDir.exists() && dockerProfileDir.isDirectory()) {
+            getLog().info("🐳 [Distribution] 환경별 Docker 프로파일 디렉토리 감지: " + dockerProfileDir.getName());
+            addDockerProfileFiles(zos, dockerProfileDir, "docker/", currentEnv, tokens, addedEntries);
+        }
+
+        // 2. [우선순위 2] 로컬 docker/ 디렉토리의 공통 파일 적재 (환경 디렉토리 및 템플릿 제외)
+        if (localDockerDir.exists() && localDockerDir.isDirectory()) {
+            addDockerCommonFiles(zos, localDockerDir, "docker/", tokens, addedEntries, currentEnv);
+        }
+
+        // 3. [우선순위 3] 필수 파일 폴백 (내장 템플릿)
+        // 3.1. Dockerfile 폴백
+        if (!addedEntries.contains("docker/Dockerfile")) {
+            File fallbackDf = new File(builtinDockerDir, "Dockerfile-" + packageType);
+            if (!fallbackDf.exists())
+                fallbackDf = new File(builtinDockerDir, "Dockerfile");
+            if (fallbackDf.exists() && fallbackDf.isFile()) {
+                byte[] content = tokens != null ? filterTokens(Files.readAllBytes(fallbackDf.toPath()), tokens)
+                        : Files.readAllBytes(fallbackDf.toPath());
+                addZipEntry(zos, "docker/Dockerfile", content, 0644);
+                addedEntries.add("docker/Dockerfile");
+            }
+        }
+
+        // 3.2. docker-compose.yml 폴백
+        if (!addedEntries.contains("docker/docker-compose.yml")) {
+            File fallbackCompose = new File(builtinDockerDir, currentEnv + "/docker-compose-" + currentEnv + ".yml");
+            if (!fallbackCompose.exists())
+                fallbackCompose = new File(builtinDockerDir, currentEnv + "/docker-compose.yml");
+            if (!fallbackCompose.exists())
+                fallbackCompose = new File(builtinDockerDir, "docker-compose-" + packageType + ".yml");
+            if (!fallbackCompose.exists())
+                fallbackCompose = new File(builtinDockerDir, "docker-compose.yml");
+            if (fallbackCompose.exists() && fallbackCompose.isFile()) {
+                byte[] content = tokens != null ? filterTokens(Files.readAllBytes(fallbackCompose.toPath()), tokens)
+                        : Files.readAllBytes(fallbackCompose.toPath());
+                addZipEntry(zos, "docker/docker-compose.yml", content, 0644);
+                addedEntries.add("docker/docker-compose.yml");
+            }
+        }
+    }
+
+    private void addDockerProfileFiles(ZipArchiveOutputStream zos, File profileDir, String zipPathPrefix,
+            String currentEnv, Map<String, String> tokens, Set<String> addedEntries) throws IOException {
+        File[] files = profileDir.listFiles();
+        if (files == null)
+            return;
+        Arrays.sort(files);
+        for (File file : files) {
+            if (file.isDirectory()) {
+                addDockerProfileFiles(zos, file, zipPathPrefix + file.getName() + "/", currentEnv, tokens,
+                        addedEntries);
+            } else if (file.isFile()) {
+                String targetName = file.getName().replace("-" + currentEnv, "");
+                String entryName = zipPathPrefix + targetName;
+                byte[] raw = Files.readAllBytes(file.toPath());
+                byte[] content = tokens != null ? filterTokens(raw, tokens) : raw;
+
+                if (addedEntries.add(entryName)) {
+                    addZipEntry(zos, entryName, content, 0644);
+                }
+
+                // .env 파일인 경우 루트 .env 로도 복사하여 Docker Compose 및 런타임 호환 보장
+                if (targetName.equals(".env") && addedEntries.add(".env")) {
+                    addZipEntry(zos, ".env", content, 0644);
+                    getLog().info("📋 [Distribution] 환경별 .env 파일을 패키지 루트 .env로 적용했습니다 (" + file.getName() + ")");
+                }
+            }
+        }
+    }
+
+    private void addDockerCommonFiles(ZipArchiveOutputStream zos, File dir, String prefix, Map<String, String> tokens,
+            Set<String> addedEntries, String currentEnv) throws IOException {
+        File[] files = dir.listFiles();
+        if (files == null)
+            return;
+        Arrays.sort(files);
+        for (File file : files) {
+            String name = file.getName();
+            if (file.isDirectory()) {
+                // 환경 디렉토리(dev, prod, test 등)는 제외
+                if (ENVIRONMENTS.contains(name)) {
+                    continue;
+                }
+                addDockerCommonFiles(zos, file, prefix + name + "/", tokens, addedEntries, currentEnv);
+            } else if (file.isFile()) {
+                if (name.contains("-jar") || name.contains("-tomcat") || name.contains(currentEnv)) {
+                    continue;
+                }
+                String entryName = prefix + name;
+                if (addedEntries.add(entryName)) {
+                    byte[] content = tokens != null ? filterTokens(Files.readAllBytes(file.toPath()), tokens)
+                            : Files.readAllBytes(file.toPath());
+                    addZipEntry(zos, entryName, content, 0644);
+                }
+            }
+        }
+    }
+
+    private void addZipEntry(ZipArchiveOutputStream zos, String entryName, byte[] content, int unixMode)
+            throws IOException {
+        content = normalizeLineEndings(content, entryName);
+        ZipArchiveEntry entry = new ZipArchiveEntry(entryName);
+        entry.setUnixMode(unixMode);
+        entry.setSize(content.length);
+        zos.putArchiveEntry(entry);
+        zos.write(content);
+        zos.closeArchiveEntry();
+    }
+
+    private byte[] normalizeLineEndings(byte[] input, String fileName) {
+        if (fileName != null && (fileName.endsWith(".bat") || fileName.endsWith(".cmd"))) {
+            String content = new String(input, StandardCharsets.UTF_8);
+            content = content.replace("\r\n", "\n").replace("\n", "\r\n");
+            return content.getBytes(StandardCharsets.UTF_8);
+        }
+        return input;
+    }
+
     private byte[] filterTokens(byte[] input, Map<String, String> tokens) {
         String fileContent = new String(input, StandardCharsets.UTF_8);
         for (Map.Entry<String, String> entry : tokens.entrySet()) {
@@ -768,7 +964,8 @@ public class DistributionMojo extends AbstractMojo {
         }
     }
 
-    private void copyTemplateResource(String resourcePath, File targetFile, Map<String, String> tokens) throws IOException {
+    private void copyTemplateResource(String resourcePath, File targetFile, Map<String, String> tokens)
+            throws IOException {
         InputStream stream = getClass().getClassLoader().getResourceAsStream(resourcePath);
         if (stream == null) {
             throw new IOException("클래스패스 템플릿을 찾을 수 없습니다: " + resourcePath);
@@ -824,7 +1021,8 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * Docker 이미지 빌드 및 오프라인 배포용 Zip 패키지를 생성합니다. (Strategy 1)
      *
-     * @throws MojoExecutionException Docker 빌드 또는 패키징 중 오류 발생 시
+     * @throws MojoExecutionException
+     *             Docker 빌드 또는 패키징 중 오류 발생 시
      */
     public void executePackageDocker() throws MojoExecutionException {
         File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
@@ -865,7 +1063,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeMb = outputZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("✅ [Distribution 3.2.1 - Maven] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
+        getLog().info("✅ [Distribution 3.3.0 - Maven] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
         getLog().info("   - 산출물 경로: " + outputZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeMb + " MB (" + outputZip.length() + " bytes)");
         getLog().info("   - 배포 방법  : 서버에 zip 전송 -> unzip -> sudo ./deploy/install_service.sh");
@@ -875,7 +1073,8 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * Docker 이미지를 빌드하고 원격 레지스트리에 Push합니다. (Strategy 2)
      *
-     * @throws MojoExecutionException Docker 빌드 또는 이미지 푸시 중 오류 발생 시
+     * @throws MojoExecutionException
+     *             Docker 빌드 또는 이미지 푸시 중 오류 발생 시
      */
     public void executePackageDockerRemote() throws MojoExecutionException {
         File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
@@ -925,12 +1124,13 @@ public class DistributionMojo extends AbstractMojo {
                 4. 또는 수동 실행 (docker compose 직접 기동):
                    cd /home/user/docker-dist
                    docker compose -f docker/docker-compose.yml up -d
-                """, ctx.appName, ctx.fullImageName, dockerDistDir.getAbsolutePath(),
-                dockerDistDir.getAbsolutePath(), ctx.registry);
+                """, ctx.appName, ctx.fullImageName, dockerDistDir.getAbsolutePath(), dockerDistDir.getAbsolutePath(),
+                ctx.registry);
 
         try {
             Files.writeString(guideFile.toPath(), guideContent, StandardCharsets.UTF_8);
-        } catch (IOException ignored) {}
+        } catch (IOException ignored) {
+        }
 
         deleteRecursively(ctx.dockerContextDir);
 
@@ -1011,7 +1211,8 @@ public class DistributionMojo extends AbstractMojo {
                     : "template/docker/docker-compose-jar.yml";
             try {
                 copyTemplateResource(composeTemplate, composeFile, tokens);
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
         }
 
         // 5. 이미지명 및 태그 계산
@@ -1029,19 +1230,13 @@ public class DistributionMojo extends AbstractMojo {
                     """);
         }
 
-        String fullImageName = !registry.isBlank()
-                ? registry + "/" + resolvedAppName + ":" + tag
+        String fullImageName = !registry.isBlank() ? registry + "/" + resolvedAppName + ":" + tag
                 : resolvedAppName + ":" + tag;
 
         // 6. docker build 실행
         getLog().info("🔨 [Distribution - Maven] Docker 이미지 빌드 시작 -> " + fullImageName);
-        List<String> buildCmd = List.of(
-                "docker", "build",
-                "--build-arg", "APP_NAME=" + resolvedAppName,
-                "-t", fullImageName,
-                "-f", dockerFile.getAbsolutePath(),
-                dockerContextDir.getAbsolutePath()
-        );
+        List<String> buildCmd = List.of("docker", "build", "--build-arg", "APP_NAME=" + resolvedAppName, "-t",
+                fullImageName, "-f", dockerFile.getAbsolutePath(), dockerContextDir.getAbsolutePath());
 
         runProcess(buildCmd, dockerContextDir, "Docker 이미지 빌드");
         getLog().info("✨ [Distribution - Maven] Docker 이미지 빌드 성공: " + fullImageName);
@@ -1101,7 +1296,8 @@ public class DistributionMojo extends AbstractMojo {
     }
 
     private void copyDirIfExists(File src, File dest) {
-        if (src == null || !src.exists()) return;
+        if (src == null || !src.exists())
+            return;
         if (src.isDirectory()) {
             dest.mkdirs();
             File[] files = src.listFiles();
@@ -1111,13 +1307,15 @@ public class DistributionMojo extends AbstractMojo {
                 }
             }
         } else {
-            if (dest.getParentFile() != null) dest.getParentFile().mkdirs();
+            if (dest.getParentFile() != null)
+                dest.getParentFile().mkdirs();
             try {
                 Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 if (src.getName().endsWith(".sh")) {
                     dest.setExecutable(true, false);
                 }
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
         }
     }
 
@@ -1129,7 +1327,8 @@ public class DistributionMojo extends AbstractMojo {
             try {
                 Files.copy(composeSrc.toPath(), new File(targetDockerDir, "docker-compose.yml").toPath(),
                         StandardCopyOption.REPLACE_EXISTING);
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
         }
     }
 
@@ -1161,13 +1360,14 @@ public class DistributionMojo extends AbstractMojo {
                 ║
                 ║  💡 상세 가이드: %s/DEPLOY-GUIDE.md
                 ╚══════════════════════════════════════════════════════════════════╝
-                """, ctx.fullImageName, distDir.getAbsolutePath(), distDir.getAbsolutePath(),
-                distDir.getAbsolutePath(), ctx.registry, distDir.getAbsolutePath());
+                """, ctx.fullImageName, distDir.getAbsolutePath(), distDir.getAbsolutePath(), distDir.getAbsolutePath(),
+                ctx.registry, distDir.getAbsolutePath());
         getLog().info(msg);
     }
 
     private String cleanRegistryUrl(String raw) {
-        if (raw == null) return "";
+        if (raw == null)
+            return "";
         String reg = raw.trim().replaceAll("^https?://", "");
         if (reg.endsWith("/")) {
             reg = reg.substring(0, reg.length() - 1);
@@ -1176,9 +1376,11 @@ public class DistributionMojo extends AbstractMojo {
     }
 
     private void updateDockerImageInDir(File dir, String oldImage, String newImage) {
-        if (dir == null || !dir.exists()) return;
+        if (dir == null || !dir.exists())
+            return;
         File[] files = dir.listFiles();
-        if (files == null) return;
+        if (files == null)
+            return;
         for (File file : files) {
             if (file.isDirectory()) {
                 updateDockerImageInDir(file, oldImage, newImage);
@@ -1192,7 +1394,8 @@ public class DistributionMojo extends AbstractMojo {
                         if (!content.equals(updated)) {
                             Files.writeString(file.toPath(), updated, StandardCharsets.UTF_8);
                         }
-                    } catch (Exception ignored) {}
+                    } catch (Exception ignored) {
+                    }
                 }
             }
         }
@@ -1206,8 +1409,8 @@ public class DistributionMojo extends AbstractMojo {
         final String fullImageName;
         final String packageType;
 
-        DockerBuildContext(File dockerContextDir, String appName, String tag, String registry,
-                String fullImageName, String packageType) {
+        DockerBuildContext(File dockerContextDir, String appName, String tag, String registry, String fullImageName,
+                String packageType) {
             this.dockerContextDir = dockerContextDir;
             this.appName = appName;
             this.tag = tag;

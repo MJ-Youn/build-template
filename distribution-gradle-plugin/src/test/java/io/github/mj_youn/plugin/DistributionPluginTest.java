@@ -81,4 +81,29 @@ class DistributionPluginTest {
         assertTrue(shFile.exists(), "build_deploy.sh 파일이 생성되어야 합니다.");
         assertTrue(batFile.exists(), "build_deploy.bat 파일이 생성되어야 합니다.");
     }
+
+    @Test
+    @DisplayName("initDocker 태스크는 Dockerfile, docker-compose.yml, .env.example 및 docker.profiles 샘플을 정상 생성해야 한다.")
+    void testInitDocker() {
+        Project project = ProjectBuilder.builder().build();
+        project.getPlugins().apply("java");
+        project.getPlugins().apply("io.github.mj-youn.distribution");
+
+        Task initDockerTask = project.getTasks().findByName("initDocker");
+        assertNotNull(initDockerTask, "initDocker 태스크가 등록되어 있어야 합니다.");
+
+        initDockerTask.getActions().get(0).execute(initDockerTask);
+
+        java.io.File dockerfile = project.file("docker/Dockerfile");
+        java.io.File composeFile = project.file("docker/docker-compose.yml");
+        java.io.File envExample = project.file("docker/.env.example");
+        java.io.File devEnvFile = project.file("docker.profiles/dev/.env-dev");
+        java.io.File prodEnvFile = project.file("docker.profiles/prod/.env-prod");
+
+        assertTrue(dockerfile.exists(), "docker/Dockerfile 파일이 생성되어야 합니다.");
+        assertTrue(composeFile.exists(), "docker/docker-compose.yml 파일이 생성되어야 합니다.");
+        assertTrue(envExample.exists(), "docker/.env.example 파일이 생성되어야 합니다.");
+        assertTrue(devEnvFile.exists(), "docker.profiles/dev/.env-dev 파일이 생성되어야 합니다.");
+        assertTrue(prodEnvFile.exists(), "docker.profiles/prod/.env-prod 파일이 생성되어야 합니다.");
+    }
 }

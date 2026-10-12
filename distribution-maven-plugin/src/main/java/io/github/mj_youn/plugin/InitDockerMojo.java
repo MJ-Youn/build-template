@@ -82,10 +82,26 @@ public class InitDockerMojo extends AbstractMojo {
             copyTemplateResource(activeDockerTemplate, activeDockerFile, tokens);
             copyTemplateResource(activeComposeTemplate, activeComposeFile, tokens);
 
+            // 2. .env.example 샘플 파일 생성
+            File activeEnvFile = new File(dockerDir, ".env.example");
+            copyTemplateResource("template/scripts/service/.env.example", activeEnvFile, tokens);
+
+            // 3. docker.profiles/ 환경별 .env 샘플 생성 (파일이 없을 경우에만 생성)
+            File devProfileEnv = new File(basedir, "docker.profiles/dev/.env-dev");
+            if (!devProfileEnv.exists()) {
+                copyTemplateResource("template/scripts/service/.env.example", devProfileEnv, tokens);
+            }
+            File prodProfileEnv = new File(basedir, "docker.profiles/prod/.env-prod");
+            if (!prodProfileEnv.exists()) {
+                copyTemplateResource("template/scripts/service/.env.example", prodProfileEnv, tokens);
+            }
+
             getLog().info("================================================================");
             getLog().info("🐳 [Distribution] Docker 설정 생성 완료 (배포 유형: " + resolvedType.toUpperCase() + ")");
             getLog().info("   - 생성된 Dockerfile     : " + activeDockerFile.getAbsolutePath());
             getLog().info("   - 생성된 docker-compose : " + activeComposeFile.getAbsolutePath());
+            getLog().info("   - 생성된 환경설정 샘플  : " + activeEnvFile.getAbsolutePath());
+            getLog().info("   - 생성된 프로파일 샘플  : " + devProfileEnv.getAbsolutePath());
             getLog().info("================================================================");
 
             // 비교 가이드 출력
