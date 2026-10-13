@@ -282,7 +282,7 @@ public class DistributionPlugin implements Plugin<Project> {
     private void printGuide(Project project) {
         String msg = """
                 ================================================================================
-                🚀 [Distribution Plugin 3.3.0] 빌드 및 배포 가이드
+                🚀 [Distribution Plugin 3.3.1] 빌드 및 배포 가이드
                 ================================================================================
 
                 [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -324,7 +324,7 @@ public class DistributionPlugin implements Plugin<Project> {
                                                        패키지 config/ 로 오버레이됩니다.
                   -Pos=linux|windows|all             : 배포 대상 운영체제 지정 (기본값: linux)
                                                        linux  : *.sh 스크립트만 포함 (*.bat 제외)
-                                                       windows: *.bat 스크립트만 포함 (*.sh 제외)
+                                                       windows: *.bat 및 Docker 컨테이너 구동용 *.sh 모두 포함
                                                        all    : *.sh 및 *.bat 스크립트 모두 포함
                   -Ptype=jar|tomcat                  : 배포 유형 CLI 오버라이드
                   -PpackageType=jar|tomcat           : 배포 유형 CLI 오버라이드 (packageType alias)
@@ -400,7 +400,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         zipTask.doFirst(task -> {
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("🚀 [Distribution 3.3.0] 배포 패키지 생성 시작");
+            project.getLogger().lifecycle("🚀 [Distribution 3.3.1] 배포 패키지 생성 시작");
             project.getLogger().lifecycle("   - 대상 프로젝트    : {}", project.getName());
             project.getLogger().lifecycle("   - 배포 유형       : {} ({})", packageType.toUpperCase(),
                     isTomcat ? "Standalone Tomcat" : "Executable JAR");
@@ -486,15 +486,10 @@ public class DistributionPlugin implements Plugin<Project> {
         }
 
         // 1.5. 루트 .env 파일 적재 (1순위: docker.profiles -> 2순위: config.profiles -> 3순위: 루트 .env -> 4순위: 기본 템플릿 자동 생성)
-        List<File> envCandidates = List.of(
-                project.file("docker.profiles/" + env + "/.env-" + env),
-                project.file("docker.profiles/" + env + "/.env"),
-                project.file("docker/" + env + "/.env-" + env),
-                project.file("docker/" + env + "/.env"),
-                project.file("config.profiles/" + env + "/.env-" + env),
-                project.file("config.profiles/" + env + "/.env"),
-                project.file(".env")
-        );
+        List<File> envCandidates = List.of(project.file("docker.profiles/" + env + "/.env-" + env),
+                project.file("docker.profiles/" + env + "/.env"), project.file("docker/" + env + "/.env-" + env),
+                project.file("docker/" + env + "/.env"), project.file("config.profiles/" + env + "/.env-" + env),
+                project.file("config.profiles/" + env + "/.env"), project.file(".env"));
         File resolvedEnvFile = null;
         for (File candidate : envCandidates) {
             if (candidate.exists() && candidate.isFile()) {
@@ -504,6 +499,7 @@ public class DistributionPlugin implements Plugin<Project> {
         }
         if (resolvedEnvFile != null) {
             File targetEnvFile = resolvedEnvFile;
+            // 1. 패키지 루트 .env 배치
             zipTask.from(targetEnvFile, spec -> {
                 spec.rename(name -> ".env");
                 spec.filter(Map.of("tokens", tokens), ReplaceTokens.class);
@@ -515,7 +511,8 @@ public class DistributionPlugin implements Plugin<Project> {
             File defaultEnvFile = new File(builtinExtractDir, ".default.env");
             String resolvedAppName = String.valueOf(tokens.getOrDefault("appName", project.getName()));
             String resolvedHttpPort = String.valueOf(tokens.getOrDefault("httpPort", "8080"));
-            String resolvedDockerImage = String.valueOf(tokens.getOrDefault("dockerImage", resolvedAppName + ":" + project.getVersion()));
+            String resolvedDockerImage = String
+                    .valueOf(tokens.getOrDefault("dockerImage", resolvedAppName + ":" + project.getVersion()));
             String envContent = String.format("""
                     # ==============================================================================
                     # Docker Compose & Service Environment Variables (.env)
@@ -538,6 +535,7 @@ public class DistributionPlugin implements Plugin<Project> {
                     """, env, resolvedAppName, resolvedHttpPort, resolvedDockerImage);
             try {
                 Files.writeString(defaultEnvFile.toPath(), envContent, StandardCharsets.UTF_8);
+                // 패키지 루트 .env 단일 배치 (Single Source of Truth)
                 zipTask.from(defaultEnvFile, spec -> {
                     spec.rename(name -> ".env");
                 });
@@ -658,7 +656,7 @@ public class DistributionPlugin implements Plugin<Project> {
             File archive = zipTask.getArchiveFile().get().getAsFile();
             long sizeInMb = archive.length() / (1024 * 1024);
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("✅ [Distribution 3.3.0] 배포 패키지 생성 완료!");
+            project.getLogger().lifecycle("✅ [Distribution 3.3.1] 배포 패키지 생성 완료!");
             project.getLogger().lifecycle("   - 산출물 경로: {}", archive.getAbsolutePath());
             project.getLogger().lifecycle("   - 파일 크기  : {} MB ({} bytes)", sizeInMb, archive.length());
             project.getLogger().lifecycle("================================================================");
@@ -715,13 +713,16 @@ public class DistributionPlugin implements Plugin<Project> {
     }
 
     /**
-     * 타겟 OS에 따라 불필요한 스크립트 확장자를 제외합니다.
+     * 타겟 OS에 따라 불필요한 스크립트 확장자를 제외합니다. - windows, win, window, all: Windows 환경은 Docker 배포를 사용하며 컨테이너
+     * 내부(Linux)에서 *.sh가 필요하므로 *.bat과 *.sh 모두 포함 - linux: 리눅스 호스트 전용 배포이므로 *.bat, *.cmd 제외
      */
     private void applyOsScriptFilter(org.gradle.api.file.CopySpec spec, String targetOs) {
-        if ("linux".equals(targetOs)) {
-            spec.exclude("**/*.bat");
-        } else if ("windows".equals(targetOs) || "win".equals(targetOs)) {
-            spec.exclude("**/*.sh");
+        if ("windows".equals(targetOs) || "win".equals(targetOs) || "window".equals(targetOs)
+                || "all".equals(targetOs)) {
+            // Windows 호스트 실행용 *.bat과 Docker 컨테이너(Linux) 내부 구동용 *.sh 모두 패키지에 포함 (제외 없음)
+        } else {
+            // 기본값: linux 호스트 배포이므로 Windows 배치 파일 제외
+            spec.exclude("**/*.bat", "**/*.cmd");
         }
     }
 
@@ -913,9 +914,16 @@ public class DistributionPlugin implements Plugin<Project> {
         String activeEnv = project.hasProperty("env") ? String.valueOf(project.property("env")).trim() : "dev";
         File projectDir = project.getProjectDir();
 
-        List<File> candidates = List.of(new File(projectDir, "config.profiles/" + activeEnv + "/application.yml"),
+        List<File> candidates = List.of(
+                new File(projectDir, "config.profiles/" + activeEnv + "/application-" + activeEnv + ".yml"),
+                new File(projectDir, "config.profiles/" + activeEnv + "/application-" + activeEnv + ".yaml"),
+                new File(projectDir, "config.profiles/" + activeEnv + "/application-" + activeEnv + ".properties"),
+                new File(projectDir, "config.profiles/" + activeEnv + "/application.yml"),
                 new File(projectDir, "config.profiles/" + activeEnv + "/application.yaml"),
                 new File(projectDir, "config.profiles/" + activeEnv + "/application.properties"),
+                new File(projectDir, "config/" + activeEnv + "/application-" + activeEnv + ".yml"),
+                new File(projectDir, "config/" + activeEnv + "/application-" + activeEnv + ".yaml"),
+                new File(projectDir, "config/" + activeEnv + "/application-" + activeEnv + ".properties"),
                 new File(projectDir, "config/" + activeEnv + "/application.yml"),
                 new File(projectDir, "config/" + activeEnv + "/application.yaml"),
                 new File(projectDir, "config/" + activeEnv + "/application.properties"),
@@ -1117,6 +1125,16 @@ public class DistributionPlugin implements Plugin<Project> {
                 copyTemplateResource("template/scripts/service/.env.example", prodProfileEnv, tokens);
             }
 
+            // 4. .dockerignore 생성 (컨테이너 내 *.bat 등 제외용)
+            File dockerIgnoreFile = new File(dockerDir, ".dockerignore");
+            if (!dockerIgnoreFile.exists()) {
+                copyTemplateResource("template/docker/.dockerignore", dockerIgnoreFile, tokens);
+            }
+            File rootDockerIgnore = project.file(".dockerignore");
+            if (!rootDockerIgnore.exists()) {
+                copyTemplateResource("template/docker/.dockerignore", rootDockerIgnore, tokens);
+            }
+
             project.getLogger().lifecycle("================================================================");
             project.getLogger().lifecycle("🐳 [Distribution] Docker 설정 생성 완료 (배포 유형: {})", packageType.toUpperCase());
             project.getLogger().lifecycle("   - 생성된 Dockerfile     : {}", activeDockerFile.getAbsolutePath());
@@ -1175,7 +1193,7 @@ public class DistributionPlugin implements Plugin<Project> {
     private void printDockerComparisonGuide(Project project) {
         String guide = """
                 ================================================================================
-                🐳 [Distribution 3.3.0] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
+                🐳 [Distribution 3.3.1] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
                 ================================================================================
 
                 ┌─────────────────┬──────────────────────────────────┬──────────────────────────────────┐
@@ -1255,7 +1273,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         long sizeMb = outputZip.length() / (1024 * 1024);
         project.getLogger().lifecycle("================================================================");
-        project.getLogger().lifecycle("✅ [Distribution 3.3.0] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
+        project.getLogger().lifecycle("✅ [Distribution 3.3.1] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
         project.getLogger().lifecycle("   - 산출물 경로: {}", outputZip.getAbsolutePath());
         project.getLogger().lifecycle("   - 파일 크기  : {} MB ({} bytes)", sizeMb, outputZip.length());
         project.getLogger().lifecycle("   - 배포 방법  : 서버에 zip 전송 -> unzip -> sudo ./deploy/install_service.sh");
@@ -1348,6 +1366,9 @@ public class DistributionPlugin implements Plugin<Project> {
             spec.into(dockerContextDir);
         });
 
+        // 1.1. Docker 이미지 내부에 *.bat 파일이 포함되지 않도록 빌드 컨텍스트에서 *.bat, *.cmd 파일 제거
+        deleteFilesMatching(dockerContextDir, f -> f.getName().endsWith(".bat") || f.getName().endsWith(".cmd"));
+
         // 2. 패키지 타입 및 토큰 치환 준비
         String packageType = resolvePackageType(project, extension, null);
         boolean isTomcat = "tomcat".equalsIgnoreCase(packageType) || "war".equalsIgnoreCase(packageType);
@@ -1417,6 +1438,22 @@ public class DistributionPlugin implements Plugin<Project> {
         project.getLogger().lifecycle("✨ [Distribution] Docker 이미지 빌드 성공: {}", fullImageName);
 
         return new DockerBuildContext(dockerContextDir, appName, tag, registry, fullImageName, packageType);
+    }
+
+    private void deleteFilesMatching(File dir, java.util.function.Predicate<File> predicate) {
+        if (dir == null || !dir.exists()) {
+            return;
+        }
+        if (dir.isDirectory()) {
+            File[] files = dir.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    deleteFilesMatching(f, predicate);
+                }
+            }
+        } else if (predicate.test(dir)) {
+            dir.delete();
+        }
     }
 
     private void runProcess(Project project, List<String> command, File workDir, String taskDesc) {

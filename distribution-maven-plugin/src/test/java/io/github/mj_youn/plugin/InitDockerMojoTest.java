@@ -42,9 +42,14 @@ class InitDockerMojoTest {
         File devEnvFile = new File(tempDir, "docker.profiles/dev/.env-dev");
         File prodEnvFile = new File(tempDir, "docker.profiles/prod/.env-prod");
 
+        File dockerignore = new File(tempDir, "docker/.dockerignore");
+        File rootDockerignore = new File(tempDir, ".dockerignore");
+
         assertTrue(dockerfile.exists(), "docker/Dockerfile 파일이 생성되어야 합니다.");
         assertTrue(composeFile.exists(), "docker/docker-compose.yml 파일이 생성되어야 합니다.");
         assertTrue(envExample.exists(), "docker/.env.example 파일이 생성되어야 합니다.");
+        assertTrue(dockerignore.exists(), "docker/.dockerignore 파일이 생성되어야 합니다.");
+        assertTrue(rootDockerignore.exists(), ".dockerignore 파일이 생성되어야 합니다.");
         assertTrue(devEnvFile.exists(), "docker.profiles/dev/.env-dev 파일이 생성되어야 합니다.");
         assertTrue(prodEnvFile.exists(), "docker.profiles/prod/.env-prod 파일이 생성되어야 합니다.");
     }

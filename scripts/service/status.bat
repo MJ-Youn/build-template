@@ -12,6 +12,15 @@ set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..") do set "PROJECT_ROOT=%%~fI"
 
 set "APP_NAME=@appName@"
+if "%APP_NAME:~0,1%"=="@" if "%APP_NAME:~-1%"=="@" set "APP_NAME="
+
+set "ENV_FILE=%PROJECT_ROOT%\.env"
+if exist "%ENV_FILE%" (
+    for /f "usebackq tokens=1,2 delims==" %%A in ("%ENV_FILE%") do (
+        if "%%A"=="APP_NAME" set "APP_NAME=%%B"
+    )
+)
+
 if "%APP_NAME%"=="" set "APP_NAME=app"
 
 @rem Docker Compose 명령어 확인
@@ -39,8 +48,12 @@ if not exist "%COMPOSE_FILE%" (
 )
 
 echo ================================================================
-echo 📊 Docker 서비스 상태 확인 (%APP_NAME%)
+echo 📊 Docker 서비스 상태 확인 [%APP_NAME%]
 echo ================================================================
-%DOCKER_COMPOSE_CMD% -f "%COMPOSE_FILE%" ps
+if exist "%ENV_FILE%" (
+    %DOCKER_COMPOSE_CMD% --env-file "%ENV_FILE%" -f "%COMPOSE_FILE%" ps
+) else (
+    %DOCKER_COMPOSE_CMD% -f "%COMPOSE_FILE%" ps
+)
 
 endlocal

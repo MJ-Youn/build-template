@@ -33,7 +33,8 @@ WORKDIR $CATALINA_HOME
 # 톰캣 커스텀 설정 및 환경 스크립트 복사
 COPY tomcat/conf/ $CATALINA_HOME/conf/
 COPY tomcat/bin/setenv.sh $CATALINA_HOME/bin/setenv.sh
-RUN chmod +x $CATALINA_HOME/bin/*.sh
+RUN rm -f $CATALINA_HOME/bin/*.bat $CATALINA_HOME/bin/*.cmd 2>/dev/null || true && \
+    chmod +x $CATALINA_HOME/bin/*.sh
 
 # 스프링 외부 설정 및 로그 디렉토리 생성
 RUN mkdir -p $CATALINA_HOME/config /log && \

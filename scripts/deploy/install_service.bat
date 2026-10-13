@@ -16,6 +16,29 @@ set "APP_NAME=@appName@"
 set "IMAGE_TAG=@dockerImage@"
 set "HTTP_PORT=@httpPort@"
 
+@rem 템플릿 토큰이 치환되지 않은 원본 파일 직접 실행 시(@...@) 감지하여 .env 파일 로드 및 fallback
+if "%APP_NAME:~0,1%"=="@" if "%APP_NAME:~-1%"=="@" set "APP_NAME="
+if "%IMAGE_TAG:~0,1%"=="@" if "%IMAGE_TAG:~-1%"=="@" set "IMAGE_TAG="
+if "%HTTP_PORT:~0,1%"=="@" if "%HTTP_PORT:~-1%"=="@" set "HTTP_PORT="
+
+if exist "%PKG_ROOT%\.env" (
+    for /f "usebackq tokens=1,2 delims==" %%A in ("%PKG_ROOT%\.env") do (
+        if "%%A"=="APP_NAME" if "!APP_NAME!"=="" set "APP_NAME=%%B"
+        if "%%A"=="DOCKER_IMAGE" if "!IMAGE_TAG!"=="" set "IMAGE_TAG=%%B"
+        if "%%A"=="HTTP_PORT" if "!HTTP_PORT!"=="" set "HTTP_PORT=%%B"
+    )
+)
+if exist "%PKG_ROOT%\docker\.env" (
+    for /f "usebackq tokens=1,2 delims==" %%A in ("%PKG_ROOT%\docker\.env") do (
+        if "%%A"=="APP_NAME" if "!APP_NAME!"=="" set "APP_NAME=%%B"
+        if "%%A"=="DOCKER_IMAGE" if "!IMAGE_TAG!"=="" set "IMAGE_TAG=%%B"
+        if "%%A"=="HTTP_PORT" if "!HTTP_PORT!"=="" set "HTTP_PORT=%%B"
+    )
+)
+
+if "%APP_NAME%"=="" (
+    for %%F in ("%PKG_ROOT%") do set "APP_NAME=%%~nxF"
+)
 if "%APP_NAME%"=="" set "APP_NAME=app"
 if "%IMAGE_TAG%"=="" set "IMAGE_TAG=%APP_NAME%:latest"
 if "%HTTP_PORT%"=="" set "HTTP_PORT=8443"
@@ -57,61 +80,71 @@ echo ✅  Docker 데몬 정상 동작 확인
 docker compose version >nul 2>&1
 if %ERRORLEVEL% equ 0 (
     set "DOCKER_COMPOSE_CMD=docker compose"
-) else (
-    docker-compose version >nul 2>&1
-    if %ERRORLEVEL% equ 0 (
-        set "DOCKER_COMPOSE_CMD=docker-compose"
-    ) else (
-        echo ❌ [오류] Docker Compose를 찾을 수 없습니다.
-        pause
-        exit /b 1
-    )
+    goto :DOCKER_COMPOSE_CHECKED
 )
+
+docker-compose version >nul 2>&1
+if %ERRORLEVEL% equ 0 (
+    set "DOCKER_COMPOSE_CMD=docker-compose"
+    goto :DOCKER_COMPOSE_CHECKED
+)
+
+echo ❌ [오류] Docker Compose를 찾을 수 없습니다.
+pause
+exit /b 1
+
+:DOCKER_COMPOSE_CHECKED
 echo ℹ️  Docker Compose 명령어: %DOCKER_COMPOSE_CMD%
 
-@rem 4. Docker 이미지 준비 (Load 또는 Build)
+@rem 4. Docker 이미지 준비 [Load 또는 Build 또는 Pull]
 set "TAR_FILE=%PKG_ROOT%\%APP_NAME%.tar"
 set "DOCKERFILE_PATH=%PKG_ROOT%\docker\Dockerfile"
 
-if exist "%TAR_FILE%" (
-    echo ➡️  Docker 이미지 로드 중 (%TAR_FILE%)...
-    docker load -i "%TAR_FILE%"
-    if !ERRORLEVEL! neq 0 (
-        echo ❌ [오류] Docker 이미지 로드에 실패했습니다.
-        pause
-        exit /b 1
-    )
-    echo ✅  Docker 이미지 로드 완료
-) else (
-    set "CAN_BUILD=0"
-    if exist "%DOCKERFILE_PATH%" (
-        if exist "%PKG_ROOT%\libs" set "CAN_BUILD=1"
-        if exist "%PKG_ROOT%\webapps" set "CAN_BUILD=1"
-    )
-    if "!CAN_BUILD!"=="1" (
-        echo ➡️  Docker 이미지 빌드 중 (Dockerfile 기반)...
-        echo    - 빌드 컨텍스트: %PKG_ROOT%
-        echo    - Dockerfile    : %DOCKERFILE_PATH%
-        echo    - 이미지 태그  : %IMAGE_TAG%
-        docker build --build-arg APP_NAME="%APP_NAME%" -t "%IMAGE_TAG%" -t "%APP_NAME%:latest" -f "%DOCKERFILE_PATH%" "%PKG_ROOT%"
-        if !ERRORLEVEL! neq 0 (
-            echo ❌ [오류] Docker 이미지 빌드에 실패했습니다.
-            pause
-            exit /b 1
-        )
-        echo ✅  Docker 이미지 빌드 완료: %IMAGE_TAG%
-    ) else (
-        echo ➡️  원격 레지스트리에서 Docker 이미지 다운로드 중 (docker pull %IMAGE_TAG%)...
-        docker pull "%IMAGE_TAG%"
-        if !ERRORLEVEL! neq 0 (
-            echo ❌ [오류] Docker 이미지 다운로드에 실패했습니다: %IMAGE_TAG%
-            echo    사설 레지스트리인 경우 'docker login' 및 Docker 데몬 설정을 확인해주세요.
-            pause
-            exit /b 1
-        )
-        echo ✅  Docker 이미지 다운로드 완료: %IMAGE_TAG%
-    )
+if exist "%TAR_FILE%" goto :DO_LOAD_TAR
+if exist "%DOCKERFILE_PATH%" (
+    if exist "%PKG_ROOT%\libs" goto :DO_BUILD_IMAGE
+    if exist "%PKG_ROOT%\webapps" goto :DO_BUILD_IMAGE
 )
+goto :DO_PULL_IMAGE
+
+:DO_LOAD_TAR
+echo ➡️  Docker 이미지 로드 중 [%TAR_FILE%]...
+docker load -i "%TAR_FILE%"
+if %ERRORLEVEL% neq 0 (
+    echo ❌ [오류] Docker 이미지 로드에 실패했습니다.
+    pause
+    exit /b 1
+)
+echo ✅  Docker 이미지 로드 완료
+goto :PREPARE_COMPOSE
+
+:DO_BUILD_IMAGE
+echo ➡️  Docker 이미지 빌드 중 [Dockerfile 기반]...
+echo    - 빌드 컨텍스트: %PKG_ROOT%
+echo    - Dockerfile    : %DOCKERFILE_PATH%
+echo    - 이미지 태그  : %IMAGE_TAG%
+docker build --build-arg APP_NAME="%APP_NAME%" -t "%IMAGE_TAG%" -t "%APP_NAME%:latest" -f "%DOCKERFILE_PATH%" "%PKG_ROOT%"
+if %ERRORLEVEL% neq 0 (
+    echo ❌ [오류] Docker 이미지 빌드에 실패했습니다.
+    pause
+    exit /b 1
+)
+echo ✅  Docker 이미지 빌드 완료: %IMAGE_TAG%
+goto :PREPARE_COMPOSE
+
+:DO_PULL_IMAGE
+echo ➡️  원격 레지스트리에서 Docker 이미지 다운로드 중 [docker pull %IMAGE_TAG%]...
+docker pull "%IMAGE_TAG%"
+if %ERRORLEVEL% neq 0 (
+    echo ❌ [오류] Docker 이미지 다운로드에 실패했습니다: %IMAGE_TAG%
+    echo    사설 레지스트리인 경우 'docker login' 및 Docker 데몬 설정을 확인해주세요.
+    pause
+    exit /b 1
+)
+echo ✅  Docker 이미지 다운로드 완료: %IMAGE_TAG%
+goto :PREPARE_COMPOSE
+
+:PREPARE_COMPOSE
 
 @rem 5. docker-compose.yml 탐색
 set "COMPOSE_FILE=%PKG_ROOT%\docker\docker-compose.yml"
@@ -125,23 +158,22 @@ if not exist "%COMPOSE_FILE%" (
     exit /b 1
 )
 
-@rem 6. .env 환경 변수 파일 생성/보장
+@rem 6. .env 환경 변수 파일 생성/보장 (루트 .env 단일 관리 - SSOT)
 set "ENV_FILE=%PKG_ROOT%\.env"
+
 if not exist "%ENV_FILE%" (
-    echo ➡️  Docker Compose 환경 변수 파일(.env) 생성 중...
-    (
-        echo APP_UID=1000
-        echo APP_GID=1000
-        echo.
-        echo APP_NAME=%APP_NAME%
-        echo HTTP_PORT=%HTTP_PORT%
-        echo.
-        echo LOG_PATH=%PKG_ROOT%\log
-        echo DEST_DIR=%PKG_ROOT%
-        echo.
-        echo CONTAINER_LOG_PATH=/log
-        echo DOCKER_IMAGE=%IMAGE_TAG%
-    ) > "%ENV_FILE%"
+    echo ➡️  Docker Compose 환경 변수 파일[.env] 생성 중...
+    > "%ENV_FILE%" echo APP_UID=1000
+    >> "%ENV_FILE%" echo APP_GID=1000
+    >> "%ENV_FILE%" echo.
+    >> "%ENV_FILE%" echo APP_NAME=%APP_NAME%
+    >> "%ENV_FILE%" echo HTTP_PORT=%HTTP_PORT%
+    >> "%ENV_FILE%" echo.
+    >> "%ENV_FILE%" echo LOG_PATH=%PKG_ROOT%\log
+    >> "%ENV_FILE%" echo DEST_DIR=%PKG_ROOT%
+    >> "%ENV_FILE%" echo.
+    >> "%ENV_FILE%" echo CONTAINER_LOG_PATH=/log
+    >> "%ENV_FILE%" echo DOCKER_IMAGE=%IMAGE_TAG%
     echo ✅  .env 파일 생성 완료: %ENV_FILE%
 )
 
@@ -151,9 +183,9 @@ for /f "tokens=*" %%i in ('docker ps -a --filter "name=^/%APP_NAME%$" --format "
     set "EXISTING_CONTAINER=%%i"
 )
 
-if defined EXISTING_CONTAINER (
-    echo ⚠️  기존 서비스 컨테이너가 감지되었습니다: !EXISTING_CONTAINER!
-    echo ✅  기존 서비스 위치(%PKG_ROOT%)에 자동으로 덮어쓰기 배포를 진행합니다.
+if not "%EXISTING_CONTAINER%"=="" (
+    echo ⚠️  기존 서비스 컨테이너가 감지되었습니다: %EXISTING_CONTAINER%
+    echo ✅  기존 서비스 위치에 자동으로 덮어쓰기 배포를 진행합니다.
 )
 
 echo ➡️  Docker Compose 서비스 시작 중...

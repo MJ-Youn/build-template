@@ -154,7 +154,7 @@ public class DistributionMojo extends AbstractMojo {
         File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
 
         getLog().info("================================================================");
-        getLog().info("🚀 [Distribution 3.3.0] 배포 패키지 생성 시작");
+        getLog().info("🚀 [Distribution 3.3.1] 배포 패키지 생성 시작");
         getLog().info(
                 "   - 대상 프로젝트    : " + (appName != null && !appName.isBlank() ? appName : project.getArtifactId()));
         getLog().info("   - 배포 유형       : " + resolvedType.toUpperCase() + " ("
@@ -201,12 +201,12 @@ public class DistributionMojo extends AbstractMojo {
             File projectBasedir = project.getBasedir();
 
             Predicate<File> scriptFilter;
-            if ("windows".equals(targetOs) || "win".equals(targetOs)) {
-                scriptFilter = f -> !f.getName().endsWith(".sh");
-            } else if ("all".equals(targetOs)) {
+            if ("windows".equals(targetOs) || "win".equals(targetOs) || "window".equals(targetOs)
+                    || "all".equals(targetOs)) {
+                // Windows 및 all: 호스트 실행용 *.bat과 Docker 컨테이너(Linux) 내부 구동용 *.sh 모두 패키지에 포함 (제외 없음)
                 scriptFilter = f -> true;
             } else { // 기본값: linux
-                scriptFilter = f -> !f.getName().endsWith(".bat");
+                scriptFilter = f -> !f.getName().endsWith(".bat") && !f.getName().endsWith(".cmd");
             }
 
             // --- 4.1. [우선순위 1] 로컬 프로젝트의 @Override 파일 적재 ---
@@ -285,7 +285,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeInMb = targetZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("✅ [Distribution 3.3.0] 배포 패키지 생성 완료!");
+        getLog().info("✅ [Distribution 3.3.1] 배포 패키지 생성 완료!");
         getLog().info("   - 산출물 경로: " + targetZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeInMb + " MB (" + targetZip.length() + " bytes)");
         getLog().info("================================================================");
@@ -336,9 +336,16 @@ public class DistributionMojo extends AbstractMojo {
         String activeEnv = (env != null && !env.isBlank()) ? env.trim() : "dev";
 
         // 2. 프로젝트 설정 파일 후보 경로 탐색 (우선순위 순서)
-        List<File> candidates = List.of(new File(basedir, "config.profiles/" + activeEnv + "/application.yml"),
+        List<File> candidates = List.of(
+                new File(basedir, "config.profiles/" + activeEnv + "/application-" + activeEnv + ".yml"),
+                new File(basedir, "config.profiles/" + activeEnv + "/application-" + activeEnv + ".yaml"),
+                new File(basedir, "config.profiles/" + activeEnv + "/application-" + activeEnv + ".properties"),
+                new File(basedir, "config.profiles/" + activeEnv + "/application.yml"),
                 new File(basedir, "config.profiles/" + activeEnv + "/application.yaml"),
                 new File(basedir, "config.profiles/" + activeEnv + "/application.properties"),
+                new File(basedir, "config/" + activeEnv + "/application-" + activeEnv + ".yml"),
+                new File(basedir, "config/" + activeEnv + "/application-" + activeEnv + ".yaml"),
+                new File(basedir, "config/" + activeEnv + "/application-" + activeEnv + ".properties"),
                 new File(basedir, "config/" + activeEnv + "/application.yml"),
                 new File(basedir, "config/" + activeEnv + "/application.yaml"),
                 new File(basedir, "config/" + activeEnv + "/application.properties"),
@@ -733,10 +740,6 @@ public class DistributionMojo extends AbstractMojo {
      */
     private void addRootEnvFile(ZipArchiveOutputStream zos, Map<String, String> tokens, Set<String> addedEntries,
             String currentEnv) throws IOException {
-        if (addedEntries.contains(".env")) {
-            return;
-        }
-
         File basedir = project.getBasedir();
         List<File> candidates = List.of(new File(basedir, "docker.profiles/" + currentEnv + "/.env-" + currentEnv),
                 new File(basedir, "docker.profiles/" + currentEnv + "/.env"),
@@ -745,46 +748,53 @@ public class DistributionMojo extends AbstractMojo {
                 new File(basedir, "config.profiles/" + currentEnv + "/.env-" + currentEnv),
                 new File(basedir, "config.profiles/" + currentEnv + "/.env"), new File(basedir, ".env"));
 
+        byte[] finalEnvContent = null;
         for (File candidate : candidates) {
             if (candidate.exists() && candidate.isFile()) {
                 byte[] raw = Files.readAllBytes(candidate.toPath());
-                byte[] content = tokens != null ? filterTokens(raw, tokens) : raw;
-                addZipEntry(zos, ".env", content, 0644);
-                addedEntries.add(".env");
-                getLog().info("📋 [Distribution] 환경별 .env 파일을 패키지 루트 .env로 적용했습니다 ("
+                finalEnvContent = tokens != null ? filterTokens(raw, tokens) : raw;
+                getLog().info("📋 [Distribution] 환경별 .env 파일을 패키지 루트 및 docker/.env로 적용했습니다 ("
                         + basedir.toPath().relativize(candidate.toPath()) + ")");
-                return;
+                break;
             }
         }
 
-        // 기본 표준 템플릿 생성
-        String resolvedAppName = tokens.getOrDefault("appName", project.getArtifactId());
-        String resolvedHttpPort = tokens.getOrDefault("httpPort", "8080");
-        String resolvedDockerImage = tokens.getOrDefault("dockerImage", resolvedAppName + ":" + project.getVersion());
+        if (finalEnvContent == null) {
+            // 기본 표준 템플릿 생성
+            String resolvedAppName = tokens != null ? tokens.getOrDefault("appName", project.getArtifactId())
+                    : project.getArtifactId();
+            String resolvedHttpPort = tokens != null ? tokens.getOrDefault("httpPort", "8080") : "8080";
+            String resolvedDockerImage = tokens != null
+                    ? tokens.getOrDefault("dockerImage", resolvedAppName + ":" + project.getVersion())
+                    : resolvedAppName + ":" + project.getVersion();
 
-        String envContent = String.format("""
-                # ==============================================================================
-                # Docker Compose & Service Environment Variables (.env)
-                # Generated automatically by distribution plugin (Profile: %s)
-                # ==============================================================================
-                APP_UID=1000
-                APP_GID=1000
+            String envContent = String.format("""
+                    # ==============================================================================
+                    # Docker Compose & Service Environment Variables (.env)
+                    # Generated automatically by distribution plugin (Profile: %s)
+                    # ==============================================================================
+                    APP_UID=1000
+                    APP_GID=1000
 
-                APP_NAME=%s
-                HTTP_PORT=%s
+                    APP_NAME=%s
+                    HTTP_PORT=%s
 
-                # 호스트 로그 및 설치 디렉토리
-                LOG_PATH=./log
-                DEST_DIR=.
+                    # 호스트 로그 및 설치 디렉토리
+                    LOG_PATH=./log
+                    DEST_DIR=.
 
-                # 컨테이너 내부 서비스 로그 경로
-                CONTAINER_LOG_PATH=/log
+                    # 컨테이너 내부 서비스 로그 경로
+                    CONTAINER_LOG_PATH=/log
 
-                DOCKER_IMAGE=%s
-                """, currentEnv, resolvedAppName, resolvedHttpPort, resolvedDockerImage);
+                    DOCKER_IMAGE=%s
+                    """, currentEnv, resolvedAppName, resolvedHttpPort, resolvedDockerImage);
+            finalEnvContent = envContent.getBytes(StandardCharsets.UTF_8);
+        }
 
-        addZipEntry(zos, ".env", envContent.getBytes(StandardCharsets.UTF_8), 0644);
-        addedEntries.add(".env");
+        // 패키지 루트 .env 단일 배치 (Single Source of Truth)
+        if (addedEntries.add(".env")) {
+            addZipEntry(zos, ".env", finalEnvContent, 0644);
+        }
     }
 
     /**
@@ -1063,7 +1073,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeMb = outputZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("✅ [Distribution 3.3.0 - Maven] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
+        getLog().info("✅ [Distribution 3.3.1 - Maven] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
         getLog().info("   - 산출물 경로: " + outputZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeMb + " MB (" + outputZip.length() + " bytes)");
         getLog().info("   - 배포 방법  : 서버에 zip 전송 -> unzip -> sudo ./deploy/install_service.sh");
@@ -1178,6 +1188,9 @@ public class DistributionMojo extends AbstractMojo {
             throw new MojoExecutionException("Zip 압축 해제 실패: " + e.getMessage(), e);
         }
 
+        // 1.1. Docker 이미지 내부에 *.bat 파일이 포함되지 않도록 빌드 컨텍스트에서 *.bat, *.cmd 파일 제거
+        deleteFilesMatching(dockerContextDir, f -> f.getName().endsWith(".bat") || f.getName().endsWith(".cmd"));
+
         // 2. 패키지 타입 및 토큰 치환 준비
         String resolvedType = resolvePackageType();
         boolean tomcatMode = isTomcat();
@@ -1242,6 +1255,22 @@ public class DistributionMojo extends AbstractMojo {
         getLog().info("✨ [Distribution - Maven] Docker 이미지 빌드 성공: " + fullImageName);
 
         return new DockerBuildContext(dockerContextDir, resolvedAppName, tag, registry, fullImageName, resolvedType);
+    }
+
+    private void deleteFilesMatching(File dir, Predicate<File> predicate) {
+        if (dir == null || !dir.exists()) {
+            return;
+        }
+        if (dir.isDirectory()) {
+            File[] files = dir.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    deleteFilesMatching(f, predicate);
+                }
+            }
+        } else if (predicate.test(dir)) {
+            dir.delete();
+        }
     }
 
     private void runProcess(List<String> command, File workDir, String taskDesc) throws MojoExecutionException {

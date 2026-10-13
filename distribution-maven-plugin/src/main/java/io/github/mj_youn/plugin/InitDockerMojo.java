@@ -96,6 +96,16 @@ public class InitDockerMojo extends AbstractMojo {
                 copyTemplateResource("template/scripts/service/.env.example", prodProfileEnv, tokens);
             }
 
+            // 4. .dockerignore 생성 (컨테이너 내 *.bat 등 제외용)
+            File dockerIgnoreFile = new File(dockerDir, ".dockerignore");
+            if (!dockerIgnoreFile.exists()) {
+                copyTemplateResource("template/docker/.dockerignore", dockerIgnoreFile, tokens);
+            }
+            File rootDockerIgnore = new File(basedir, ".dockerignore");
+            if (!rootDockerIgnore.exists()) {
+                copyTemplateResource("template/docker/.dockerignore", rootDockerIgnore, tokens);
+            }
+
             getLog().info("================================================================");
             getLog().info("🐳 [Distribution] Docker 설정 생성 완료 (배포 유형: " + resolvedType.toUpperCase() + ")");
             getLog().info("   - 생성된 Dockerfile     : " + activeDockerFile.getAbsolutePath());

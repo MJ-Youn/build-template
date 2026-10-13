@@ -12,6 +12,15 @@ set "SCRIPT_DIR=%~dp0"
 for %%I in ("%SCRIPT_DIR%..") do set "PROJECT_ROOT=%%~fI"
 
 set "APP_NAME=@appName@"
+if "%APP_NAME:~0,1%"=="@" if "%APP_NAME:~-1%"=="@" set "APP_NAME="
+
+set "ENV_FILE=%PROJECT_ROOT%\.env"
+if exist "%ENV_FILE%" (
+    for /f "usebackq tokens=1,2 delims==" %%A in ("%ENV_FILE%") do (
+        if "%%A"=="APP_NAME" set "APP_NAME=%%B"
+    )
+)
+
 if "%APP_NAME%"=="" set "APP_NAME=app"
 
 @rem Docker Compose 명령어 확인
@@ -38,8 +47,13 @@ if not exist "%COMPOSE_FILE%" (
     exit /b 1
 )
 
-echo ➡️  Docker Compose 서비스 중지 중 (%APP_NAME%)...
-%DOCKER_COMPOSE_CMD% -f "%COMPOSE_FILE%" stop
+echo ➡️  Docker Compose 서비스 중지 중 [%APP_NAME%]...
+if exist "%ENV_FILE%" (
+    %DOCKER_COMPOSE_CMD% --env-file "%ENV_FILE%" -f "%COMPOSE_FILE%" stop
+) else (
+    %DOCKER_COMPOSE_CMD% -f "%COMPOSE_FILE%" stop
+)
+
 if %ERRORLEVEL% equ 0 (
     echo ✅  서비스가 중지되었습니다.
 ) else (

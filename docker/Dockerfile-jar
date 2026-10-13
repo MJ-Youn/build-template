@@ -22,8 +22,9 @@ COPY libs/ /app/libs/
 COPY config/ /app/config/
 COPY bin/ /app/bin/
 
-# 실행 권한 부여 및 소유권 변경
-RUN CLEAN_APP_NAME=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g') && \
+# 실행 권한 부여, 배치 파일(.bat/.cmd) 제거 및 소유권 변경
+RUN rm -f /app/bin/*.bat /app/bin/*.cmd 2>/dev/null || true && \
+    CLEAN_APP_NAME=$(echo "$APP_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]//g') && \
     APP_USER="${CLEAN_APP_NAME}user" && \
     chmod +x /app/bin/*.sh && chown -R ${APP_USER}:${APP_USER} /app
 

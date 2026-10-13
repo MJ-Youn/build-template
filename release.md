@@ -2,6 +2,47 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [3.4.0] - 2026-10-13
+
+> 🚀 **Minor Release** — Windows 배포 스크립트(`install_service.bat`) 구문 분석 오류(`... was unexpected at this time.`) 근본 해결, Windows 호스트 + Linux 컨테이너 하이브리드 스크립트 패키징(`*.bat` + `*.sh`) 지원, Docker 이미지 빌드 시 배치 파일 배제 3중 방어막 구축, 프로파일별 설정 파일(`application-{env}.yml`) 포트 자동 감지 버그 수정, 배포 루트 `.env` 단일 진실 공급원(SSOT) 확립 및 Windows 서비스 제어 스크립트(`start.bat`, `stop.bat`, `status.bat`) 환경 연동 강화.
+
+### ✨ 신규 기능 및 개선 사항 (Features & Improvements)
+
+#### 1. 🪟 Windows 환경 `install_service.bat` 구문 분석 오류 및 토큰 치환 안전성 개선
+- **`cmd.exe` 괄호 파싱 충돌 원천 차단 (`goto :LABEL` 리팩토링)**:
+  - 안내 메시지 내 `(docker pull ...)...`의 닫는 소괄호 `)`와 `if (...) else (...)` 복합 괄호 블록 간의 파싱 충돌로 인해 발생하던 `... was unexpected at this time.` 오류를 근본적으로 해결했습니다.
+  - 고질적인 중첩 괄호 구조를 완전히 제거하고, `:DO_LOAD_TAR`, `:DO_BUILD_IMAGE`, `:DO_PULL_IMAGE`, `:PREPARE_COMPOSE` 등 **명확한 `goto` 라벨 분기 방식**으로 전면 리팩토링했습니다.
+  - 배치 스크립트 내 모든 안내 메시지의 소괄호 `(...)`를 대괄호 `[...]`로 변경하고, `.env` 생성 시 `( ... ) > .env` 괄호 블록 대신 라인별 직접 출력(`>`, `>>`) 방식을 적용했습니다.
+- **미치환 원본 템플릿 직접 실행 시 자동 복구 폴백(Fallback)**:
+  - 사용자가 템플릿 토큰이 치환되지 않은 원본 파일(`@dockerImage@`, `@appName@`)을 직접 복사해 실행하더라도 Docker 태그 형식 오류(`invalid reference format`)가 발생하지 않도록, 최상단 `.env` 파일에서 `APP_NAME`, `DOCKER_IMAGE`, `HTTP_PORT`를 자동 탐색하여 로드하는 안전 폴백 메커니즘을 추가했습니다.
+
+#### 2. 🪟 Windows 배포 환경(-Dos=windows,all) 스크립트 패키징 및 Docker 이미지 최적화
+- **Windows 호스트 + Linux Docker 컨테이너 하이브리드 환경 지원**:
+  - `-Dos=windows,all` (또는 `-Pos=windows,all`) 설정 시, Windows 호스트 제어용 `*.bat` 스크립트뿐만 아니라 **Docker 컨테이너(Linux 기반) 내부 구동에 필수적인 `*.sh` 스크립트도 함께 패키지에 포함**되도록 필터링 로직을 개선했습니다.
+  - Linux 배포 모드(`-Dos=linux`)에서는 기존과 동일하게 불필요한 `*.bat`, `*.cmd` 파일이 자동으로 배제됩니다.
+- **Docker 이미지 빌드 시 Windows 배치 파일(`.bat`, `.cmd`) 원천 배제 3중 방어막 구축**:
+  1. `docker/.dockerignore` 및 루트 `.dockerignore` 템플릿 신규 추가 및 `initDocker` 실행 시 자동 생성 (`**/*.bat`, `**/*.cmd`, `deploy/` 배제).
+  2. Maven/Gradle 플러그인의 Docker 이미지 빌드 컨텍스트 디렉토리(`tmp/docker-build`)에서 `*.bat`, `*.cmd` 파일 사전 자동 삭제 로직 추가.
+  3. `docker/Dockerfile-jar`, `docker/Dockerfile-tomcat`에 `RUN rm -f /app/bin/*.bat /app/bin/*.cmd 2>/dev/null || true` 추가하여 최종 이미지 내 순수 Linux 셸 스크립트(`*.sh`)만 탑재 보장.
+
+#### 3. 🔍 프로파일별 설정 파일(`application-{env}.yml`) HTTP 서비스 포트 자동 감지 버그 수정
+- **포트 감지 후보 경로에 접미사 패턴(`application-{env}.yml`) 추가**:
+  - 기존 포트 감지 로직에 `config.profiles/{env}/application.yml`만 포함되어 있어, `application-dev.yml` 또는 `application-window.yml`처럼 환경 접미사가 붙은 파일을 사용하는 프로젝트의 경우 포트를 읽지 못하고 기본 `config/application.yml`(8080)로 폴백되던 문제를 수정했습니다.
+  - `config.profiles/{env}/application-{env}.yml` (yaml/properties 포함) 및 `config/{env}/application-{env}.yml`을 1순위 후보로 등록하여 프로젝트의 환경별 서비스 포트(예: 8082)를 정확하게 자동 추출하도록 개선했습니다 (Gradle & Maven 공통).
+
+#### 4. 🌱 배포 패키지 내 `.env` 단일 진실 공급원(SSOT) 확립 및 Windows 서비스 제어 스크립트 강화
+- **루트 `/.env` 단일 파일 관리**:
+  - 설정 파일 중복으로 인한 운영 혼란(`docker/.env`와 `/.env` 간의 불일치)을 방지하기 위해 배포 패키지 루트에 **단 하나의 `.env` 파일만 생성 및 유지**하도록 정리했습니다.
+- **Windows 서비스 제어 스크립트(`start.bat`, `stop.bat`, `status.bat`) 환경 연동**:
+  - `bin/start.bat` 실행 시 루트의 `.env` 파일에서 `HTTP_PORT`를 최우선으로 로드하고, `docker compose --env-file "%ENV_FILE%"`로 명시 전달하여 실제 구동 포트(`http://localhost:8082`)가 콘솔 안내 메시지에 정확히 출력되도록 보정했습니다.
+  - `stop.bat`, `status.bat` 역시 `--env-file` 옵션을 명시하여 환경 변수 누락 없이 안정적으로 Docker 컨테이너를 제어하도록 개선했습니다.
+
+#### 5. 📦 전체 플러그인 메타데이터 및 문서 버전 동기화
+- `distribution-gradle-plugin` (Gradle) & `distribution-maven-plugin` (Maven) 버전 `3.4.0` 갱신.
+- 사용자 및 개발자 가이드(`README.md`, `README_EN.md`, `DEVELOPER_GUIDE.md`) 내 플러그인 의존성 설정 버전 `3.4.0` 반영.
+
+---
+
 ## 🎯 [3.3.0] - 2026-10-12
 
 > 🚀 **Minor Release** — 환경별 Docker 프로파일(`docker.profiles/{profile}/`) 디렉토리 감지 및 파일 오버레이 지원, `.env` 런타임 설정 4단계 우선순위 오버레이 및 누락 시 자동 생성 체계 확립, `initDocker` 실행 시 `.env.example` 및 환경별 샘플 동시 생성 지원, 배포 도움말(`distHelp` / `mvn distribution:help`) 가이드 개선, Windows 배치 스크립트(`.bat`) CRLF 줄바꿈 규격 및 다중 이미지 태깅 보강, Gradle과 Maven 플러그인 100% 동일 동작 완벽 동기화.

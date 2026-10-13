@@ -103,6 +103,8 @@ class DistributionPluginTest {
         assertTrue(dockerfile.exists(), "docker/Dockerfile 파일이 생성되어야 합니다.");
         assertTrue(composeFile.exists(), "docker/docker-compose.yml 파일이 생성되어야 합니다.");
         assertTrue(envExample.exists(), "docker/.env.example 파일이 생성되어야 합니다.");
+        assertTrue(project.file("docker/.dockerignore").exists(), "docker/.dockerignore 파일이 생성되어야 합니다.");
+        assertTrue(project.file(".dockerignore").exists(), ".dockerignore 파일이 생성되어야 합니다.");
         assertTrue(devEnvFile.exists(), "docker.profiles/dev/.env-dev 파일이 생성되어야 합니다.");
         assertTrue(prodEnvFile.exists(), "docker.profiles/prod/.env-prod 파일이 생성되어야 합니다.");
     }

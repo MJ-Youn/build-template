@@ -22,7 +22,7 @@ public class HelpMojo extends AbstractMojo {
     public void execute() throws MojoExecutionException {
         String msg = """
 ================================================================================
-🚀 [Distribution Maven Plugin 3.3.0] 빌드 및 배포 가이드
+🚀 [Distribution Maven Plugin 3.3.1] 빌드 및 배포 가이드
 ================================================================================
 
 [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -59,7 +59,7 @@ public class HelpMojo extends AbstractMojo {
                                             패키지 config/ 로 오버레이됩니다.
   -Dos=linux|windows|all                  : 배포 대상 운영체제 지정 (기본값: linux)
                                             linux  : *.sh 스크립트만 포함 (*.bat 제외)
-                                            windows: *.bat 스크립트만 포함 (*.sh 제외)
+                                            windows: *.bat 및 Docker 컨테이너 구동용 *.sh 모두 포함
                                             all    : *.sh 및 *.bat 스크립트 모두 포함
   -DpackageType=jar|tomcat                : 배포 유형 CLI 오버라이드
   -Dtype=jar|tomcat                       : 배포 유형 CLI 오버라이드 (type alias)
