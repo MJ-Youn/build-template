@@ -123,7 +123,7 @@ echo ➡️  Docker 이미지 빌드 중 [Dockerfile 기반]...
 echo    - 빌드 컨텍스트: %PKG_ROOT%
 echo    - Dockerfile    : %DOCKERFILE_PATH%
 echo    - 이미지 태그  : %IMAGE_TAG%
-docker build --build-arg APP_NAME="%APP_NAME%" -t "%IMAGE_TAG%" -t "%APP_NAME%:latest" -f "%DOCKERFILE_PATH%" "%PKG_ROOT%"
+docker build --no-cache --build-arg APP_NAME="%APP_NAME%" -t "%IMAGE_TAG%" -t "%APP_NAME%:latest" -f "%DOCKERFILE_PATH%" "%PKG_ROOT%"
 if %ERRORLEVEL% neq 0 (
     echo ❌ [오류] Docker 이미지 빌드에 실패했습니다.
     pause

@@ -282,7 +282,7 @@ public class DistributionPlugin implements Plugin<Project> {
     private void printGuide(Project project) {
         String msg = """
                 ================================================================================
-                🚀 [Distribution Plugin 3.3.1] 빌드 및 배포 가이드
+                🚀 [Distribution Plugin 3.4.1] 빌드 및 배포 가이드
                 ================================================================================
 
                 [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -400,7 +400,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         zipTask.doFirst(task -> {
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("🚀 [Distribution 3.3.1] 배포 패키지 생성 시작");
+            project.getLogger().lifecycle("🚀 [Distribution 3.4.1] 배포 패키지 생성 시작");
             project.getLogger().lifecycle("   - 대상 프로젝트    : {}", project.getName());
             project.getLogger().lifecycle("   - 배포 유형       : {} ({})", packageType.toUpperCase(),
                     isTomcat ? "Standalone Tomcat" : "Executable JAR");
@@ -1431,7 +1431,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         // 6. docker build 실행
         project.getLogger().lifecycle("🔨 [Distribution] Docker 이미지 빌드 시작 -> {}", fullImageName);
-        List<String> buildCmd = List.of("docker", "build", "--build-arg", "APP_NAME=" + appName, "-t", fullImageName,
+        List<String> buildCmd = List.of("docker", "build", "--no-cache", "--build-arg", "APP_NAME=" + appName, "-t", fullImageName,
                 "-f", dockerFile.getAbsolutePath(), dockerContextDir.getAbsolutePath());
 
         runProcess(project, buildCmd, dockerContextDir, "Docker 이미지 빌드");

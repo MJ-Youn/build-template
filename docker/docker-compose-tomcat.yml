@@ -23,4 +23,5 @@ services:
       - TZ=Asia/Seoul
       - APP_UID=${APP_UID:-1000}
       - APP_GID=${APP_GID:-1000}
+      - APP_NAME=${APP_NAME:-@appName@}
     restart: unless-stopped

@@ -1248,7 +1248,7 @@ public class DistributionMojo extends AbstractMojo {
 
         // 6. docker build 실행
         getLog().info("🔨 [Distribution - Maven] Docker 이미지 빌드 시작 -> " + fullImageName);
-        List<String> buildCmd = List.of("docker", "build", "--build-arg", "APP_NAME=" + resolvedAppName, "-t",
+        List<String> buildCmd = List.of("docker", "build", "--no-cache", "--build-arg", "APP_NAME=" + resolvedAppName, "-t",
                 fullImageName, "-f", dockerFile.getAbsolutePath(), dockerContextDir.getAbsolutePath());
 
         runProcess(buildCmd, dockerContextDir, "Docker 이미지 빌드");

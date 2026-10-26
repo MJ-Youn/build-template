@@ -2,6 +2,37 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [3.4.1] - 2026-10-26
+
+> 🚀 **Patch Release** — 동일 서버/빌드 환경 다중 서비스 배포 시 Docker 빌드 캐시로 인한 실행 스크립트 오염 방지(`docker build --no-cache`), Docker Compose 템플릿 내 `APP_NAME` 환경변수 명시적 주입, 서비스 시작 스크립트(`start.sh`)의 서비스명 결정 우선순위 개선 및 Standalone Tomcat 기동 시 프로젝트 자체 내장 `tomcat` 최우선 탐색 처리.
+
+### ✨ 신규 기능 및 개선 사항 (Features & Improvements)
+
+#### 1. 🐳 Docker 이미지 빌드 시 레이어 캐시 무효화(`--no-cache`) 및 다중 태깅 강화
+- **`COPY bin/` 레이어 캐시로 인한 이전 서비스 스크립트 오염 원천 차단**:
+  - 동일 서버나 동일 쉘 세션에서 여러 서비스를 연속으로 배포(`build_deploy.sh` 등)할 때, Dockerfile의 `COPY bin/ /app/bin/` 단계가 이전 서비스의 레이어 캐시(BuildKit Cache)를 타서 직전 서비스의 `start.sh`(이전 서비스명이 치환된 파일)가 새 이미지에 탑재되던 결함을 수정했습니다.
+  - `install_service.sh`, `install_service.bat` 및 Gradle/Maven 플러그인의 `docker build` 명령어에 **`--no-cache` 옵션을 강제 적용**하여 항상 현재 배포 패키지의 최신 스크립트와 아티팩트가 새로 패키징되도록 개선했습니다.
+  - 리눅스 `install_service.sh`의 이미지 빌드 시에도 `${IMAGE_TAG}`와 `${APP_NAME}:latest`가 동시에 태깅되도록 동기화했습니다.
+
+#### 2. 📦 Docker Compose 환경설정 내 `APP_NAME` 환경변수 명시적 주입
+- **`docker-compose-jar.yml` 및 `docker-compose-tomcat.yml` 환경변수 보강**:
+  - 기존 템플릿의 `environment:` 섹션에 `APP_NAME` 환경변수 전달이 누락되어 있던 점을 개선하여, `- APP_NAME=${APP_NAME:-@appName@}`를 명시적으로 주입했습니다.
+  - 호스트 배포 디렉토리의 `.env` 파일에 정의된 실제 서비스명이 컨테이너 내부 환경으로 정확하게 상속됩니다.
+
+#### 3. 🚀 서비스 제어 스크립트(`start.sh`, `install_service.sh`, `status.sh`) `APP_NAME` SSOT 보장 및 톰캣 경로 탐색 개선
+- **빌드 치환값(SSOT) 최우선 보장 및 쉘 환경변수 오염 방지 (`export APP_NAME`)**:
+  - 동일한 터미널/쉘 세션에서 여러 서비스를 연속 배포할 때, 부모 쉘 세션에 잔류된 이전 서비스의 `APP_NAME` 환경변수로 인해 새로 배포된 서비스의 JVM 프로퍼티(`-Dapp.name`) 및 로그 파일명이 직전 서비스명으로 오염되던 문제를 근본적으로 해결했습니다.
+  - 빌드 시 치환된 `@appName@`(`$BUILTIN_APP_NAME`)이 존재하는 경우 이를 **단일 진실 공급원(SSOT)으로 최우선 확정**하고, `export APP_NAME`을 통해 `docker compose` 및 하위 프로세스에 올바른 서비스명이 강제 전달되도록 개편했습니다. (템플릿 미치환 원본 실행 시에만 `.env` / 환경변수 / 디렉토리명 순으로 안전하게 폴백)
+- **Standalone Tomcat 경로 탐색 버그 수정**:
+  - 기존에는 `if [ -z "$CATALINA_HOME" ]; then` 조건으로 인해 이전 세션에서 `export CATALINA_HOME`이 잔류되어 있을 경우 다른 서비스의 톰캣 디렉토리를 바라보던 문제가 있었습니다.
+  - 프로젝트 루트 내 `$PROJECT_ROOT/tomcat` 디렉토리가 존재하는 경우, 환경변수 잔류 여부와 상관없이 **해당 프로젝트 자체 내장 Tomcat을 항상 최우선으로 사용**하도록 탐색 순서를 개편했습니다.
+
+#### 4. 📦 전체 플러그인 메타데이터 및 문서 버전 동기화
+- `distribution-gradle-plugin` (Gradle) & `distribution-maven-plugin` (Maven) 버전 `3.4.1` 갱신.
+- 사용자 및 개발자 가이드(`README.md`, `README_EN.md`, `DEVELOPER_GUIDE.md`) 내 플러그인 의존성 설정 버전 `3.4.1` 반영.
+
+---
+
 ## 🎯 [3.4.0] - 2026-10-13
 
 > 🚀 **Minor Release** — Windows 배포 스크립트(`install_service.bat`) 구문 분석 오류(`... was unexpected at this time.`) 근본 해결, Windows 호스트 + Linux 컨테이너 하이브리드 스크립트 패키징(`*.bat` + `*.sh`) 지원, Docker 이미지 빌드 시 배치 파일 배제 3중 방어막 구축, 프로파일별 설정 파일(`application-{env}.yml`) 포트 자동 감지 버그 수정, 배포 루트 `.env` 단일 진실 공급원(SSOT) 확립 및 Windows 서비스 제어 스크립트(`start.bat`, `stop.bat`, `status.bat`) 환경 연동 강화.

@@ -28,8 +28,14 @@ CONFIG_LOC="$PROJECT_ROOT/config/"
 LOG_PATH="${LOG_PATH:-$PROJECT_ROOT/log}"
 PID_FILE="${PID_FILE:-$SCRIPT_DIR/application.pid}"
 
-# @var APP_NAME 애플리케이션 이름 (Gradle/Maven 빌드 시 치환)
-APP_NAME="@appName@"
+# @var APP_NAME 애플리케이션 이름 (빌드 시 치환값 최우선 -> .env/환경변수 -> 디렉토리명 폴백)
+BUILTIN_APP_NAME="@appName@"
+if [ -n "$BUILTIN_APP_NAME" ] && [ "$BUILTIN_APP_NAME" != "@appName@" ]; then
+    APP_NAME="$BUILTIN_APP_NAME"
+elif [ -z "$APP_NAME" ] || [ "$APP_NAME" = "@appName@" ]; then
+    APP_NAME="$(basename "$PROJECT_ROOT")"
+fi
+export APP_NAME
 # @var APP_TYPE 애플리케이션 타입 (jar 또는 tomcat)
 APP_TYPE="@appType@"
 
@@ -39,11 +45,11 @@ APP_TYPE="@appType@"
 start_tomcat_application() {
     log_header "Apache Tomcat 서비스 시작 ($APP_NAME)"
 
-    # CATALINA_HOME 탐색 (1. 환경변수 -> 2. PROJECT_ROOT/tomcat -> 3. /usr/local/tomcat -> 4. /opt/tomcat)
-    if [ -z "$CATALINA_HOME" ]; then
-        if [ -d "$PROJECT_ROOT/tomcat" ] && [ -f "$PROJECT_ROOT/tomcat/bin/catalina.sh" ]; then
-            CATALINA_HOME="$PROJECT_ROOT/tomcat"
-        elif [ -d "/usr/local/tomcat" ]; then
+    # CATALINA_HOME 탐색 (1. PROJECT_ROOT/tomcat 우선 -> 2. 환경변수 -> 3. 시스템 공용 경로)
+    if [ -d "$PROJECT_ROOT/tomcat" ] && [ -f "$PROJECT_ROOT/tomcat/bin/catalina.sh" ]; then
+        CATALINA_HOME="$PROJECT_ROOT/tomcat"
+    elif [ -z "$CATALINA_HOME" ]; then
+        if [ -d "/usr/local/tomcat" ]; then
             CATALINA_HOME="/usr/local/tomcat"
         elif [ -d "/opt/tomcat" ]; then
             CATALINA_HOME="/opt/tomcat"

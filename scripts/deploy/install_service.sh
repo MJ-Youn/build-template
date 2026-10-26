@@ -19,12 +19,19 @@ fi
 
 # --- [Constants & Variables] ---
 # @appName@은 Gradle 빌드 시 실제 프로젝트 이름으로 치환됨
-APP_NAME="@appName@"
+BUILTIN_APP_NAME="@appName@"
 if [ "$(basename "$SCRIPT_DIR")" = "bin" ] || [ "$(basename "$SCRIPT_DIR")" = "deploy" ]; then
     PKG_ROOT="$(dirname "$SCRIPT_DIR")"
 else
     PKG_ROOT="$SCRIPT_DIR"
 fi
+
+if [ -n "$BUILTIN_APP_NAME" ] && [ "$BUILTIN_APP_NAME" != "@appName@" ]; then
+    APP_NAME="$BUILTIN_APP_NAME"
+elif [ -z "$APP_NAME" ] || [ "$APP_NAME" = "@appName@" ]; then
+    APP_NAME="$(basename "$PKG_ROOT")"
+fi
+export APP_NAME
 
 # 배포 권한 모드 설정: 기본값은 일반 사용자(Non-root) 배포 모드 (Default: User Mode)
 IS_USER_MODE=1
@@ -1227,7 +1234,7 @@ load_or_build_docker_image() {
         log_info "Dockerfile: $DOCKERFILE_PATH"
         log_info "이미지 태그: $IMAGE_TAG"
 
-        docker build --build-arg APP_NAME="$APP_NAME" -t "$IMAGE_TAG" -f "$DOCKERFILE_PATH" "$PKG_ROOT"
+        docker build --no-cache --build-arg APP_NAME="$APP_NAME" -t "$IMAGE_TAG" -t "${APP_NAME}:latest" -f "$DOCKERFILE_PATH" "$PKG_ROOT"
         if [ $? -ne 0 ]; then
             log_error "Docker 이미지 빌드 실패"
             exit 1
