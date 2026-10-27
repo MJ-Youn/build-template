@@ -19,16 +19,14 @@ fi
 
 # --- [Constants & Variables] ---
 # @appName@은 Gradle 빌드 시 실제 프로젝트 이름으로 치환됨
-BUILTIN_APP_NAME="@appName@"
+APP_NAME="@appName@"
 if [ "$(basename "$SCRIPT_DIR")" = "bin" ] || [ "$(basename "$SCRIPT_DIR")" = "deploy" ]; then
     PKG_ROOT="$(dirname "$SCRIPT_DIR")"
 else
     PKG_ROOT="$SCRIPT_DIR"
 fi
 
-if [ -n "$BUILTIN_APP_NAME" ] && [ "$BUILTIN_APP_NAME" != "@appName@" ]; then
-    APP_NAME="$BUILTIN_APP_NAME"
-elif [ -z "$APP_NAME" ] || [ "$APP_NAME" = "@appName@" ]; then
+if [[ "$APP_NAME" == "@"*"@" ]] || [ -z "$APP_NAME" ]; then
     APP_NAME="$(basename "$PKG_ROOT")"
 fi
 export APP_NAME

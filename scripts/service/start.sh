@@ -29,10 +29,8 @@ LOG_PATH="${LOG_PATH:-$PROJECT_ROOT/log}"
 PID_FILE="${PID_FILE:-$SCRIPT_DIR/application.pid}"
 
 # @var APP_NAME 애플리케이션 이름 (빌드 시 치환값 최우선 -> .env/환경변수 -> 디렉토리명 폴백)
-BUILTIN_APP_NAME="@appName@"
-if [ -n "$BUILTIN_APP_NAME" ] && [ "$BUILTIN_APP_NAME" != "@appName@" ]; then
-    APP_NAME="$BUILTIN_APP_NAME"
-elif [ -z "$APP_NAME" ] || [ "$APP_NAME" = "@appName@" ]; then
+APP_NAME="@appName@"
+if [[ "$APP_NAME" == "@"*"@" ]] || [ -z "$APP_NAME" ]; then
     APP_NAME="$(basename "$PROJECT_ROOT")"
 fi
 export APP_NAME

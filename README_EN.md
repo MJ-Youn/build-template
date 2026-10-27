@@ -38,7 +38,7 @@ Apply the appropriate plugin according to your project's build tool:
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '3.4.1'
+    id 'io.github.mj-youn.distribution' version '3.4.2'
 }
 ```
 
@@ -60,7 +60,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>3.4.1</version>
+            <version>3.4.2</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>

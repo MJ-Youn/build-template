@@ -25,10 +25,8 @@ CONFIG_LOC="$PROJECT_ROOT/config/"
 [ -f "$CONFIG_LOC/.env" ] && source "$CONFIG_LOC/.env"
 [ -f "$SCRIPT_DIR/.env" ] && source "$SCRIPT_DIR/.env"
 
-BUILTIN_APP_NAME="@appName@"
-if [ -n "$BUILTIN_APP_NAME" ] && [ "$BUILTIN_APP_NAME" != "@appName@" ]; then
-    APP_NAME="$BUILTIN_APP_NAME"
-elif [ -z "$APP_NAME" ] || [ "$APP_NAME" = "@appName@" ]; then
+APP_NAME="@appName@"
+if [[ "$APP_NAME" == "@"*"@" ]] || [ -z "$APP_NAME" ]; then
     APP_NAME="$(basename "$PROJECT_ROOT")"
 fi
 export APP_NAME

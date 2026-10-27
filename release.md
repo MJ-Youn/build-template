@@ -2,6 +2,27 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [3.4.2] - 2026-10-27
+
+> 🚀 **Patch Release** — 템플릿 치환기(`ReplaceTokens`)에 의한 스크립트 비교 조건문 오염 결함 긴급 패치(`(unpacked)` 서비스명 오염 해결), 와일드카드 패턴 매칭(`[[ "$APP_NAME" == "@"*"@" ]]`)을 통한 토큰 미치환 감지 안전화, 플러그인 콘솔 출력 내 잔류 구버전(`3.3.1`) 하드코딩 문자열 일괄 동기화.
+
+### ✨ 신규 기능 및 개선 사항 (Features & Improvements)
+
+#### 1. 🐛 배포 스크립트 토큰 치환 비교 구문 오염 및 서비스명 `(unpacked)` 둔갑 결함 긴급 수정
+- **`ReplaceTokens`에 의한 조건문 오염 원천 차단**:
+  - 기존 `start.sh`, `install_service.sh`, `status.sh`의 `if [ "$BUILTIN_APP_NAME" != "@appName@" ]` 조건식이 빌드 시점에 `@appName@`이 프로젝트명(예: `mo-service`)으로 일괄 치환되면서 `if [ "mo-service" != "mo-service" ]`(무조건 거짓)로 변조되던 결함을 수정했습니다.
+  - 이로 인해 `APP_NAME="$(basename "$PKG_ROOT")"` 폴백 로직을 타서 `build_deploy.sh`가 임시 압축 해제한 디렉토리명인 **`unpacked`**가 앱 이름으로 등록되던 문제를 완벽하게 해결했습니다.
+  - Windows `start.bat`과 동일하게 **와일드카드 패턴 매칭(`[[ "$APP_NAME" == "@"*"@" ]]`)** 방식을 적용하여, 빌드 치환기가 비교 구문을 오염시키지 못하도록 차단하고 실제 치환된 고유 프로젝트명을 안전하게 확정하도록 개편했습니다.
+
+#### 2. 🏷️ 플러그인 빌드 완료 및 안내 콘솔 로그 버전 문자열 동기화
+- Gradle 및 Maven 플러그인 소스코드(`DistributionPlugin.java`, `DistributionMojo.java`, `ShowDockerMojo.java`) 내 패키징 완료 로그 및 아키텍처 비교 가이드에 남아있던 구버전(`3.3.1`) 하드코딩 문자열을 `3.4.2`로 전면 동기화했습니다.
+
+#### 3. 📦 전체 플러그인 메타데이터 및 문서 버전 동기화
+- `distribution-gradle-plugin` (Gradle) & `distribution-maven-plugin` (Maven) 버전 `3.4.2` 갱신.
+- 사용자 및 개발자 가이드(`README.md`, `README_EN.md`, `DEVELOPER_GUIDE.md`) 내 플러그인 의존성 설정 버전 `3.4.2` 반영.
+
+---
+
 ## 🎯 [3.4.1] - 2026-10-26
 
 > 🚀 **Patch Release** — 동일 서버/빌드 환경 다중 서비스 배포 시 Docker 빌드 캐시로 인한 실행 스크립트 오염 방지(`docker build --no-cache`), Docker Compose 템플릿 내 `APP_NAME` 환경변수 명시적 주입, 서비스 시작 스크립트(`start.sh`)의 서비스명 결정 우선순위 개선 및 Standalone Tomcat 기동 시 프로젝트 자체 내장 `tomcat` 최우선 탐색 처리.
