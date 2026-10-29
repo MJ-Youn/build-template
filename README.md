@@ -13,11 +13,13 @@
 - **Maven Plugin**: [`io.github.mj-youn:distribution-maven-plugin`](distribution-maven-plugin/README.md) ([Maven Central](https://central.sonatype.com/artifact/io.github.mj-youn/distribution-maven-plugin))
 
 ### Quick Start (Gradle)
+
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '3.4.2'
+    id 'io.github.mj-youn.distribution' version '3.5.0'
 }
 ```
+
 ```bash
 ./gradlew package -Penv=dev    # Build development zip package
 ./gradlew package -Penv=prod   # Build production zip package
@@ -66,7 +68,7 @@ For complete English documentation, see [**distribution-gradle-plugin/README.md*
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '3.4.2'
+    id 'io.github.mj-youn.distribution' version '3.5.0'
 }
 ```
 
@@ -88,7 +90,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>3.4.2</version>
+            <version>3.5.0</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -116,132 +118,140 @@ plugins {
 플러그인을 적용한 프로젝트에서는 터미널 명령어를 통해 언제든지 **배포 가이드 및 지원 명령어 목록**을 터미널에서 즉시 확인할 수 있습니다.
 
 #### 🐘 Gradle 환경
+
 Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하기 위해 **`distHelp`** 전용 태스크를 제공합니다.
 
 - **도움말 명령어**:
-  ```bash
-  # 💡 배포 플러그인 사용 가이드 및 지원 명령어 출력
-  ./gradlew distHelp
 
-  # 📦 플러그인이 제공하는 전체 배포 태스크 목록 확인
-  ./gradlew tasks --group=distribution
-  ```
+    ```bash
+    # 💡 배포 플러그인 사용 가이드 및 지원 명령어 출력
+    ./gradlew distHelp
+
+    # 📦 플러그인이 제공하는 전체 배포 태스크 목록 확인
+    ./gradlew tasks --group=distribution
+    ```
 
 - **실행 결과 샘플**:
-  ```text
-  > Task :distHelp
-  ================================================================================
-  🚀 [Distribution Plugin 3.4.2] 빌드 및 배포 가이드
-  ================================================================================
 
-  [📦 JAR 모드 명령어 (Executable JAR 배포)]
-    ./gradlew packageJar -Penv=dev     : JAR 기반 배포 패키지(Zip) 생성
-    ./gradlew packageJar -Penv=prod    : JAR 기반 운영 패키지(Zip) 생성
-    ./gradlew deployJar -Penv=prod     : JAR 기반 원스탑 배포 (빌드 + 설치)
+    ```text
+    > Task :distHelp
+    ================================================================================
+    🚀 [Distribution Plugin 3.5.0] 빌드 및 배포 가이드
+    ================================================================================
 
-  [🐱 Tomcat 모드 명령어 (Standalone Apache Tomcat 배포)]
-    ./gradlew packageTomcat -Penv=dev  : Tomcat 배포 패키지(Zip) 생성 (webapps/ROOT 포함)
-    ./gradlew packageTomcat -Penv=prod : Tomcat 운영 패키지(Zip) 생성
-    ./gradlew deployTomcat -Penv=prod  : Tomcat 원스탑 배포 (빌드 + 설치)
+    [📦 JAR 모드 명령어 (Executable JAR 배포)]
+      ./gradlew packageJar -Penv=dev     : JAR 기반 배포 패키지(Zip) 생성
+      ./gradlew packageJar -Penv=prod    : JAR 기반 운영 패키지(Zip) 생성
+      ./gradlew deployJar -Penv=prod     : JAR 기반 원스탑 배포 (빌드 + 설치)
 
-  [⚡ 기본 명령어 (DSL packageType 설정 기반)]
-    ./gradlew package -Penv=dev        : 기본 설정(packageType) 기반 패키징
-    ./gradlew deployService -Penv=dev  : 기본 설정 기반 원스탑 배포
+    [🐱 Tomcat 모드 명령어 (Standalone Apache Tomcat 배포)]
+      ./gradlew packageTomcat -Penv=dev  : Tomcat 배포 패키지(Zip) 생성 (webapps/ROOT 포함)
+      ./gradlew packageTomcat -Penv=prod : Tomcat 운영 패키지(Zip) 생성
+      ./gradlew deployTomcat -Penv=prod  : Tomcat 원스탑 배포 (빌드 + 설치)
 
-  [🐳 Docker 배포 명령어 (Strategy 1 & 2)]
-    ./gradlew packageDocker -Penv=prod            : Docker 이미지 빌드 후 .tar 추출 + Zip 패키징 (Strategy 1: 오프라인/폐쇄망용)
-    ./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=my.reg.com/repo : Docker 이미지 빌드 & 원격 레지스트리 Push (Strategy 2: CI/CD용)
-    (별칭: ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=...)
+    [⚡ 기본 명령어 (DSL packageType 설정 기반)]
+      ./gradlew package -Penv=dev        : 기본 설정(packageType) 기반 패키징
+      ./gradlew deployService -Penv=dev  : 기본 설정 기반 원스탑 배포
 
-  [🎛️ CLI 파라미터 옵션]
-    -Penv=dev|prod|local|test|stage    : 배포 환경 프로파일 지정
-    -Ptype=jar|tomcat                  : 배포 유형 CLI 오버라이드
-    -PpackageType=jar|tomcat           : 배포 유형 CLI 오버라이드 (packageType alias)
-    -Pos=linux|windows|all             : 배포 타겟 OS 지정 (기본값: linux, .bat/.sh 필터링)
-    -Pport=8443                        : HTTP 서비스 포트 지정
-    -PtomcatVersion=11.0.15            : Apache Tomcat 버전 지정
-    -PdockerRegistry=my.reg.com/repo   : Docker 원격 레지스트리 URL
-    -PdockerImageTag=v1.0.0            : Docker 이미지 태그 (기본값: 버전)
+    [🐳 Docker 배포 명령어 (Strategy 1 & 2)]
+      ./gradlew packageDocker -Penv=prod            : Docker 이미지 빌드 후 .tar 추출 + Zip 패키징 (Strategy 1: 오프라인/폐쇄망용)
+      ./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=my.reg.com/repo : Docker 이미지 빌드 & 원격 레지스트리 Push (Strategy 2: CI/CD용)
+      (별칭: ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=...)
 
-  [🛠️ DSL 설정 (build.gradle)]
-    distribution {
-        packageType = 'jar'            // 기본 배포 유형: 'jar' 또는 'tomcat'
-        os          = 'linux'          // 배포 타겟 OS ('linux', 'windows', 'all')
-        httpPort    = 8443
-        tomcatVersion = '11.0.15'
-        dockerRegistry = 'my.reg.com/repo' // (선택) 원격 레지스트리 URL
-        dockerImageTag = '1.0.0'           // (선택) 이미지 태그 (기본값: version)
-    }
+    [🎛️ CLI 파라미터 옵션]
+      -Penv=dev|prod|local|test|stage    : 배포 환경 프로파일 지정
+      -Ptype=jar|tomcat                  : 배포 유형 CLI 오버라이드
+      -PpackageType=jar|tomcat           : 배포 유형 CLI 오버라이드 (packageType alias)
+      -Pos=linux|windows|all             : 배포 타겟 OS 지정 (기본값: linux, .bat/.sh 필터링)
+      -Pport=8443                        : HTTP 서비스 포트 지정
+      -PtomcatVersion=11.0.15            : Apache Tomcat 버전 지정
+      -PdockerRegistry=my.reg.com/repo   : Docker 원격 레지스트리 URL
+      -PdockerImageTag=v1.0.0            : Docker 이미지 태그 (기본값: 버전)
 
-  [🔧 유틸리티]
-    ./gradlew initDeployScript         : 현재 OS에 맞는 build_deploy.sh(.bat) 자동 생성
-    ./gradlew initDocker               : 배포 유형에 맞는 Dockerfile & docker-compose 생성
-    ./gradlew initDocker -Ptype=jar    : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
-    ./gradlew initDocker -Ptype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
-    ./gradlew showDocker               : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
-    ./gradlew distHelp                 : 이 도움말 출력
-    ./build_deploy.sh                  : 쉘 스크립트 기반 원스탑 배포
-  ================================================================================
-  ```
+    [🛠️ DSL 설정 (build.gradle)]
+      distribution {
+          packageType = 'jar'            // 기본 배포 유형: 'jar' 또는 'tomcat'
+          os          = 'linux'          // 배포 타겟 OS ('linux', 'windows', 'all')
+          httpPort    = 8443
+          tomcatVersion = '11.0.15'
+          dockerRegistry = 'my.reg.com/repo' // (선택) 원격 레지스트리 URL
+          dockerImageTag = '1.0.0'           // (선택) 이미지 태그 (기본값: version)
+      }
+
+    [🔧 유틸리티]
+      ./gradlew initDeployScript         : 현재 OS에 맞는 build_deploy.sh(.bat) 자동 생성
+      ./gradlew initDocker               : 배포 유형에 맞는 Dockerfile & docker-compose 생성
+      ./gradlew initDocker -Ptype=jar    : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
+      ./gradlew initDocker -Ptype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
+      ./gradlew initEnv                  : .env.example 기반 .env 환경 변수 파일 생성 (옵션: -Pprofile=dev, -Pforce)
+      ./gradlew showDocker               : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
+      ./gradlew distHelp                 : 이 도움말 출력
+      ./build_deploy.sh                  : 쉘 스크립트 기반 원스탑 배포
+    ================================================================================
+    ```
 
 #### 🪶 Maven 환경
+
 Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 호출합니다. 편의를 위해 `help`와 `distHelp` 두 Goal을 모두 지원합니다.
 
 - **도움말 명령어**:
-  ```bash
-  # 💡 배포 플러그인 사용 가이드 및 지원 명령어 출력
-  mvn distribution:help
 
-  # 💡 Gradle과 동일한 명령어 네이밍 지원 (help alias)
-  mvn distribution:distHelp
-  ```
+    ```bash
+    # 💡 배포 플러그인 사용 가이드 및 지원 명령어 출력
+    mvn distribution:help
+
+    # 💡 Gradle과 동일한 명령어 네이밍 지원 (help alias)
+    mvn distribution:distHelp
+    ```
 
 - **실행 결과 샘플**:
-  ```text
-  [INFO] --- distribution:3.4.2:help (default-cli) @ my-service ---
-  [INFO] ================================================================================
-  🚀 [Distribution Maven Plugin 3.4.2] 빌드 및 배포 가이드
-  ================================================================================
 
-  [📦 JAR 모드 명령어 (Executable JAR 배포)]
-    mvn distribution:packageJar -Denv=dev    : JAR 기반 배포 패키지(Zip) 생성
-    mvn distribution:packageJar -Denv=prod   : JAR 기반 운영 패키지(Zip) 생성
-    mvn distribution:deploy -Denv=prod       : JAR 원스탑 배포 (빌드 + 설치)
+    ```text
+    [INFO] --- distribution:3.5.0:help (default-cli) @ my-service ---
+    [INFO] ================================================================================
+    🚀 [Distribution Maven Plugin 3.5.0] 빌드 및 배포 가이드
+    ================================================================================
 
-  [🐱 Tomcat 모드 명령어 (Standalone Apache Tomcat 배포)]
-    mvn distribution:packageTomcat -Denv=dev : Tomcat 배포 패키지(Zip) 생성
-    mvn distribution:packageTomcat -Denv=prod: Tomcat 운영 패키지(Zip) 생성
-    mvn distribution:deploy -DpackageType=tomcat -Denv=prod : Tomcat 원스탑 배포
+    [📦 JAR 모드 명령어 (Executable JAR 배포)]
+      mvn distribution:packageJar -Denv=dev    : JAR 기반 배포 패키지(Zip) 생성
+      mvn distribution:packageJar -Denv=prod   : JAR 기반 운영 패키지(Zip) 생성
+      mvn distribution:deploy -Denv=prod       : JAR 원스탑 배포 (빌드 + 설치)
 
-  [⚡ 기본 명령어 (DSL packageType 설정 기반)]
-    mvn clean package -Denv=dev             : 기본 설정(packageType) 기반 패키지
-    mvn distribution:deploy -Denv=dev       : 기본 설정 기반 원스탑 배포
+    [🐱 Tomcat 모드 명령어 (Standalone Apache Tomcat 배포)]
+      mvn distribution:packageTomcat -Denv=dev : Tomcat 배포 패키지(Zip) 생성
+      mvn distribution:packageTomcat -Denv=prod: Tomcat 운영 패키지(Zip) 생성
+      mvn distribution:deploy -DpackageType=tomcat -Denv=prod : Tomcat 원스탑 배포
 
-  [🐳 Docker 배포 명령어 (Strategy 1 & 2)]
-    mvn distribution:packageDocker -Denv=prod             : Docker 이미지 빌드 후 .tar 추출 + Zip 패키징 (Strategy 1: 오프라인용)
-    mvn distribution:packageDockerRemote -Denv=prod -DdockerRegistry=my.reg.com/repo : Docker 이미지 빌드 & 원격 레지스트리 Push
-    (별칭: mvn distribution:package-docker / mvn distribution:package-docker-remote / mvn distribution:docker-build-remote)
+    [⚡ 기본 명령어 (DSL packageType 설정 기반)]
+      mvn clean package -Denv=dev             : 기본 설정(packageType) 기반 패키지
+      mvn distribution:deploy -Denv=dev       : 기본 설정 기반 원스탑 배포
 
-  [🎛️ CLI 파라미터 옵션]
-    -Denv=dev|prod|local|test|stage         : 배포 환경 프로파일 지정
-    -DpackageType=jar|tomcat                : 배포 유형 CLI 오버라이드
-    -Dtype=jar|tomcat                       : 배포 유형 CLI 오버라이드 (alias)
-    -Dos=linux|windows|all                  : 배포 타겟 OS 지정 (기본값: linux, .bat/.sh 필터링)
-    -DhttpPort=8443                         : HTTP 서비스 포트 지정
-    -DtomcatVersion=11.0.15                 : Apache Tomcat 버전 지정
-    -DdockerRegistry=my.reg.com/repo        : Docker 원격 레지스트리 URL
-    -DdockerImageTag=v1.0.0                 : Docker 이미지 태그 (기본값: 버전)
+    [🐳 Docker 배포 명령어 (Strategy 1 & 2)]
+      mvn distribution:packageDocker -Denv=prod             : Docker 이미지 빌드 후 .tar 추출 + Zip 패키징 (Strategy 1: 오프라인용)
+      mvn distribution:packageDockerRemote -Denv=prod -DdockerRegistry=my.reg.com/repo : Docker 이미지 빌드 & 원격 레지스트리 Push
+      (별칭: mvn distribution:package-docker / mvn distribution:package-docker-remote / mvn distribution:docker-build-remote)
 
-  [🔧 유틸리티]
-    mvn distribution:initDeployScript       : 현재 OS에 맞는 build_deploy.sh(.bat) 자동 생성
-    mvn distribution:initDocker             : 배포 유형에 맞는 Dockerfile & docker-compose 생성
-    mvn distribution:initDocker -Dtype=jar  : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
-    mvn distribution:initDocker -Dtype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
-    mvn distribution:showDocker             : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
-    mvn distribution:help                   : 이 도움말 출력 (또는 mvn distribution:distHelp)
-    ./build_deploy.sh                       : 쉘 스크립트 기반 원스탑 배포
-  ================================================================================
-  ```
+    [🎛️ CLI 파라미터 옵션]
+      -Denv=dev|prod|local|test|stage         : 배포 환경 프로파일 지정
+      -DpackageType=jar|tomcat                : 배포 유형 CLI 오버라이드
+      -Dtype=jar|tomcat                       : 배포 유형 CLI 오버라이드 (alias)
+      -Dos=linux|windows|all                  : 배포 타겟 OS 지정 (기본값: linux, .bat/.sh 필터링)
+      -DhttpPort=8443                         : HTTP 서비스 포트 지정
+      -DtomcatVersion=11.0.15                 : Apache Tomcat 버전 지정
+      -DdockerRegistry=my.reg.com/repo        : Docker 원격 레지스트리 URL
+      -DdockerImageTag=v1.0.0                 : Docker 이미지 태그 (기본값: 버전)
+
+    [🔧 유틸리티]
+      mvn distribution:initDeployScript       : 현재 OS에 맞는 build_deploy.sh(.bat) 자동 생성
+      mvn distribution:initDocker             : 배포 유형에 맞는 Dockerfile & docker-compose 생성
+      mvn distribution:initDocker -Dtype=jar  : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
+      mvn distribution:initDocker -Dtype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
+      mvn distribution:initEnv                : .env.example 기반 .env 환경 변수 파일 생성 (옵션: -Dprofile=dev, -Dforce=true)
+      mvn distribution:showDocker             : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
+      mvn distribution:help                   : 이 도움말 출력 (또는 mvn distribution:distHelp)
+      ./build_deploy.sh                       : 쉘 스크립트 기반 원스탑 배포
+    ================================================================================
+    ```
 
 ---
 
@@ -338,16 +348,16 @@ mvn distribution:deploy -Denv=prod -Dsudo       # 시스템 데몬 모드로 원
 
 ### 🛡️ 배포 권한 모델: 일반 사용자 모드 vs 시스템 모드
 
-| 구분 | 일반 사용자 모드 (기본값) | 시스템 모드 (`--sudo` / `-Psudo`) |
-| :--- | :--- | :--- |
-| **필요 권한** | **일반 계정 단독 실행 (sudo 불필요)** | `sudo` / `root` 필수 |
-| **설치 기본 경로** | `~/apps/{APP_NAME}` (`$HOME/apps/...`) | `/opt/{APP_NAME}` |
-| **로그 기본 경로** | `~/logs/{APP_NAME}` (`$HOME/logs/...`) | `/log/{APP_NAME}` |
-| **데몬 서비스 등록** | `~/.config/systemd/user/{APP_NAME}.service` | `/etc/systemd/system/{APP_NAME}.service` |
-| **서비스 제어 명령** | `systemctl --user status {APP_NAME}` | `systemctl status {APP_NAME}` |
-| **크론(Cron) 등록** | 사용자 crontab (`crontab -e`) | `/etc/cron.d/{APP_NAME}` |
-| **포트 제약** | **1024 이상 비특권 포트 필수 (사전 검증)** | 모든 포트 가능 (1~65535) |
-| **수동 설치 명령어** | `./deploy/install_service.sh` | `sudo ./deploy/install_service.sh --sudo` |
+| 구분                 | 일반 사용자 모드 (기본값)                   | 시스템 모드 (`--sudo` / `-Psudo`)         |
+| :------------------- | :------------------------------------------ | :---------------------------------------- |
+| **필요 권한**        | **일반 계정 단독 실행 (sudo 불필요)**       | `sudo` / `root` 필수                      |
+| **설치 기본 경로**   | `~/apps/{APP_NAME}` (`$HOME/apps/...`)      | `/opt/{APP_NAME}`                         |
+| **로그 기본 경로**   | `~/logs/{APP_NAME}` (`$HOME/logs/...`)      | `/log/{APP_NAME}`                         |
+| **데몬 서비스 등록** | `~/.config/systemd/user/{APP_NAME}.service` | `/etc/systemd/system/{APP_NAME}.service`  |
+| **서비스 제어 명령** | `systemctl --user status {APP_NAME}`        | `systemctl status {APP_NAME}`             |
+| **크론(Cron) 등록**  | 사용자 crontab (`crontab -e`)               | `/etc/cron.d/{APP_NAME}`                  |
+| **포트 제약**        | **1024 이상 비특권 포트 필수 (사전 검증)**  | 모든 포트 가능 (1~65535)                  |
+| **수동 설치 명령어** | `./deploy/install_service.sh`               | `sudo ./deploy/install_service.sh --sudo` |
 
 > 💡 더 자세한 권한 모델 비교 및 부팅 시 자동 실행(Linger) 설정 방법은 [**DEVELOPER_GUIDE.md**](DEVELOPER_GUIDE.md#5-배포-권한-모델-일반-사용자-모드-기본-vs-시스템-모드)를 참고하세요.
 
@@ -373,6 +383,7 @@ mvn distribution:deploy -Denv=prod -Dsudo       # 시스템 데몬 모드로 원
 v2.0.2부터 Spring Boot **JAR 배포**와 **Standalone Apache Tomcat 배포**에 각각 최적화된 샘플 `Dockerfile` 및 `docker-compose.yml`을 프로젝트에 즉시 생성하고 차이점을 터미널에서 확인할 수 있습니다.
 
 #### 1) 명령어 사용법
+
 ```bash
 # 🐘 Gradle 환경
 ./gradlew initDocker               # 현재 프로젝트 설정(packageType)에 맞는 Dockerfile 생성
@@ -388,14 +399,43 @@ mvn distribution:showDocker               # JAR vs Tomcat Dockerfile 비교 콘�
 ```
 
 #### 2) JAR vs Tomcat Docker 아키텍처 비교
-| 비교 항목 | 📦 JAR 모드 (Executable JAR) | 🐱 Tomcat 모드 (Standalone Tomcat) |
-| :--- | :--- | :--- |
-| **베이스 이미지** | `eclipse-temurin:25-jdk-alpine` | `eclipse-temurin:25-jdk-alpine` + Apache Tomcat 바이너리 |
-| **빌드 산출물** | `libs/*.jar` (단일 실행 JAR) | `exploded-webapps/ROOT/` (Exploded WAR) |
-| **컨테이너 복사** | `libs/`, `config/`, `bin/` | `webapps/ROOT/`, `tomcat/conf/`, `tomcat/bin/setenv.sh`, `config/` |
-| **실행 엔트리포인트** | `ENTRYPOINT ["/app/bin/start.sh"]` | `ENTRYPOINT ["catalina.sh", "run"]` |
-| **주요 볼륨 마운트** | `-v ./config:/app/config`, `-v ./log:/log` | `-v ./webapps/ROOT:.../ROOT`<br>`-v ./tomcat/conf:.../conf`<br>`-v ./config:.../config`<br>`-v ./log/tomcat:.../logs` |
-| **주요 특징** | 경량 마이크로서비스, 빠른 기동, 단일 패키지 배포 표준 | 엔터프라이즈 레거시 호환, JNDI/Datasource, Exploded 핫 리로드 |
+
+| 비교 항목             | 📦 JAR 모드 (Executable JAR)                          | 🐱 Tomcat 모드 (Standalone Tomcat)                                                                                    |
+| :-------------------- | :---------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------- |
+| **베이스 이미지**     | `eclipse-temurin:25-jdk-alpine`                       | `eclipse-temurin:25-jdk-alpine` + Apache Tomcat 바이너리                                                              |
+| **빌드 산출물**       | `libs/*.jar` (단일 실행 JAR)                          | `exploded-webapps/ROOT/` (Exploded WAR)                                                                               |
+| **컨테이너 복사**     | `libs/`, `config/`, `bin/`                            | `webapps/ROOT/`, `tomcat/conf/`, `tomcat/bin/setenv.sh`, `config/`                                                    |
+| **실행 엔트리포인트** | `ENTRYPOINT ["/app/bin/start.sh"]`                    | `ENTRYPOINT ["catalina.sh", "run"]`                                                                                   |
+| **주요 볼륨 마운트**  | `-v ./config:/app/config`, `-v ./log:/log`            | `-v ./webapps/ROOT:.../ROOT`<br>`-v ./tomcat/conf:.../conf`<br>`-v ./config:.../config`<br>`-v ./log/tomcat:.../logs` |
+| **주요 특징**         | 경량 마이크로서비스, 빠른 기동, 단일 패키지 배포 표준 | 엔터프라이즈 레거시 호환, JNDI/Datasource, Exploded 핫 리로드                                                         |
+
+---
+
+### ⚙️ 런타임 환경설정 파일 생성 (`initEnv`)
+
+프로젝트 내 `.env.example` 템플릿(또는 플러그인 내장 템플릿)을 기반으로 애플리케이션 실행/배포 시 필요한 환경 변수 파일(`.env`)을 원클릭으로 자동 생성합니다.
+
+#### 1) 명령어 사용법
+
+```bash
+# 🐘 Gradle 환경
+./gradlew initEnv                     # 프로젝트 루트에 기본 .env 파일 생성
+./gradlew initEnv -Pprofile=dev       # dev 환경 프로파일 전용 .env 파일 생성
+./gradlew initEnv -Pprofile=all       # 루트 및 config.profiles, docker.profiles 환경별 파일 일괄 생성
+./gradlew initEnv -Pforce             # 이미 존재하는 .env 파일을 강제로 덮어쓰기
+
+# 🪶 Maven 환경
+mvn distribution:initEnv                    # 프로젝트 루트에 기본 .env 파일 생성
+mvn distribution:initEnv -Dprofile=dev      # dev 환경 프로파일 전용 .env 파일 생성
+mvn distribution:initEnv -Dprofile=all      # 루트 및 config/docker 프로파일 환경별 파일 일괄 생성
+mvn distribution:initEnv -Dforce=true       # 이미 존재하는 .env 파일을 강제로 덮어쓰기
+```
+
+#### 2) 주요 특징 및 안전 장치
+
+- **로컬 템플릿 우선 적용**: `scripts/service/.env.example` 또는 `docker/.env.example`이 존재하면 해당 파일의 최신 설정을 우선 적용하고, 없을 경우 플러그인 내장 기본 템플릿을 자동으로 사용합니다.
+- **스마트 토큰 치환**: `@appName@`, `@httpPort@`, `@version@` 등의 프로젝트 메타데이터가 실제 값으로 치환되어 즉시 실행 가능한 형태로 생성됩니다.
+- **기존 파일 덮어쓰기 방지**: 기존에 작성된 환경변수 파일이 이미 존재하는 경우 자동으로 생성을 건너뛰며(`[SKIP]`), 강제 덮어쓰기가 필요한 경우에만 `-Pforce` (`-Dforce=true`) 옵션을 지정합니다.
 
 ---
 
@@ -450,25 +490,29 @@ sudo ./deploy/install_service.sh
 배포 Zip 아카이브 내에 Windows 네이티브 배치 스크립트(`.bat`)가 기본 번들링되어 제공되므로, 추가 쉘 설치 없이 더블 클릭 또는 CMD에서 즉시 배포 및 관리가 가능합니다.
 
 #### 1. Windows 원스탑 배포 (배포 Zip 기준)
+
 1. Windows 머신에서 배포 패키지(`.dist.zip`) 압축을 해제합니다.
 2. `deploy\install_service.bat` 파일을 **더블 클릭**하거나 명령 프롬프트(CMD)에서 실행합니다:
-   ```cmd
-   deploy\install_service.bat
-   ```
+    ```cmd
+    deploy\install_service.bat
+    ```
 3. **자동 수행 내용**:
-   - Docker 및 Docker Desktop 데몬 실행 상태(`docker info`) 자동 점검
-   - Docker 이미지 자동 빌드 또는 로드
-   - `docker compose -f docker\docker-compose.yml up -d` 백그라운드 컨테이너 구동
-   - 서비스 접속 URL(`http://localhost:8443`) 및 상태 안내 출력
+    - Docker 및 Docker Desktop 데몬 실행 상태(`docker info`) 자동 점검
+    - Docker 이미지 자동 빌드 또는 로드
+    - `docker compose -f docker\docker-compose.yml up -d` 백그라운드 컨테이너 구동
+    - 서비스 접속 URL(`http://localhost:8443`) 및 상태 안내 출력
 
 #### 2. Windows 컨테이너 제어 명령어 (`bin/`)
+
 - **서비스 시작**: `bin\start.bat` (`docker compose up -d`)
 - **서비스 중지**: `bin\stop.bat` (`docker compose stop`)
 - **상태 확인**: `bin\status.bat` (`docker compose ps`)
 - **서비스 제거**: `deploy\uninstall_service.bat` (`docker compose down`)
 
 #### 3. 소스 루트 원스탑 빌드 및 배포 (`build_deploy.bat`)
+
 Windows 개발 환경에서 소스 코드로부터 빌드 및 배포를 한 번에 실행하려면 루트의 `build_deploy.bat`을 실행합니다:
+
 ```cmd
 build_deploy.bat dev
 build_deploy.bat prod -Pport=8081
@@ -526,11 +570,13 @@ Docker 없이 Java(JDK)만 설치된 서버에 배포하는 방식입니다.
 **1. 빌드 (Development PC)**
 
 🔸 **JAR 배포 (Executable JAR)**
+
 - **Gradle**: `./gradlew packageJar -Penv=prod` (또는 `package -Ptype=jar`)
 - **Maven**: `mvn distribution:packageJar -Denv=prod` (또는 `package -DpackageType=jar`)
 - **결과물**: `build/distributions/{APP_NAME}-{version}.zip` 또는 `target/{APP_NAME}-{version}.zip`
 
 🔸 **Tomcat 배포 (Standalone Apache Tomcat)**
+
 - **Gradle**: `./gradlew packageTomcat -Penv=prod` (또는 `package -Ptype=tomcat`)
 - **Maven**: `mvn distribution:packageTomcat -Denv=prod` (또는 `package -DpackageType=tomcat`)
 - **결과물**: `build/distributions/{APP_NAME}-{version}.zip` (내부: `webapps/ROOT/`, `tomcat/conf/`)

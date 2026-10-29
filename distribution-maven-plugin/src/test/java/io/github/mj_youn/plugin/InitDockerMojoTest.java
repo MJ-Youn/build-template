@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.*;
 /**
  * InitDockerMojo 테스트 클래스입니다.
  *
- * @author MJ Yun
+ * @author 윤명준 (MJ Yun)
  * @since 2026. 10. 12.
  */
 class InitDockerMojoTest {

@@ -7,7 +7,7 @@
 - **JDK Requirement**: Java 25 이상
 - **GroupId**: `io.github.mj-youn`
 - **ArtifactId**: `distribution-maven-plugin`
-- **Version**: `3.4.2`
+- **Version**: `3.5.0`
 - **Goals**:
     - `package`: 표준 배포 Zip 아카이브 생성 (JAR / Tomcat 통합 지원)
     - `packageJar`: Spring Boot Executable JAR 배포 전용 Zip 아카이브 생성
@@ -16,6 +16,9 @@
     - `help`: 배포 플러그인 도움말 및 사용 가이드 출력
     - `distHelp`: 배포 플러그인 도움말 출력 (`help` alias)
     - `initDeployScript`: 프로젝트 루트에 원클릭 배포 쉘 스크립트(`build_deploy.sh`) 자동 생성
+    - `initDocker`: 배포 유형에 맞는 Dockerfile & docker-compose 자동 생성
+    - `initEnv`: 프로젝트 루트에 .env.example 기반 런타임 .env 환경 변수 파일 자동 생성
+    - `showDocker`: JAR vs Tomcat Dockerfile 아키텍처 비교 콘솔 출력
 
 ---
 
@@ -79,7 +82,7 @@
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>3.4.2</version>
+            <version>3.5.0</version>
             <executions>
                 <execution>
                     <phase>package</phase>

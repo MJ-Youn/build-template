@@ -24,7 +24,7 @@ import java.util.Map;
  * }
  * </pre>
  *
- * @author MJ Yun
+ * @author 윤명준 (MJ Yun)
  * @since 2026. 09. 07.
  */
 public class DistributionExtension {

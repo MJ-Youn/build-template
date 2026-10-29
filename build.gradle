@@ -488,10 +488,12 @@ tasks.named('help') {
      - [옵션 필수] -PdockerRegistry={REGISTRY_URL} (선택: -PdockerImageTag={TAG_NAME})
      - [실행 예시] ./gradlew dockerBuildRemote -Penv=prod -PdockerRegistry=my.reg.com/repo
 
-[🐳 Docker 유틸리티]
+[🐳 Docker 및 런타임 환경 유틸리티]
+  ./gradlew initDeployScript         : 현재 OS에 맞는 build_deploy.sh(.bat) 자동 생성 (옵션: -Pos=all)
   ./gradlew initDocker               : 배포 유형에 맞는 Dockerfile & docker-compose 생성
   ./gradlew initDocker -Ptype=jar    : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
   ./gradlew initDocker -Ptype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
+  ./gradlew initEnv                  : .env.example 기반 .env 환경 변수 파일 생성 (옵션: -Pprofile=dev, -Pforce)
   ./gradlew showDocker               : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
 
 [🚀 플러그인 모듈 개발 및 배포 (루트 저장소 관리자 전용)]
@@ -604,6 +606,83 @@ task initDocker {
         println "🐳 [Distribution] Docker 설정 생성 완료 (배포 유형: ${targetType.toUpperCase()})"
         println "   - 생성된 Dockerfile     : ${targetDockerFile.absolutePath}"
         println "   - 생성된 docker-compose : ${targetComposeFile.absolutePath}"
+        println "================================================================"
+    }
+}
+
+// ⚙️ .env.example 기반 런타임 .env 환경 변수 파일 생성 태스크
+task initEnv {
+    group = 'distribution'
+    description = '프로젝트의 .env.example 템플릿을 기반으로 런타임 환경변수 설정 파일(.env)을 생성합니다.'
+
+    doLast {
+        def envTemplateFile = file('scripts/service/.env.example')
+        if (!envTemplateFile.exists()) {
+            envTemplateFile = file('docker/.env.example')
+        }
+        if (!envTemplateFile.exists()) {
+            envTemplateFile = file('.env.example')
+        }
+
+        if (!envTemplateFile.exists()) {
+            throw new GradleException(".env.example 템플릿 파일을 찾을 수 없습니다.")
+        }
+
+        // 💡 SERVER_PORT=@httpPort@ 등의 토큰은 빌드/패키징 시점에 application.yml 또는 CLI 옵션에 의해 동적으로 치환되므로 원형을 유지합니다.
+        def templateContent = envTemplateFile.getText('UTF-8')
+
+        def profile = project.hasProperty('profile') ? project.property('profile').toString().trim() :
+                      (project.hasProperty('env') ? project.property('env').toString().trim() : null)
+
+        def force = false
+        if (project.hasProperty('force')) {
+            def val = project.property('force')
+            force = val == null || val == '' || val.toString().equalsIgnoreCase('true')
+        } else if (project.hasProperty('overwrite')) {
+            def val = project.property('overwrite')
+            force = val == null || val == '' || val.toString().equalsIgnoreCase('true')
+        }
+
+        println "================================================================"
+        println "⚙️  [Distribution] 런타임 환경설정(.env) 파일 생성"
+
+        def targetFiles = []
+        if (!profile) {
+            targetFiles << file('.env')
+        } else if ('all'.equalsIgnoreCase(profile)) {
+            targetFiles << file('.env')
+            targetFiles << file('config.profiles/dev/.env-dev')
+            targetFiles << file('config.profiles/prod/.env-prod')
+        } else {
+            boolean isDockerTarget = project.hasProperty('docker') || 'docker'.equalsIgnoreCase(String.valueOf(project.findProperty('type')))
+            if (isDockerTarget) {
+                targetFiles << file("docker.profiles/${profile}/.env-${profile}")
+            } else {
+                targetFiles << file("config.profiles/${profile}/.env-${profile}")
+            }
+        }
+
+        int createdCount = 0
+        int skippedCount = 0
+
+        targetFiles.each { File targetFile ->
+            if (targetFile.exists() && !force) {
+                println "   ⚠️ [SKIP] 이미 파일이 존재합니다: ${targetFile.path} (덮어쓰려면 -Pforce 옵션 사용)"
+                skippedCount++
+            } else {
+                if (targetFile.parentFile != null) {
+                    targetFile.parentFile.mkdirs()
+                }
+                targetFile.setText(templateContent, 'UTF-8')
+                println "   ✅ [생성 완료] ${targetFile.absolutePath}"
+                createdCount++
+            }
+        }
+
+        println "----------------------------------------------------------------"
+        println "📊 [결과] 생성: ${createdCount}개, 스킵: ${skippedCount}개"
+        println "💡 [안내] 생성된 .env 파일에서 JVM 힙 메모리(JVM_XMS, JVM_XMX),"
+        println "         서비스 포트(SERVER_PORT), 프로그램 인수(APP_ARGS) 등을 자유롭게 튜닝하세요."
         println "================================================================"
     }
 }

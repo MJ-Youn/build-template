@@ -11,11 +11,27 @@ import org.apache.maven.plugins.annotations.Mojo;
 import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.project.MavenProject;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Enumeration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
 import java.util.function.Predicate;
 
 /**
@@ -33,7 +49,7 @@ import java.util.function.Predicate;
  *   mvn distribution:packageJar                        (전용 JAR 태스크)
  * </pre>
  *
- * @author MJ Yun
+ * @author 윤명준 (MJ Yun)
  * @since 2026. 09. 07.
  */
 @Mojo(name = "package", defaultPhase = LifecyclePhase.PACKAGE, requiresProject = true, threadSafe = true)
@@ -144,6 +160,11 @@ public class DistributionMojo extends AbstractMojo {
         return "tomcat".equalsIgnoreCase(pt) || "war".equalsIgnoreCase(pt);
     }
 
+    /**
+     * @see org.apache.maven.plugin.Mojo#execute()
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 07.
+     */
     @Override
     public void execute() throws MojoExecutionException {
         this.httpPort = resolveHttpPort();
@@ -154,7 +175,7 @@ public class DistributionMojo extends AbstractMojo {
         File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
 
         getLog().info("================================================================");
-        getLog().info("🚀 [Distribution 3.4.2] 배포 패키지 생성 시작");
+        getLog().info("🚀 [Distribution 3.5.0] 배포 패키지 생성 시작");
         getLog().info(
                 "   - 대상 프로젝트    : " + (appName != null && !appName.isBlank() ? appName : project.getArtifactId()));
         getLog().info("   - 배포 유형       : " + resolvedType.toUpperCase() + " ("
@@ -285,7 +306,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeInMb = targetZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("✅ [Distribution 3.4.2] 배포 패키지 생성 완료!");
+        getLog().info("✅ [Distribution 3.5.0] 배포 패키지 생성 완료!");
         getLog().info("   - 산출물 경로: " + targetZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeInMb + " MB (" + targetZip.length() + " bytes)");
         getLog().info("================================================================");
@@ -582,8 +603,9 @@ public class DistributionMojo extends AbstractMojo {
      * @return WAR 파일 (없으면 null)
      */
     private File findWarFile(File targetDir) {
-        if (targetDir == null || !targetDir.exists())
+        if (targetDir == null || !targetDir.exists()) {
             return null;
+        }
         File[] wars = targetDir.listFiles((dir, name) -> name.endsWith(".war") && !name.endsWith(".original"));
         if (wars != null && wars.length > 0) {
             return wars[0];
@@ -598,12 +620,14 @@ public class DistributionMojo extends AbstractMojo {
 
     private void addDirectoryIfExists(ZipArchiveOutputStream zos, File sourceDir, String zipPathPrefix, int unixMode,
             Map<String, String> tokens, Set<String> addedEntries, Predicate<File> fileFilter) throws IOException {
-        if (!sourceDir.exists() || !sourceDir.isDirectory())
+        if (!sourceDir.exists() || !sourceDir.isDirectory()) {
             return;
+        }
 
         File[] files = sourceDir.listFiles();
-        if (files == null)
+        if (files == null) {
             return;
+        }
 
         Arrays.sort(files);
         for (File file : files) {
@@ -627,8 +651,9 @@ public class DistributionMojo extends AbstractMojo {
     private void addConfigFiles(ZipArchiveOutputStream zos, File profileDir, String zipPathPrefix, String currentEnv,
             Set<String> addedEntries) throws IOException {
         File[] files = profileDir.listFiles();
-        if (files == null)
+        if (files == null) {
             return;
+        }
 
         for (File file : files) {
             if (file.isDirectory()) {
@@ -652,8 +677,9 @@ public class DistributionMojo extends AbstractMojo {
     private void addCommonConfigFiles(ZipArchiveOutputStream zos, File commonDir, String zipPathPrefix,
             String currentEnv, Set<String> addedEntries) throws IOException {
         File[] files = commonDir.listFiles();
-        if (files == null)
+        if (files == null) {
             return;
+        }
 
         for (File file : files) {
             if (file.isDirectory()) {
@@ -679,12 +705,22 @@ public class DistributionMojo extends AbstractMojo {
         }
     }
 
+    /**
+     * 환경별 .env 파일 및 설정 파일에서 추가 포함 대상 디렉토리(EXTRA_DIRS)를 분석하여 반환합니다.
+     *
+     * @param projectBasedir 프로젝트 기준 경로
+     * @param currentEnv 현재 빌드 환경 프로파일
+     * @return 추가 포함할 디렉토리 경로 셋
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 15.
+     */
     private Set<String> resolveExtraDirs(File projectBasedir, String currentEnv) {
         Set<String> dirs = new LinkedHashSet<>();
         if (extraDirs != null && !extraDirs.trim().isEmpty()) {
             for (String d : extraDirs.split("[,\\s]+")) {
-                if (!d.trim().isEmpty())
+                if (!d.trim().isEmpty()) {
                     dirs.add(d.trim());
+                }
             }
         }
         List<File> envFiles = List.of(new File(projectBasedir, "config.profiles/" + currentEnv + "/.env"),
@@ -700,8 +736,9 @@ public class DistributionMojo extends AbstractMojo {
                             String val = line.substring("EXTRA_DIRS=".length()).trim();
                             val = val.replaceAll("^[\"']|[\"']$", "");
                             for (String d : val.split("[,\\s]+")) {
-                                if (!d.trim().isEmpty())
+                                if (!d.trim().isEmpty()) {
                                     dirs.add(d.trim());
+                                }
                             }
                         }
                     }
@@ -715,8 +752,9 @@ public class DistributionMojo extends AbstractMojo {
     private void addJarFiles(ZipArchiveOutputStream zos, File targetDir, String zipPathPrefix, Set<String> addedEntries)
             throws IOException {
         File[] files = targetDir.listFiles((dir, name) -> name.endsWith(".jar") && !name.endsWith(".original"));
-        if (files == null)
+        if (files == null) {
             return;
+        }
 
         for (File file : files) {
             String entryName = zipPathPrefix + file.getName();
@@ -828,8 +866,9 @@ public class DistributionMojo extends AbstractMojo {
         // 3.1. Dockerfile 폴백
         if (!addedEntries.contains("docker/Dockerfile")) {
             File fallbackDf = new File(builtinDockerDir, "Dockerfile-" + packageType);
-            if (!fallbackDf.exists())
+            if (!fallbackDf.exists()) {
                 fallbackDf = new File(builtinDockerDir, "Dockerfile");
+            }
             if (fallbackDf.exists() && fallbackDf.isFile()) {
                 byte[] content = tokens != null ? filterTokens(Files.readAllBytes(fallbackDf.toPath()), tokens)
                         : Files.readAllBytes(fallbackDf.toPath());
@@ -841,12 +880,15 @@ public class DistributionMojo extends AbstractMojo {
         // 3.2. docker-compose.yml 폴백
         if (!addedEntries.contains("docker/docker-compose.yml")) {
             File fallbackCompose = new File(builtinDockerDir, currentEnv + "/docker-compose-" + currentEnv + ".yml");
-            if (!fallbackCompose.exists())
+            if (!fallbackCompose.exists()) {
                 fallbackCompose = new File(builtinDockerDir, currentEnv + "/docker-compose.yml");
-            if (!fallbackCompose.exists())
+            }
+            if (!fallbackCompose.exists()) {
                 fallbackCompose = new File(builtinDockerDir, "docker-compose-" + packageType + ".yml");
-            if (!fallbackCompose.exists())
+            }
+            if (!fallbackCompose.exists()) {
                 fallbackCompose = new File(builtinDockerDir, "docker-compose.yml");
+            }
             if (fallbackCompose.exists() && fallbackCompose.isFile()) {
                 byte[] content = tokens != null ? filterTokens(Files.readAllBytes(fallbackCompose.toPath()), tokens)
                         : Files.readAllBytes(fallbackCompose.toPath());
@@ -859,8 +901,9 @@ public class DistributionMojo extends AbstractMojo {
     private void addDockerProfileFiles(ZipArchiveOutputStream zos, File profileDir, String zipPathPrefix,
             String currentEnv, Map<String, String> tokens, Set<String> addedEntries) throws IOException {
         File[] files = profileDir.listFiles();
-        if (files == null)
+        if (files == null) {
             return;
+        }
         Arrays.sort(files);
         for (File file : files) {
             if (file.isDirectory()) {
@@ -888,8 +931,9 @@ public class DistributionMojo extends AbstractMojo {
     private void addDockerCommonFiles(ZipArchiveOutputStream zos, File dir, String prefix, Map<String, String> tokens,
             Set<String> addedEntries, String currentEnv) throws IOException {
         File[] files = dir.listFiles();
-        if (files == null)
+        if (files == null) {
             return;
+        }
         Arrays.sort(files);
         for (File file : files) {
             String name = file.getName();
@@ -924,6 +968,15 @@ public class DistributionMojo extends AbstractMojo {
         zos.closeArchiveEntry();
     }
 
+    /**
+     * 쉘 스크립트 및 텍스트 파일의 줄바꿈 개행문자를 Unix 표준(LF)으로 정규화합니다.
+     *
+     * @param input 원본 파일 바이트 배열
+     * @param fileName 파일 이름
+     * @return 개행문자가 정규화된 바이트 배열
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 07.
+     */
     private byte[] normalizeLineEndings(byte[] input, String fileName) {
         if (fileName != null && (fileName.endsWith(".bat") || fileName.endsWith(".cmd"))) {
             String content = new String(input, StandardCharsets.UTF_8);
@@ -933,6 +986,15 @@ public class DistributionMojo extends AbstractMojo {
         return input;
     }
 
+    /**
+     * 텍스트 템플릿 파일의 @token@ 플레이스홀더를 매핑된 값으로 치환합니다.
+     *
+     * @param input 원본 템플릿 바이트 배열
+     * @param tokens 치환할 토큰 키-값 매핑
+     * @return 토큰이 치환된 결과 바이트 배열
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 07.
+     */
     private byte[] filterTokens(byte[] input, Map<String, String> tokens) {
         String fileContent = new String(input, StandardCharsets.UTF_8);
         for (Map.Entry<String, String> entry : tokens.entrySet()) {
@@ -941,25 +1003,35 @@ public class DistributionMojo extends AbstractMojo {
         return fileContent.getBytes(StandardCharsets.UTF_8);
     }
 
+    /**
+     * 플러그인 JAR 내에 내장된 배포 템플릿 리소스들을 임시 작업 디렉토리에 추출합니다.
+     *
+     * @param targetDir 리소스를 추출할 대상 디렉토리
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 07.
+     */
     private void extractBuiltinResources(File targetDir) {
         if (!targetDir.exists()) {
             targetDir.mkdirs();
         }
         InputStream manifestStream = getClass().getClassLoader().getResourceAsStream("template-manifest.txt");
-        if (manifestStream == null)
+        if (manifestStream == null) {
             return;
+        }
 
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(manifestStream, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
-                if (line.isEmpty())
+                if (line.isEmpty()) {
                     continue;
+                }
                 String resourcePath = "template/" + line;
                 InputStream resStream = getClass().getClassLoader().getResourceAsStream(resourcePath);
-                if (resStream == null)
+                if (resStream == null) {
                     continue;
+                }
                 File outFile = new File(targetDir, line);
                 File parent = outFile.getParentFile();
                 if (parent != null && !parent.exists()) {
@@ -995,10 +1067,19 @@ public class DistributionMojo extends AbstractMojo {
         }
     }
 
+    /**
+     * 지정된 디렉토리 내의 모든 자바 소스 파일(.java)을 재귀적으로 검색하여 목록에 추가합니다.
+     *
+     * @param dir 검색할 루트 디렉토리
+     * @param result 발견된 자바 파일들을 저장할 결과 리스트
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 15.
+     */
     private void findJavaFiles(File dir, List<File> result) {
         File[] files = dir.listFiles();
-        if (files == null)
+        if (files == null) {
             return;
+        }
         for (File f : files) {
             if (f.isDirectory()) {
                 findJavaFiles(f, result);
@@ -1015,8 +1096,9 @@ public class DistributionMojo extends AbstractMojo {
      *            삭제 대상 파일 또는 디렉토리
      */
     protected void deleteRecursively(File file) {
-        if (file == null || !file.exists())
+        if (file == null || !file.exists()) {
             return;
+        }
         if (file.isDirectory()) {
             File[] children = file.listFiles();
             if (children != null) {
@@ -1073,7 +1155,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeMb = outputZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("✅ [Distribution 3.4.2 - Maven] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
+        getLog().info("✅ [Distribution 3.5.0 - Maven] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
         getLog().info("   - 산출물 경로: " + outputZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeMb + " MB (" + outputZip.length() + " bytes)");
         getLog().info("   - 배포 방법  : 서버에 zip 전송 -> unzip -> sudo ./deploy/install_service.sh");
@@ -1248,8 +1330,8 @@ public class DistributionMojo extends AbstractMojo {
 
         // 6. docker build 실행
         getLog().info("🔨 [Distribution - Maven] Docker 이미지 빌드 시작 -> " + fullImageName);
-        List<String> buildCmd = List.of("docker", "build", "--no-cache", "--build-arg", "APP_NAME=" + resolvedAppName, "-t",
-                fullImageName, "-f", dockerFile.getAbsolutePath(), dockerContextDir.getAbsolutePath());
+        List<String> buildCmd = List.of("docker", "build", "--no-cache", "--build-arg", "APP_NAME=" + resolvedAppName,
+                "-t", fullImageName, "-f", dockerFile.getAbsolutePath(), dockerContextDir.getAbsolutePath());
 
         runProcess(buildCmd, dockerContextDir, "Docker 이미지 빌드");
         getLog().info("✨ [Distribution - Maven] Docker 이미지 빌드 성공: " + fullImageName);
@@ -1257,6 +1339,14 @@ public class DistributionMojo extends AbstractMojo {
         return new DockerBuildContext(dockerContextDir, resolvedAppName, tag, registry, fullImageName, resolvedType);
     }
 
+    /**
+     * 디렉토리 내에서 주어진 조건에 일치하는 파일들을 재귀적으로 삭제합니다.
+     *
+     * @param dir 탐색 대상 디렉토리
+     * @param predicate 삭제 대상 판별 조건식
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void deleteFilesMatching(File dir, Predicate<File> predicate) {
         if (dir == null || !dir.exists()) {
             return;
@@ -1273,6 +1363,16 @@ public class DistributionMojo extends AbstractMojo {
         }
     }
 
+    /**
+     * 외부 명령어를 하위 프로세스로 실행하고 정상 종료 여부를 확인합니다.
+     *
+     * @param command 실행할 명령어 및 인자 리스트
+     * @param workDir 명령어 실행 작업 디렉토리
+     * @param taskDesc 실행 작업에 대한 설명 문구
+     * @throws MojoExecutionException 프로세스 실행 실패 또는 오류 종료 시
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void runProcess(List<String> command, File workDir, String taskDesc) throws MojoExecutionException {
         try {
             getLog().info("▶️ [Distribution - Maven] 실행 명령어: " + String.join(" ", command));
@@ -1291,6 +1391,15 @@ public class DistributionMojo extends AbstractMojo {
         }
     }
 
+    /**
+     * 지정된 소스 디렉토리를 UTF-8 인코딩 및 Unix 파일 권한(0755, 0644)을 보존하여 Zip 아카이브로 압축합니다.
+     *
+     * @param sourceDir 압축 대상 소스 디렉토리
+     * @param zipFile 생성될 대상 Zip 파일
+     * @throws MojoExecutionException Zip 아카이브 압축 생성 실패 시
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void createTarAndZipArchive(File sourceDir, File zipFile) throws MojoExecutionException {
         try (ZipArchiveOutputStream zos = new ZipArchiveOutputStream(new FileOutputStream(zipFile))) {
             zos.setEncoding("UTF-8");
@@ -1300,6 +1409,16 @@ public class DistributionMojo extends AbstractMojo {
         }
     }
 
+    /**
+     * ZipArchiveOutputStream에 파일 또는 디렉토리를 추가하고 파일 유형별 Unix 권한을 설정합니다.
+     *
+     * @param zos Zip 아카이브 출력 스트림
+     * @param currentFile 현재 등록할 파일 또는 디렉토리
+     * @param rootDir 상대 경로 기준 루트 디렉토리
+     * @throws IOException 입출력 실패 시
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void addDirToZip(ZipArchiveOutputStream zos, File currentFile, File rootDir) throws IOException {
         if (currentFile.isDirectory()) {
             File[] children = currentFile.listFiles();
@@ -1324,9 +1443,18 @@ public class DistributionMojo extends AbstractMojo {
         }
     }
 
+    /**
+     * 소스 디렉토리 또는 파일이 존재하는 경우 대상 디렉토리로 재귀 복사하고 쉘 스크립트 실행 권한을 부여합니다.
+     *
+     * @param src 원본 파일 또는 디렉토리
+     * @param dest 복사 대상 파일 또는 디렉토리
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void copyDirIfExists(File src, File dest) {
-        if (src == null || !src.exists())
+        if (src == null || !src.exists()) {
             return;
+        }
         if (src.isDirectory()) {
             dest.mkdirs();
             File[] files = src.listFiles();
@@ -1336,8 +1464,9 @@ public class DistributionMojo extends AbstractMojo {
                 }
             }
         } else {
-            if (dest.getParentFile() != null)
+            if (dest.getParentFile() != null) {
                 dest.getParentFile().mkdirs();
+            }
             try {
                 Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 if (src.getName().endsWith(".sh")) {
@@ -1348,6 +1477,14 @@ public class DistributionMojo extends AbstractMojo {
         }
     }
 
+    /**
+     * Docker 배포 패키지에 docker-compose.yml 파일만을 단독으로 복사합니다.
+     *
+     * @param dockerContextDir 원본 Docker 컨텍스트 디렉토리
+     * @param destDistDir 배포 산출물 대상 디렉토리
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void copyDockerComposeOnly(File dockerContextDir, File destDistDir) {
         File targetDockerDir = new File(destDistDir, "docker");
         targetDockerDir.mkdirs();
@@ -1361,6 +1498,14 @@ public class DistributionMojo extends AbstractMojo {
         }
     }
 
+    /**
+     * Docker 이미지 Push 완료 후 운영 서버 배포 가이드라인 배너를 콘솔에 출력합니다.
+     *
+     * @param ctx Docker 빌드 컨텍스트 정보
+     * @param distDir 배포 파일 디렉토리
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void printRemoteDeployBanner(DockerBuildContext ctx, File distDir) {
         String msg = String.format("""
 
@@ -1394,9 +1539,18 @@ public class DistributionMojo extends AbstractMojo {
         getLog().info(msg);
     }
 
+    /**
+     * 원격 레지스트리 URL 문자열에서 프로토콜 접두사 및 끝 슬래시를 정제합니다.
+     *
+     * @param raw 원본 레지스트리 URL 문자열
+     * @return 정제된 레지스트리 경로
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private String cleanRegistryUrl(String raw) {
-        if (raw == null)
+        if (raw == null) {
             return "";
+        }
         String reg = raw.trim().replaceAll("^https?://", "");
         if (reg.endsWith("/")) {
             reg = reg.substring(0, reg.length() - 1);
@@ -1404,12 +1558,23 @@ public class DistributionMojo extends AbstractMojo {
         return reg;
     }
 
+    /**
+     * 배포 디렉토리 내의 설정 파일 및 스크립트에서 Docker 이미지 태그를 변경된 원격 이미지명으로 일괄 갱신합니다.
+     *
+     * @param dir 변경 대상 디렉토리
+     * @param oldImage 기존 이미지명
+     * @param newImage 새로운 원격 이미지명
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void updateDockerImageInDir(File dir, String oldImage, String newImage) {
-        if (dir == null || !dir.exists())
+        if (dir == null || !dir.exists()) {
             return;
+        }
         File[] files = dir.listFiles();
-        if (files == null)
+        if (files == null) {
             return;
+        }
         for (File file : files) {
             if (file.isDirectory()) {
                 updateDockerImageInDir(file, oldImage, newImage);

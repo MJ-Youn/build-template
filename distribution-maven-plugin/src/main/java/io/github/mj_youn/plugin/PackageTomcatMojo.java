@@ -15,7 +15,7 @@ import org.apache.maven.plugins.annotations.Mojo;
  * mvn distribution:packageTomcat -Denv=dev
  * </pre>
  *
- * @author MJ Yun
+ * @author 윤명준 (MJ Yun)
  * @since 2026. 09. 15.
  */
 @Mojo(name = "packageTomcat", defaultPhase = LifecyclePhase.PACKAGE, requiresProject = true, threadSafe = true)
@@ -27,9 +27,9 @@ public class PackageTomcatMojo extends DistributionMojo {
     public PackageTomcatMojo() {}
 
     /**
-     * 항상 "tomcat"을 반환합니다 (고정 모드).
-     *
-     * @return "tomcat"
+     * @see io.github.mj_youn.plugin.DistributionMojo#resolvePackageType()
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 15.
      */
     @Override
     protected String resolvePackageType() {
@@ -37,15 +37,20 @@ public class PackageTomcatMojo extends DistributionMojo {
     }
 
     /**
-     * Tomcat 모드임을 고정적으로 반환합니다.
-     *
-     * @return true
+     * @see io.github.mj_youn.plugin.DistributionMojo#isTomcat()
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 15.
      */
     @Override
     protected boolean isTomcat() {
         return true;
     }
 
+    /**
+     * @see io.github.mj_youn.plugin.DistributionMojo#execute()
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 15.
+     */
     @Override
     public void execute() throws MojoExecutionException {
         super.execute();

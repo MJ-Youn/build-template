@@ -13,7 +13,7 @@ import org.apache.maven.plugins.annotations.Mojo;
  * mvn distribution:docker-build-remote -Denv=prod -DdockerRegistry=my.reg.com/repo
  * </pre>
  *
- * @author MJ Yun
+ * @author 윤명준 (MJ Yun)
  * @since 2026. 09. 21.
  */
 @Mojo(name = "dockerBuildRemote", defaultPhase = LifecyclePhase.NONE, requiresProject = true, threadSafe = true)

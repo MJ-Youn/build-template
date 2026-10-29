@@ -42,6 +42,7 @@ build_template (루트 / SSOT)
 │   │   ├── DistHelpMojo.java           # distHelp goal (help alias)
 │   │   ├── InitDeployScriptMojo.java   # initDeployScript goal (build_deploy.sh 및 build_deploy.bat 생성)
 │   │   ├── InitDockerMojo.java         # initDocker goal (Dockerfile/compose 자동 생성)
+│   │   ├── InitEnvMojo.java            # initEnv goal (.env.example 기반 .env 자동 생성)
 │   │   └── ShowDockerMojo.java         # showDocker goal (JAR vs Tomcat 비교 가이드)
 │   ├── src/main/resources/META-INF/maven/plugin.xml # Maven 플러그인 디스크립터
 │   └── build.gradle                    # Sonatype Central Portal 배포 및 GPG 서명 설정
@@ -71,16 +72,18 @@ build_template (루트 / SSOT)
 
 `distribution` 플랫폼은 빌드 도구(Gradle / Maven)와 무관하게 완전히 동일한 기능과 배포 패키지 구조를 보장합니다:
 
-| 기능 설명              | 🐘 Gradle 플러그인 태스크    | 🪶 Maven 플러그인 Goal                         | 비고                                          |
-| :--------------------- | :--------------------------- | :--------------------------------------------- | :-------------------------------------------- |
-| **통합 패키징**        | `./gradlew package`          | `mvn distribution:package`                     | DSL/CLI 설정에 따라 JAR 또는 Tomcat 패키징    |
-| **JAR 전용 패키징**    | `./gradlew packageJar`       | `mvn distribution:packageJar`                  | Executable JAR 기반 Zip 생성 (고정)           |
-| **Tomcat 전용 패키징** | `./gradlew packageTomcat`    | `mvn distribution:packageTomcat`               | Standalone Tomcat 11 기반 Zip 생성 (고정)     |
-| **원스탑 서비스 배포** | `./gradlew deployService`    | `mvn distribution:deploy`                      | 빌드 ➡️ 압축해제 ➡️ `install_service.sh` 실행 |
-| **JAR 원스탑 배포**    | `./gradlew deployJar`        | `mvn distribution:deploy -DpackageType=jar`    | JAR 기반 원스탑 배포                          |
-| **Tomcat 원스탑 배포** | `./gradlew deployTomcat`     | `mvn distribution:deploy -DpackageType=tomcat` | Tomcat 기반 원스탑 배포                       |
-| **배포 가이드 출력**   | `./gradlew distHelp`         | `mvn distribution:help` (또는 `distHelp`)      | 명령어 및 옵션 도움말 출력                    |
+| 기능 설명              | 🐘 Gradle 플러그인 태스크    | 🪶 Maven 플러그인 Goal                         | 비고                                             |
+| :--------------------- | :--------------------------- | :--------------------------------------------- | :----------------------------------------------- |
+| **통합 패키징**        | `./gradlew package`          | `mvn distribution:package`                     | DSL/CLI 설정에 따라 JAR 또는 Tomcat 패키징       |
+| **JAR 전용 패키징**    | `./gradlew packageJar`       | `mvn distribution:packageJar`                  | Executable JAR 기반 Zip 생성 (고정)              |
+| **Tomcat 전용 패키징** | `./gradlew packageTomcat`    | `mvn distribution:packageTomcat`               | Standalone Tomcat 11 기반 Zip 생성 (고정)        |
+| **원스탑 서비스 배포** | `./gradlew deployService`    | `mvn distribution:deploy`                      | 빌드 ➡️ 압축해제 ➡️ `install_service.sh` 실행    |
+| **JAR 원스탑 배포**    | `./gradlew deployJar`        | `mvn distribution:deploy -DpackageType=jar`    | JAR 기반 원스탑 배포                             |
+| **Tomcat 원스탑 배포** | `./gradlew deployTomcat`     | `mvn distribution:deploy -DpackageType=tomcat` | Tomcat 기반 원스탑 배포                          |
+| **배포 가이드 출력**   | `./gradlew distHelp`         | `mvn distribution:help` (또는 `distHelp`)      | 명령어 및 옵션 도움말 출력                       |
 | **배포 스크립트 생성** | `./gradlew initDeployScript` | `mvn distribution:initDeployScript`            | 현재 OS에 맞는 `build_deploy.sh`(.bat) 자동 생성 |
+| **Docker 환경 초기화** | `./gradlew initDocker`       | `mvn distribution:initDocker`                  | 배포 유형에 맞는 Dockerfile & Compose 생성       |
+| **런타임 .env 생성**   | `./gradlew initEnv`          | `mvn distribution:initEnv`                     | `.env.example` 기반 `.env` 환경변수 파일 생성    |
 
 ---
 
@@ -97,6 +100,8 @@ Maven 플러그인은 컴파일 시점에 `META-INF/maven/plugin.xml`을 참조�
 | `help`             | `HelpMojo`             | `requiresProject = false` (프로젝트 없이 단독 실행 가능)                                                        |
 | `distHelp`         | `DistHelpMojo`         | `requiresProject = false` (`help` 단축 별칭)                                                                    |
 | `initDeployScript` | `InitDeployScriptMojo` | `basedir`, `os`, `targetOs`                                                                                     |
+| `initDocker`       | `InitDockerMojo`       | `project`, `basedir`, `packageType`, `type`, `appName`, `httpPort`, `tomcatVersion`                             |
+| `initEnv`          | `InitEnvMojo`          | `project`, `basedir`, `profile`, `env`, `force`, `overwrite`, `appName`, `httpPort`                             |
 
 ---
 
@@ -104,15 +109,15 @@ Maven 플러그인은 컴파일 시점에 `META-INF/maven/plugin.xml`을 참조�
 
 플러그인 설정은 빌드 스크립트 DSL과 CLI 실행 파라미터 양쪽 모두에서 제어할 수 있습니다:
 
-| 속성명            | 설명                        | Gradle DSL              | Maven pom.xml                        | CLI 파라미터 (우선순위 높음)                                              | 기본값                       |
-| :---------------- | :-------------------------- | :---------------------- | :----------------------------------- | :------------------------------------------------------------------------ | :--------------------------- |
-| **앱 이름**       | 패키지/스크립트 내 서비스명 | `appName = '...'`       | `<appName>...</appName>`             | `-PappName=...` / `-DappName=...`                                         | 프로젝트 이름 (`artifactId`) |
-| **배포 유형**     | 기본 패키징 방식            | `packageType = '...'`   | `<packageType>...</packageType>`     | `-Ptype=...` / `-Dtype=...`<br/>`-PpackageType=...` / `-DpackageType=...` | `jar`                        |
-| **배포 타겟 OS**  | 패키징 대상 OS 스크립트 필터링 | `os = 'linux'`          | `<os>linux</os>`                     | `-Pos=linux\|windows\|all`<br/>`-Dos=linux\|windows\|all`                  | `linux`                      |
-| **배포 환경**     | 활성 프로파일               | -                       | `<env>...</env>`                     | `-Penv=dev\|prod\|local` / `-Denv=...`                                    | `dev`                        |
-| **HTTP 포트**     | 서비스 포트                 | `httpPort = 8443`       | `<httpPort>8443</httpPort>`          | `-Pport=...` / `-PhttpPort=...`<br/>`-DhttpPort=...`                      | `8443` (미지정 시 설정 파일 자동 감지) |
-| **Tomcat 버전**   | 외장 톰캣 버전              | `tomcatVersion = '...'` | `<tomcatVersion>...</tomcatVersion>` | `-PtomcatVersion=...` / `-DtomcatVersion=...`                             | `11.0.15`                    |
-| **추가 디렉토리** | 패키지 루트 포함 폴더       | `extraDirs = ['...']`   | `<extraDirs>...</extraDirs>`         | `-DextraDirs="..."`                                                       | 없음                         |
+| 속성명            | 설명                           | Gradle DSL              | Maven pom.xml                        | CLI 파라미터 (우선순위 높음)                                              | 기본값                                 |
+| :---------------- | :----------------------------- | :---------------------- | :----------------------------------- | :------------------------------------------------------------------------ | :------------------------------------- |
+| **앱 이름**       | 패키지/스크립트 내 서비스명    | `appName = '...'`       | `<appName>...</appName>`             | `-PappName=...` / `-DappName=...`                                         | 프로젝트 이름 (`artifactId`)           |
+| **배포 유형**     | 기본 패키징 방식               | `packageType = '...'`   | `<packageType>...</packageType>`     | `-Ptype=...` / `-Dtype=...`<br/>`-PpackageType=...` / `-DpackageType=...` | `jar`                                  |
+| **배포 타겟 OS**  | 패키징 대상 OS 스크립트 필터링 | `os = 'linux'`          | `<os>linux</os>`                     | `-Pos=linux\|windows\|all`<br/>`-Dos=linux\|windows\|all`                 | `linux`                                |
+| **배포 환경**     | 활성 프로파일                  | -                       | `<env>...</env>`                     | `-Penv=dev\|prod\|local` / `-Denv=...`                                    | `dev`                                  |
+| **HTTP 포트**     | 서비스 포트                    | `httpPort = 8443`       | `<httpPort>8443</httpPort>`          | `-Pport=...` / `-PhttpPort=...`<br/>`-DhttpPort=...`                      | `8443` (미지정 시 설정 파일 자동 감지) |
+| **Tomcat 버전**   | 외장 톰캣 버전                 | `tomcatVersion = '...'` | `<tomcatVersion>...</tomcatVersion>` | `-PtomcatVersion=...` / `-DtomcatVersion=...`                             | `11.0.15`                              |
+| **추가 디렉토리** | 패키지 루트 포함 폴더          | `extraDirs = ['...']`   | `<extraDirs>...</extraDirs>`         | `-DextraDirs="..."`                                                       | 없음                                   |
 
 #### 💡 `.env` 파일의 `EXTRA_DIRS` 자동 감지 및 패키징
 
@@ -172,7 +177,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 
 #### ② 플러그인이 적용된 개별 Spring Boot 프로젝트 사용자 명령어
 
-`plugins { id 'io.github.mj-youn.distribution' version '3.4.2' }`를 적용한 실제 프로젝트에서 실행하는 명령어:
+`plugins { id 'io.github.mj-youn.distribution' version '3.5.0' }`를 적용한 실제 프로젝트에서 실행하는 명령어:
 
 ```bash
 # 🐘 Gradle 환경
@@ -183,6 +188,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 ./gradlew initDeployScript        # 현재 OS에 맞는 build_deploy.sh(.bat) 자동 생성
 ./gradlew initDocker              # 배포 유형에 맞는 Dockerfile & docker-compose 자동 생성
 ./gradlew initDocker -Ptype=tomcat # Tomcat 전용 Dockerfile 생성
+./gradlew initEnv                 # .env.example 기반 .env 환경변수 파일 생성 (옵션: -Pprofile=dev, -Pforce)
 ./gradlew showDocker              # 🐳 JAR vs Tomcat Dockerfile 아키텍처 비교 가이드 출력
 
 # 🪶 Maven 환경
@@ -192,6 +198,7 @@ mvn distribution:packageTomcat -Denv=dev
 mvn distribution:deploy -Denv=dev
 mvn distribution:initDeployScript
 mvn distribution:initDocker -Dtype=tomcat
+mvn distribution:initEnv -Dprofile=dev
 mvn distribution:showDocker
 ```
 
@@ -447,14 +454,14 @@ sequenceDiagram
 
 Docker 전용 태스크는 주로 **어디서 빌드하고 어떻게 서버에 배포할 것인가(네트워크 및 인프라 환경)**에 따라 나뉩니다. 다음 표를 참고하여 환경에 맞는 방식을 선택하세요:
 
-|      구분       | Strategy 1: `packageDocker`                     | Strategy 2: `packageDockerRemote`                             | (참고) 통합 배포: `package`                |
-| :-------------: | :---------------------------------------------- | :------------------------------------------------------------ | :----------------------------------------- |
-|  **핵심 목적**  | 외부 서버 전송을 위한 **단일 Zip 패키지 생성**  | 원격 저장소를 활용한 **표준 파이프라인 구성**                 | 배포 서버에서 런타임에 직접 실행 방식 선택 |
-|  **타겟 환경**  | 인터넷/레지스트리 접근이 불가한 **폐쇄망 환경** | AWS ECR, Docker Hub 등 **원격 레지스트리 환경**               | 서버에서 소스를 클론받아 바로 띄우는 환경  |
-|  **작업 내용**  | 이미지 빌드 + `.tar` 추출 + Zip 파일 압축       | 이미지 빌드 + 원격 레지스트리로 `docker push`                 | Jar 빌드 + Dockerfile + 스크립트 압축      |
-| **주요 산출물** | `build/distributions/{appName}-docker-{env}.zip` | Remote Registry Image + `build/distributions/docker-dist/`<br>*(경량 배포 디렉토리: `docker-compose.yml`만 포함)* | `build/distributions/{appName}-{version}.zip` |
-|  **전송 방식**  | 수동 전송 필요 (Zip 파일을 복사)                | 서버에 `docker-dist/` 전송 후 스크립트 실행 시 **이미지 자동 Pull** | 소스 pull 또는 Zip 복사                    |
-|  **실행 예시**  | `./gradlew packageDocker -Penv=prod`            | `./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=...`<br>*(별칭: dockerBuildRemote)* | `./gradlew package -Penv=prod`             |
+|      구분       | Strategy 1: `packageDocker`                      | Strategy 2: `packageDockerRemote`                                                                                 | (참고) 통합 배포: `package`                   |
+| :-------------: | :----------------------------------------------- | :---------------------------------------------------------------------------------------------------------------- | :-------------------------------------------- |
+|  **핵심 목적**  | 외부 서버 전송을 위한 **단일 Zip 패키지 생성**   | 원격 저장소를 활용한 **표준 파이프라인 구성**                                                                     | 배포 서버에서 런타임에 직접 실행 방식 선택    |
+|  **타겟 환경**  | 인터넷/레지스트리 접근이 불가한 **폐쇄망 환경**  | AWS ECR, Docker Hub 등 **원격 레지스트리 환경**                                                                   | 서버에서 소스를 클론받아 바로 띄우는 환경     |
+|  **작업 내용**  | 이미지 빌드 + `.tar` 추출 + Zip 파일 압축        | 이미지 빌드 + 원격 레지스트리로 `docker push`                                                                     | Jar 빌드 + Dockerfile + 스크립트 압축         |
+| **주요 산출물** | `build/distributions/{appName}-docker-{env}.zip` | Remote Registry Image + `build/distributions/docker-dist/`<br>_(경량 배포 디렉토리: `docker-compose.yml`만 포함)_ | `build/distributions/{appName}-{version}.zip` |
+|  **전송 방식**  | 수동 전송 필요 (Zip 파일을 복사)                 | 서버에 `docker-dist/` 전송 후 스크립트 실행 시 **이미지 자동 Pull**                                               | 소스 pull 또는 Zip 복사                       |
+|  **실행 예시**  | `./gradlew packageDocker -Penv=prod`             | `./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=...`<br>_(별칭: dockerBuildRemote)_                    | `./gradlew package -Penv=prod`                |
 
 #### Strategy 1 — 오프라인 빌드 (Offline Image) (`./gradlew packageDocker`)
 
@@ -520,16 +527,16 @@ sequenceDiagram
 
 ### 1) 권한 모드별 차이점 비교
 
-| 항목 | 👤 일반 사용자 모드 (기본값) | 🛡️ 시스템 모드 (`--sudo` / `-Psudo`) |
-| :--- | :--- | :--- |
-| **필요 권한** | **일반 사용자 계정 (sudo 불필요)** | `sudo` (root 권한 필수) |
-| **기본 설치 위치** | **`~/apps/<appName>`** (`$HOME/apps/...`) | `/opt/<appName>` |
-| **기본 로그 경로** | **`~/logs/<appName>`** (`$HOME/logs/...`) | `/log/<appName>` |
-| **서비스 데몬 등록** | **`~/.config/systemd/user/<appName>.service`** | `/etc/systemd/system/<appName>.service` |
+| 항목                 | 👤 일반 사용자 모드 (기본값)                       | 🛡️ 시스템 모드 (`--sudo` / `-Psudo`)    |
+| :------------------- | :------------------------------------------------- | :-------------------------------------- |
+| **필요 권한**        | **일반 사용자 계정 (sudo 불필요)**                 | `sudo` (root 권한 필수)                 |
+| **기본 설치 위치**   | **`~/apps/<appName>`** (`$HOME/apps/...`)          | `/opt/<appName>`                        |
+| **기본 로그 경로**   | **`~/logs/<appName>`** (`$HOME/logs/...`)          | `/log/<appName>`                        |
+| **서비스 데몬 등록** | **`~/.config/systemd/user/<appName>.service`**     | `/etc/systemd/system/<appName>.service` |
 | **서비스 제어 명령** | **`systemctl --user start/stop/status <appName>`** | `systemctl start/stop/status <appName>` |
-| **Cron 작업 등록** | **사용자 crontab (`crontab -e`)** | `/etc/cron.d/<appName>` |
-| **소유권 관리** | **본인 소유이므로 `chown` 생략 (chmod만 적용)** | `chown $REAL_USER:$GROUP` 강제 적용 |
-| **보안 격리 수준** | **사용자 공간으로 격리 (Sandbox 효과)** | OS 전체 권한 (침해 시 root 장악 위험) |
+| **Cron 작업 등록**   | **사용자 crontab (`crontab -e`)**                  | `/etc/cron.d/<appName>`                 |
+| **소유권 관리**      | **본인 소유이므로 `chown` 생략 (chmod만 적용)**    | `chown $REAL_USER:$GROUP` 강제 적용     |
+| **보안 격리 수준**   | **사용자 공간으로 격리 (Sandbox 효과)**            | OS 전체 권한 (침해 시 root 장악 위험)   |
 
 ### 2) 배포 실행 방법
 
@@ -558,12 +565,13 @@ sudo ./uninstall_service.sh --sudo    # 🛡️ 시스템 서비스 삭제
 ### 3) 일반 사용자 모드 엄격 사전 유효성 검증 (위배 시 배포 즉시 차단)
 
 일반 사용자 모드로 배포할 때 다음 사항을 사전에 검사하여 안전하게 배포를 제어합니다:
+
 1. **특권 포트 검증 (Privileged Port)**:
-   - 포트 번호가 1024 미만(1~1023)인 경우, Linux 커널 보안 정책상 일반 유저 바인딩이 불가하므로 **명확한 원인 및 해결책 안내 후 즉시 배포를 중단**합니다.
+    - 포트 번호가 1024 미만(1~1023)인 경우, Linux 커널 보안 정책상 일반 유저 바인딩이 불가하므로 **명확한 원인 및 해결책 안내 후 즉시 배포를 중단**합니다.
 2. **설치 및 로그 경로 쓰기 권한 검증**:
-   - 지정된 설치 디렉토리 및 로그 디렉토리에 현재 사용자의 쓰기 권한(`-w`)이 없으면 즉시 배포를 중단하고 권장 경로를 안내합니다.
+    - 지정된 설치 디렉토리 및 로그 디렉토리에 현재 사용자의 쓰기 권한(`-w`)이 없으면 즉시 배포를 중단하고 권장 경로를 안내합니다.
 3. **Docker 실행 권한 검증 (Docker 모드)**:
-   - Docker 배포 모드 선택 시 `docker` 명령어 접근 권한이 없으면 즉시 중단하고 `sudo usermod -aG docker $USER` 요청 가이드를 출력합니다.
+    - Docker 배포 모드 선택 시 `docker` 명령어 접근 권한이 없으면 즉시 중단하고 `sudo usermod -aG docker $USER` 요청 가이드를 출력합니다.
 
 ### 4) 부팅 시 자동 실행 유지 (Linger 설정)
 
@@ -572,4 +580,5 @@ sudo ./uninstall_service.sh --sudo    # 🛡️ 시스템 서비스 삭제
 ```bash
 sudo loginctl enable-linger $USER
 ```
+
 > 배포 완료 시 `install_service.sh`가 Linger 설정 여부를 자동 점검하여 미설정 상태일 경우 가이드 카드를 터미널에 출력합니다.

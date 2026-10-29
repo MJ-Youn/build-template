@@ -1,11 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <plugin>
   <name>Distribution Maven Plugin</name>
-  <description>Maven distribution packaging plugin with embedded scripts and JAR/Tomcat dual deployment support
-    (v3.4.2)</description>
+  <description>Maven distribution packaging plugin with embedded scripts and JAR/Tomcat dual
+    deployment support
+    (v3.5.0)</description>
   <groupId>io.github.mj-youn</groupId>
   <artifactId>distribution-maven-plugin</artifactId>
-  <version>3.4.2</version>
+  <version>3.5.0</version>
   <goalPrefix>distribution</goalPrefix>
   <isolatedRealm>false</isolatedRealm>
   <inheritedByDefault>true</inheritedByDefault>
@@ -516,6 +517,89 @@
         <appName default-value="${project.artifactId}" />
         <httpPort default-value="8443">${httpPort}</httpPort>
         <tomcatVersion default-value="11.0.15">${tomcatVersion}</tomcatVersion>
+      </configuration>
+    </mojo>
+    <mojo>
+      <goal>initEnv</goal>
+      <description>프로젝트에 .env.example 템플릿을 기반으로 런타임 환경변수 설정 파일(.env)을 생성합니다.</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.InitEnvMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+      <parameters>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>MavenProject 인스턴스</description>
+        </parameter>
+        <parameter>
+          <name>basedir</name>
+          <type>java.io.File</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>프로젝트 루트 디렉토리</description>
+        </parameter>
+        <parameter>
+          <name>profile</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>환경설정 프로파일 (dev, prod, all 등)</description>
+        </parameter>
+        <parameter>
+          <name>env</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>profile 파라미터의 별칭</description>
+        </parameter>
+        <parameter>
+          <name>force</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>기존 파일이 존재할 경우 강제 덮어쓰기 여부</description>
+        </parameter>
+        <parameter>
+          <name>overwrite</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>force 파라미터의 별칭</description>
+        </parameter>
+        <parameter>
+          <name>appName</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>서비스 애플리케이션 이름</description>
+        </parameter>
+        <parameter>
+          <name>httpPort</name>
+          <type>int</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>서비스 HTTP 포트</description>
+        </parameter>
+      </parameters>
+      <configuration>
+        <project default-value="${project}" />
+        <basedir default-value="${project.basedir}" />
+        <profile default-value="${profile}" />
+        <env default-value="${env}" />
+        <force default-value="false">${force}</force>
+        <overwrite default-value="false">${overwrite}</overwrite>
+        <appName default-value="${project.artifactId}" />
+        <httpPort default-value="8443">${httpPort}</httpPort>
       </configuration>
     </mojo>
     <mojo>

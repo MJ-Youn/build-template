@@ -17,7 +17,7 @@ import java.util.Map;
 /**
  * 프로젝트의 docker/ 디렉토리에 배포 유형(JAR 또는 Tomcat)에 맞는 샘플 Dockerfile 및 docker-compose.yml을 생성하는 Maven Goal입니다.
  *
- * @author MJ Yun
+ * @author 윤명준 (MJ Yun)
  * @since 2026. 09. 15.
  */
 @Mojo(name = "initDocker", requiresProject = true, threadSafe = true)
@@ -49,6 +49,11 @@ public class InitDockerMojo extends AbstractMojo {
      */
     public InitDockerMojo() {}
 
+    /**
+     * @see org.apache.maven.plugin.Mojo#execute()
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 15.
+     */
     @Override
     public void execute() throws MojoExecutionException {
         String resolvedType = (type != null && !type.isBlank()) ? type : packageType;
@@ -122,6 +127,16 @@ public class InitDockerMojo extends AbstractMojo {
         }
     }
 
+    /**
+     * 클래스패스 상의 템플릿 리소스를 읽어 토큰을 치환한 후 대상 파일에 저장합니다.
+     *
+     * @param resourcePath 클래스패스 상의 리소스 경로
+     * @param targetFile 생성할 대상 파일
+     * @param tokens 치환할 토큰 키-값 맵
+     * @throws IOException 입출력 오류 발생 시
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 15.
+     */
     private void copyTemplateResource(String resourcePath, File targetFile, Map<String, Object> tokens) throws IOException {
         InputStream stream = getClass().getClassLoader().getResourceAsStream(resourcePath);
         if (stream == null) {

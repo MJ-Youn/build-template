@@ -14,7 +14,7 @@ import java.nio.file.StandardCopyOption;
 /**
  * 프로젝트 루트에 배포 자동화 쉘 스크립트(build_deploy.sh)를 생성하는 Maven 플러그인 Goal입니다.
  *
- * @author MJ Yun
+ * @author 윤명준 (MJ Yun)
  * @since 2026. 09. 09.
  */
 @Mojo(name = "initDeployScript", requiresProject = true, threadSafe = true)
@@ -40,6 +40,11 @@ public class InitDeployScriptMojo extends AbstractMojo {
      */
     public InitDeployScriptMojo() {}
 
+    /**
+     * @see org.apache.maven.plugin.Mojo#execute()
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 09.
+     */
     @Override
     public void execute() throws MojoExecutionException {
         String currentOsName = System.getProperty("os.name", "");

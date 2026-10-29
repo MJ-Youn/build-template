@@ -10,7 +10,6 @@ import org.apache.maven.plugins.annotations.Mojo;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
-import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
@@ -18,7 +17,7 @@ import java.util.List;
 /**
  * Maven 프로젝트의 패키지 빌드 후 Zip을 자동으로 풀어 install_service.sh를 실행하는 원스탑 배포 플러그인 Goal입니다.
  *
- * @author MJ Yun
+ * @author 윤명준 (MJ Yun)
  * @since 2026. 09. 07.
  */
 @Mojo(name = "deploy", defaultPhase = LifecyclePhase.NONE, requiresProject = true, threadSafe = true)
@@ -30,6 +29,11 @@ public class DeployMojo extends DistributionMojo {
      */
     public DeployMojo() {}
 
+    /**
+     * @see io.github.mj_youn.plugin.DistributionMojo#execute()
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 07.
+     */
     @Override
     public void execute() throws MojoExecutionException {
         // 1. 부모의 package 로직 실행 (Zip 생성)

@@ -14,7 +14,7 @@ import org.apache.maven.plugins.annotations.Mojo;
  * mvn distribution:package-docker-remote -Denv=prod -DdockerRegistry=my.reg.com/repo
  * </pre>
  *
- * @author MJ Yun
+ * @author 윤명준 (MJ Yun)
  * @since 2026. 09. 21.
  */
 @Mojo(name = "packageDockerRemote", defaultPhase = LifecyclePhase.NONE, requiresProject = true, threadSafe = true)
@@ -26,6 +26,11 @@ public class PackageDockerRemoteMojo extends DistributionMojo {
      */
     public PackageDockerRemoteMojo() {}
 
+    /**
+     * @see io.github.mj_youn.plugin.DistributionMojo#execute()
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     @Override
     public void execute() throws MojoExecutionException {
         executePackageDockerRemote();

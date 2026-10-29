@@ -34,7 +34,7 @@ import java.util.Set;
  * 표준 배포 구조(deploy, bin, config, lib, docker, webapps, tomcat)를 일관되게 패키징하고, Executable JAR 및
  * Standalone Apache Tomcat 11 배포를 모두 지원하는 Gradle 플러그인입니다.
  *
- * @author MJ Yun
+ * @author 윤명준 (MJ Yun)
  * @since 2026. 09. 07.
  */
 public class DistributionPlugin implements Plugin<Project> {
@@ -47,6 +47,11 @@ public class DistributionPlugin implements Plugin<Project> {
      */
     public DistributionPlugin() {}
 
+    /**
+     * @see org.gradle.api.Plugin#apply(Object)
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 07.
+     */
     @Override
     public void apply(Project project) {
         // 1. 배포 확장 설정(Extension) 등록
@@ -212,6 +217,31 @@ public class DistributionPlugin implements Plugin<Project> {
             task.setDescription("JAR 배포와 Tomcat 배포의 Docker 컨테이너 구조 및 Dockerfile 차이점을 콘솔에서 확인합니다.");
             task.doLast(t -> printDockerComparisonGuide(project));
         });
+
+        // 11. 'initEnv' 태스크 등록 (.env.example 기반 런타임 .env 파일 생성)
+        project.getTasks().register("initEnv", task -> {
+            task.setGroup("distribution");
+            task.setDescription("프로젝트의 .env.example 템플릿을 기반으로 런타임 환경변수 설정 파일(.env)을 생성합니다.");
+            task.doLast(t -> {
+                String packageType = resolvePackageType(project, extension, null);
+                Map<String, Object> tokens = createReplaceTokens(project, extension, packageType);
+
+                String profile = project.hasProperty("profile")
+                        ? String.valueOf(project.property("profile")).trim()
+                        : (project.hasProperty("env") ? String.valueOf(project.property("env")).trim() : null);
+
+                boolean force = false;
+                if (project.hasProperty("force")) {
+                    Object val = project.property("force");
+                    force = val == null || "".equals(val) || "true".equalsIgnoreCase(String.valueOf(val));
+                } else if (project.hasProperty("overwrite")) {
+                    Object val = project.property("overwrite");
+                    force = val == null || "".equals(val) || "true".equalsIgnoreCase(String.valueOf(val));
+                }
+
+                initEnvFiles(project, profile, force, tokens);
+            });
+        });
     }
 
     private void registerDeployTask(Project project, String taskName, String description,
@@ -279,10 +309,17 @@ public class DistributionPlugin implements Plugin<Project> {
         });
     }
 
+    /**
+     * 배포 플러그인 사용 가이드 및 명령어 목록을 콘솔에 출력합니다.
+     *
+     * @param project 현재 Gradle 프로젝트 인스턴스
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 07.
+     */
     private void printGuide(Project project) {
         String msg = """
                 ================================================================================
-                🚀 [Distribution Plugin 3.4.2] 빌드 및 배포 가이드
+                🚀 [Distribution Plugin 3.5.0] 빌드 및 배포 가이드
                 ================================================================================
 
                 [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -344,6 +381,7 @@ public class DistributionPlugin implements Plugin<Project> {
                   ./gradlew initDocker               : 배포 유형(기본 설정)에 맞는 Dockerfile & docker-compose 생성
                   ./gradlew initDocker -Ptype=jar    : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
                   ./gradlew initDocker -Ptype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
+                  ./gradlew initEnv                  : .env.example 기반 .env 환경 변수 파일 생성 (옵션: -Pprofile=dev, -Pforce)
                   ./gradlew showDocker               : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
                   ./gradlew distHelp                 : 이 도움말 출력
                   ./build_deploy.sh                  : 쉘 스크립트 기반 원스탑 배포 (Windows: build_deploy.bat)
@@ -400,7 +438,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         zipTask.doFirst(task -> {
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("🚀 [Distribution 3.4.2] 배포 패키지 생성 시작");
+            project.getLogger().lifecycle("🚀 [Distribution 3.5.0] 배포 패키지 생성 시작");
             project.getLogger().lifecycle("   - 대상 프로젝트    : {}", project.getName());
             project.getLogger().lifecycle("   - 배포 유형       : {} ({})", packageType.toUpperCase(),
                     isTomcat ? "Standalone Tomcat" : "Executable JAR");
@@ -656,7 +694,7 @@ public class DistributionPlugin implements Plugin<Project> {
             File archive = zipTask.getArchiveFile().get().getAsFile();
             long sizeInMb = archive.length() / (1024 * 1024);
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("✅ [Distribution 3.4.2] 배포 패키지 생성 완료!");
+            project.getLogger().lifecycle("✅ [Distribution 3.5.0] 배포 패키지 생성 완료!");
             project.getLogger().lifecycle("   - 산출물 경로: {}", archive.getAbsolutePath());
             project.getLogger().lifecycle("   - 파일 크기  : {} MB ({} bytes)", sizeInMb, archive.length());
             project.getLogger().lifecycle("================================================================");
@@ -676,8 +714,9 @@ public class DistributionPlugin implements Plugin<Project> {
                             String val = line.substring("EXTRA_DIRS=".length()).trim();
                             val = val.replaceAll("^[\"']|[\"']$", "");
                             for (String d : val.split("[,\\s]+")) {
-                                if (!d.trim().isEmpty())
+                                if (!d.trim().isEmpty()) {
                                     extraDirsToCopy.add(d.trim());
+                                }
                             }
                         }
                     }
@@ -726,6 +765,16 @@ public class DistributionPlugin implements Plugin<Project> {
         }
     }
 
+    /**
+     * 프로젝트 속성, CLI 옵션, DSL 설정을 바탕으로 최종 배포 패키지 유형('jar' 또는 'tomcat')을 결정합니다.
+     *
+     * @param project Gradle 프로젝트 인스턴스
+     * @param extension 배포 확장 설정
+     * @param explicitType 명시적으로 지정된 패키지 유형 (null 가능)
+     * @return 결정된 최종 패키지 유형 문자열 ("jar" 또는 "tomcat")
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 07.
+     */
     private String resolvePackageType(Project project, DistributionExtension extension, String explicitType) {
         if (explicitType != null && !explicitType.isBlank()) {
             return explicitType.toLowerCase();
@@ -878,10 +927,19 @@ public class DistributionPlugin implements Plugin<Project> {
         }
     }
 
+    /**
+     * 지정된 디렉토리 내의 모든 자바 소스 파일(.java)을 재귀적으로 탐색하여 목록에 수집합니다.
+     *
+     * @param dir 탐색할 루트 디렉토리
+     * @param result 발견된 자바 파일들을 저장할 결과 리스트
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 07.
+     */
     private void findJavaFiles(File dir, List<File> result) {
         File[] files = dir.listFiles();
-        if (files == null)
+        if (files == null) {
             return;
+        }
         for (File f : files) {
             if (f.isDirectory()) {
                 findJavaFiles(f, result);
@@ -891,6 +949,15 @@ public class DistributionPlugin implements Plugin<Project> {
         }
     }
 
+    /**
+     * CLI 파라미터, 빌드 DSL 확장, application.yml 설정 파일을 순차적으로 분석하여 HTTP 서비스 포트를 확인합니다.
+     *
+     * @param project Gradle 프로젝트 인스턴스
+     * @param extension 배포 확장 설정
+     * @return 해석된 HTTP 포트 번호 (기본값: 8443)
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 07.
+     */
     private int resolveHttpPort(Project project, DistributionExtension extension) {
         if (project.hasProperty("httpPort")) {
             try {
@@ -1055,13 +1122,15 @@ public class DistributionPlugin implements Plugin<Project> {
             String line;
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
-                if (line.isEmpty())
+                if (line.isEmpty()) {
                     continue;
+                }
 
                 String resourcePath = "template/" + line;
                 InputStream resStream = getClass().getClassLoader().getResourceAsStream(resourcePath);
-                if (resStream == null)
+                if (resStream == null) {
                     continue;
+                }
 
                 File outFile = new File(targetDir, line);
                 File parent = outFile.getParentFile();
@@ -1152,6 +1221,106 @@ public class DistributionPlugin implements Plugin<Project> {
     }
 
     /**
+     * .env.example 템플릿을 기반으로 .env 파일을 생성합니다.
+     *
+     * @param project
+     *            Gradle 프로젝트 인스턴스
+     * @param profile
+     *            프로파일 이름 (dev, prod, all 등 또는 null)
+     * @param force
+     *            기존 파일 존재 시 덮어쓰기 여부
+     * @param tokens
+     *            치환용 토큰 맵
+     */
+    private void initEnvFiles(Project project, String profile, boolean force, Map<String, Object> tokens) {
+        try {
+            // 1. 소스 템플릿 로드 (로컬 프로젝트 파일 우선 -> 클래스패스 템플릿 폴백)
+            // 💡 SERVER_PORT=@httpPort@ 등의 토큰은 빌드/패키징 시점에 application.yml 또는 CLI 옵션에 의해 동적으로 치환되므로 원형을 유지합니다.
+            String templateContent = loadEnvExampleTemplate(project);
+
+            project.getLogger().lifecycle("================================================================");
+            project.getLogger().lifecycle("⚙️  [Distribution] 런타임 환경설정(.env) 파일 생성");
+
+            List<File> targetFiles = new ArrayList<>();
+
+            if (profile == null || profile.isBlank()) {
+                // 1. 프로파일 미지정 기본값: 프로젝트 루트의 .env 단일 생성
+                targetFiles.add(project.file(".env"));
+            } else if ("all".equalsIgnoreCase(profile)) {
+                // 2. all: 루트 .env 및 config.profiles 주요 환경별 파일 일괄 생성
+                targetFiles.add(project.file(".env"));
+                targetFiles.add(project.file("config.profiles/dev/.env-dev"));
+                targetFiles.add(project.file("config.profiles/prod/.env-prod"));
+            } else {
+                // 3. 특정 프로파일 지정 (예: dev, prod 등) -> config.profiles/{profile}/.env-{profile} 단일 생성
+                // (명시적으로 -Pdocker 또는 -Ptype=docker 지정 시에만 docker.profiles 에 생성)
+                boolean isDockerTarget = project.hasProperty("docker")
+                        || "docker".equalsIgnoreCase(String.valueOf(project.findProperty("type")));
+                if (isDockerTarget) {
+                    targetFiles.add(project.file("docker.profiles/" + profile + "/.env-" + profile));
+                } else {
+                    targetFiles.add(project.file("config.profiles/" + profile + "/.env-" + profile));
+                }
+            }
+
+            int createdCount = 0;
+            int skippedCount = 0;
+
+            for (File targetFile : targetFiles) {
+                if (targetFile.exists() && !force) {
+                    project.getLogger().lifecycle("   ⚠️ [SKIP] 이미 파일이 존재합니다: {} (덮어쓰려면 -Pforce 옵션 사용)",
+                            targetFile.getPath());
+                    skippedCount++;
+                } else {
+                    if (targetFile.getParentFile() != null) {
+                        targetFile.getParentFile().mkdirs();
+                    }
+                    Files.writeString(targetFile.toPath(), templateContent, StandardCharsets.UTF_8);
+                    project.getLogger().lifecycle("   ✅ [생성 완료] {}", targetFile.getAbsolutePath());
+                    createdCount++;
+                }
+            }
+
+            project.getLogger().lifecycle("----------------------------------------------------------------");
+            project.getLogger().lifecycle("📊 [결과] 생성: {}개, 스킵: {}개", createdCount, skippedCount);
+            project.getLogger().lifecycle("💡 [안내] 생성된 .env 파일에서 JVM 힙 메모리(JVM_XMS, JVM_XMX),");
+            project.getLogger().lifecycle("         서비스 포트(SERVER_PORT), 프로그램 인수(APP_ARGS) 등을 자유롭게 튜닝하세요.");
+            project.getLogger().lifecycle("================================================================");
+
+        } catch (IOException e) {
+            throw new RuntimeException(".env 파일 생성 실패: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * .env.example 템플릿 내용을 로드합니다.
+     * 로컬 프로젝트의 scripts/service/.env.example 또는 docker/.env.example 또는 .env.example을 우선 탐색하고,
+     * 없을 경우 플러그인 내장 클래스패스 템플릿(template/scripts/service/.env.example)을 로드합니다.
+     */
+    private String loadEnvExampleTemplate(Project project) throws IOException {
+        File[] candidates = new File[] {
+                project.file("scripts/service/.env.example"),
+                project.file("docker/.env.example"),
+                project.file(".env.example")
+        };
+        for (File candidate : candidates) {
+            if (candidate.exists() && candidate.isFile()) {
+                project.getLogger().lifecycle("📄 [Distribution] 로컬 템플릿 사용: {}", candidate.getPath());
+                return Files.readString(candidate.toPath(), StandardCharsets.UTF_8);
+            }
+        }
+
+        InputStream stream = getClass().getClassLoader().getResourceAsStream("template/scripts/service/.env.example");
+        if (stream == null) {
+            throw new IOException("내장 .env.example 템플릿 리소스를 찾을 수 없습니다.");
+        }
+        try (stream) {
+            project.getLogger().lifecycle("📄 [Distribution] 플러그인 내장 템플릿 사용: template/scripts/service/.env.example");
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    /**
      * 클래스패스 템플릿 리소스를 읽어 토큰을 치환한 후 대상 파일에 저장합니다.
      *
      * @param resourcePath
@@ -1193,7 +1362,7 @@ public class DistributionPlugin implements Plugin<Project> {
     private void printDockerComparisonGuide(Project project) {
         String guide = """
                 ================================================================================
-                🐳 [Distribution 3.4.2] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
+                🐳 [Distribution 3.5.0] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
                 ================================================================================
 
                 ┌─────────────────┬──────────────────────────────────┬──────────────────────────────────┐
@@ -1273,7 +1442,7 @@ public class DistributionPlugin implements Plugin<Project> {
 
         long sizeMb = outputZip.length() / (1024 * 1024);
         project.getLogger().lifecycle("================================================================");
-        project.getLogger().lifecycle("✅ [Distribution 3.4.2] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
+        project.getLogger().lifecycle("✅ [Distribution 3.5.0] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
         project.getLogger().lifecycle("   - 산출물 경로: {}", outputZip.getAbsolutePath());
         project.getLogger().lifecycle("   - 파일 크기  : {} MB ({} bytes)", sizeMb, outputZip.length());
         project.getLogger().lifecycle("   - 배포 방법  : 서버에 zip 전송 -> unzip -> sudo ./deploy/install_service.sh");
@@ -1440,6 +1609,14 @@ public class DistributionPlugin implements Plugin<Project> {
         return new DockerBuildContext(dockerContextDir, appName, tag, registry, fullImageName, packageType);
     }
 
+    /**
+     * 특정 디렉토리 내에서 조건에 일치하는 파일들을 재귀적으로 삭제합니다.
+     *
+     * @param dir 탐색 대상 디렉토리
+     * @param predicate 삭제 여부를 결정하는 조건식 (Predicate)
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void deleteFilesMatching(File dir, java.util.function.Predicate<File> predicate) {
         if (dir == null || !dir.exists()) {
             return;
@@ -1456,6 +1633,17 @@ public class DistributionPlugin implements Plugin<Project> {
         }
     }
 
+    /**
+     * 외부 시스템 명령어(Docker 등)를 프로세스로 실행하고 결과를 대기합니다.
+     *
+     * @param project Gradle 프로젝트 인스턴스
+     * @param command 실행할 명령어 및 인자 리스트
+     * @param workDir 작업 디렉토리
+     * @param taskDesc 태스크 설명 문구 (에러 로깅용)
+     * @throws RuntimeException 프로세스 실행 실패 또는 비정상 종료 시
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void runProcess(Project project, List<String> command, File workDir, String taskDesc) {
         try {
             project.getLogger().lifecycle("▶️ [Distribution] 실행 명령어: {}", String.join(" ", command));
@@ -1474,6 +1662,15 @@ public class DistributionPlugin implements Plugin<Project> {
         }
     }
 
+    /**
+     * 소스 디렉토리 전체를 UTF-8 인코딩 및 Unix 권한을 유지하며 단일 Zip 파일로 압축 생성합니다.
+     *
+     * @param sourceDir 압축할 원본 디렉토리
+     * @param zipFile 생성될 대상 Zip 파일
+     * @throws RuntimeException 압축 생성 실패 시
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void createTarAndZipArchive(File sourceDir, File zipFile) {
         try (ZipOutputStream zos = new ZipOutputStream(new FileOutputStream(zipFile))) {
             zos.setEncoding("UTF-8");
@@ -1483,6 +1680,16 @@ public class DistributionPlugin implements Plugin<Project> {
         }
     }
 
+    /**
+     * Zip 출력 스트림에 파일 또는 디렉토리를 재귀적으로 등록하고 쉘 스크립트 실행 권한(0755)을 부여합니다.
+     *
+     * @param zos Zip 출력 스트림
+     * @param currentFile 현재 처리 중인 파일 또는 디렉토리
+     * @param rootDir 상대 경로 산출용 루트 디렉토리
+     * @throws IOException 입출력 처리 중 오류 발생 시
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void addDirToZip(ZipOutputStream zos, File currentFile, File rootDir) throws IOException {
         if (currentFile.isDirectory()) {
             File[] children = currentFile.listFiles();
@@ -1507,9 +1714,18 @@ public class DistributionPlugin implements Plugin<Project> {
         }
     }
 
+    /**
+     * 원본 파일 또는 디렉토리가 존재하는 경우 대상 경로로 재귀 복사하고 실행 스크립트의 실행 권한을 설정합니다.
+     *
+     * @param src 복사할 원본 파일 또는 디렉토리
+     * @param dest 복사 대상 파일 또는 디렉토리
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void copyDirIfExists(File src, File dest) {
-        if (src == null || !src.exists())
+        if (src == null || !src.exists()) {
             return;
+        }
         if (src.isDirectory()) {
             dest.mkdirs();
             File[] files = src.listFiles();
@@ -1519,8 +1735,9 @@ public class DistributionPlugin implements Plugin<Project> {
                 }
             }
         } else {
-            if (dest.getParentFile() != null)
+            if (dest.getParentFile() != null) {
                 dest.getParentFile().mkdirs();
+            }
             try {
                 Files.copy(src.toPath(), dest.toPath(), StandardCopyOption.REPLACE_EXISTING);
                 if (src.getName().endsWith(".sh")) {
@@ -1531,6 +1748,14 @@ public class DistributionPlugin implements Plugin<Project> {
         }
     }
 
+    /**
+     * 원격 배포 패키징 시 필요한 docker-compose.yml 파일만 배포 산출물 디렉토리에 복사합니다.
+     *
+     * @param dockerContextDir 원본 Docker 컨텍스트 디렉토리
+     * @param destDistDir 대상 배포 디렉토리
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void copyDockerComposeOnly(File dockerContextDir, File destDistDir) {
         File targetDockerDir = new File(destDistDir, "docker");
         targetDockerDir.mkdirs();
@@ -1544,6 +1769,15 @@ public class DistributionPlugin implements Plugin<Project> {
         }
     }
 
+    /**
+     * Docker 이미지 원격 Push 완료 후 운영 서버 배포 절차 가이드 배너를 콘솔에 출력합니다.
+     *
+     * @param project Gradle 프로젝트 인스턴스
+     * @param ctx Docker 빌드 컨텍스트
+     * @param distDir 배포 파일 디렉토리
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void printRemoteDeployBanner(Project project, DockerBuildContext ctx, File distDir) {
         String msg = String.format("""
 
@@ -1577,9 +1811,18 @@ public class DistributionPlugin implements Plugin<Project> {
         project.getLogger().lifecycle(msg);
     }
 
+    /**
+     * 사용자 입력 레지스트리 URL에서 프로토콜(http://, https://) 및 끝부분 슬래시(/)를 정제합니다.
+     *
+     * @param raw 원본 레지스트리 URL 문자열
+     * @return 정제된 레지스트리 도메인 및 경로 문자열
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private String cleanRegistryUrl(String raw) {
-        if (raw == null)
+        if (raw == null) {
             return "";
+        }
         String reg = raw.trim().replaceAll("^https?://", "");
         if (reg.endsWith("/")) {
             reg = reg.substring(0, reg.length() - 1);
@@ -1587,12 +1830,23 @@ public class DistributionPlugin implements Plugin<Project> {
         return reg;
     }
 
+    /**
+     * 배포 디렉토리 내의 스크립트 및 설정 파일에서 Docker 이미지 태그 문자열을 원격 레지스트리 이미지명으로 일괄 치환합니다.
+     *
+     * @param dir 처리할 대상 디렉토리
+     * @param oldImage 기존 이미지 태그 명칭
+     * @param newImage 변경할 원격 레지스트리 전체 이미지 명칭
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private void updateDockerImageInDir(File dir, String oldImage, String newImage) {
-        if (dir == null || !dir.exists())
+        if (dir == null || !dir.exists()) {
             return;
+        }
         File[] files = dir.listFiles();
-        if (files == null)
+        if (files == null) {
             return;
+        }
         for (File file : files) {
             if (file.isDirectory()) {
                 updateDockerImageInDir(file, oldImage, newImage);
@@ -1613,6 +1867,12 @@ public class DistributionPlugin implements Plugin<Project> {
         }
     }
 
+    /**
+     * Docker 이미지 빌드 및 푸시 작업에 필요한 컨텍스트 정보를 담는 내부 데이터 클래스입니다.
+     *
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 09. 21.
+     */
     private static class DockerBuildContext {
         final File dockerContextDir;
         final String appName;
