@@ -17,7 +17,8 @@
     - `distHelp`: 배포 플러그인 도움말 출력 (`help` alias)
     - `initDeployScript`: 프로젝트 루트에 원클릭 배포 쉘 스크립트(`build_deploy.sh`) 자동 생성
     - `initDocker`: 배포 유형에 맞는 Dockerfile & docker-compose 자동 생성
-    - `initEnv`: 프로젝트 루트에 .env.example 기반 런타임 .env 환경 변수 파일 자동 생성
+    - `initEnv`: Docker Compose 전용 환경 변수 파일(.env) 자동 생성 (`docker.profiles/{profile}/.env-{profile}`)
+    - `initApplicationEnv`: Spring Boot 런타임 전용 환경 변수 파일(`application.env`) 자동 생성 (`config.profiles/{profile}/application-{profile}.env`)
     - `showDocker`: JAR vs Tomcat Dockerfile 아키텍처 비교 콘솔 출력
 
 ---

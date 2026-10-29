@@ -2,27 +2,45 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
-## 🎯 [3.5.0] - 2026-10-28
+## 🎯 [3.5.0] - 2026-10-29
 
-> 🚀 **Minor Release** — `.env.example` 템플릿 기반 런타임 환경변수 설정 파일(`.env`) 자동 생성 유틸리티 명령어(`initEnv` / `mvn distribution:initEnv`) 신규 탑재, 프로젝트 및 환경 프로파일별(`.env-{profile}`) 스마트 타겟팅, 기존 파일 보존 안심 스킵 및 강제 덮어쓰기(`-Pforce` / `-Dforce=true`) 지원, Gradle 및 Maven 플러그인 100% 동일 사양 구현.
+> 🚀 **Minor Release** — Docker 인프라 환경변수(`.env`)와 Spring Boot 애플리케이션 런타임 환경설정(`application.env`)의 완전한 분리 및 전용 생성 명령어(`initEnv`, `initApplicationEnv` / `mvn distribution:initEnv`, `mvn distribution:initApplicationEnv`) 신규 탑재, 프로젝트 및 환경 프로파일별 스마트 타겟팅, 기존 파일 보존 안심 스킵 및 강제 덮어쓰기(`-Pforce` / `-Dforce=true`) 지원, 전 소스 코드 품질 및 Javadoc 표준화 전면 리팩토링 완료.
 
 ### ✨ 신규 기능 및 개선 사항 (Features & Improvements)
 
-#### 1. ⚙️ 런타임 환경변수 파일 자동 생성 명령어 신규 추가 (`initEnv` / `mvn distribution:initEnv`)
+#### 1. ⚙️ 환경설정 파일 분리 및 전용 생성 명령어 신규 추가 (`initEnv` & `initApplicationEnv`)
 
+- **Docker 인프라(`.env`) vs Spring Boot 런타임(`application.env`) 역할 분리**:
+    - 기존에 단일 `.env` 파일에 섞여 있던 Docker 인프라 설정과 Java 애플리케이션 런타임 옵션을 목적에 맞게 완전히 분리했습니다.
+    - **`initEnv` (Docker Compose 전용)**:
+        - 컨테이너 실행 UID/GID(`APP_UID`, `APP_GID`), 포트(`HTTP_PORT`), 이미지명(`DOCKER_IMAGE`), 호스트 로그 경로(`LOG_PATH`)를 관리하는 `.env` 파일을 생성합니다.
+        - 프로파일 지정 시 `docker.profiles/{profile}/.env-{profile}`에 생성되며, 패키징 시 배포 루트의 `.env`로 적재됩니다.
+    - **`initApplicationEnv` (Spring Boot 런타임 전용)**:
+        - JVM 힙 메모리(`JVM_XMS`, `JVM_XMX`), 추가 JVM 옵션(`EXTRA_JAVA_OPTS`), 프로그램 인수(`APP_ARGS`)를 관리하는 `application.env` 파일을 생성합니다.
+        - 프로파일 지정 시 `config.profiles/{profile}/application-{profile}.env`에 생성되며, 패키징 시 `config/application.env`로 정규화 적재됩니다.
 - **`initDocker`, `initDeployScript`와 동일한 원클릭 개발자 경험 제공**:
-    - 프로젝트 내 `scripts/service/.env.example` (또는 `docker/.env.example`, `.env.example`) 템플릿을 기반으로 애플리케이션 실행/배포 시 필요한 `.env` 파일을 자동으로 생성하는 `initEnv` 명령어 탑재.
-    - 외부 프로젝트에서 플러그인 적용 시에도 플러그인 내장 템플릿(`template/scripts/service/.env.example`)을 자동 폴백하여 완벽하게 생성 보장.
-- **스마트 토큰 자동 치환**:
-    - `@appName@`, `@httpPort@`, `@version@`, `@dockerImage@` 등 빌드 템플릿 토큰을 실제 프로젝트 설정값으로 자동 치환하여 즉시 구동 가능한 `.env` 생성.
-- **다양한 타겟팅 및 프로파일 옵션 지원**:
-    - 기본 실행: 프로젝트 루트에 `.env` 단일 생성.
-    - `-Pprofile={profile}` / `-Dprofile={profile}`: `config.profiles/{profile}/.env-{profile}` 및 `docker.profiles/{profile}/.env-{profile}` 전용 설정 파일 생성.
-    - `-Pprofile=all` / `-Dprofile=all`: 루트 `.env`를 포함하여 dev/prod 전 환경 프로파일 `.env` 파일 일괄 생성.
+    - Gradle 및 Maven 플러그인 100% 동일 사양 구현 (`./gradlew initEnv`, `./gradlew initApplicationEnv` / `mvn distribution:initEnv`, `mvn distribution:initApplicationEnv`).
+    - 로컬 템플릿 우선 사용 및 플러그인 내장 템플릿 자동 폴백 지원.
 - **안전한 덮어쓰기 방지 메커니즘**:
     - 이미 대상 파일이 존재하는 경우 개발자의 기존 설정을 보호하기 위해 기본적으로 건너뛰며(`[SKIP]`), 강제 덮어쓰기가 필요한 경우 `-Pforce` (`-Dforce=true`) 또는 `-Poverwrite` 옵션으로 덮어쓰기 가능.
 
-#### 2. 📦 전체 플러그인 메타데이터 및 문서 버전 동기화
+#### 2. 🚀 배포 패키징 및 실행 스크립트(`start.sh`) 런타임 연동 강화
+
+- **패키징 시 프로파일 접미사 자동 정규화**:
+    - `config.profiles/{env}/application-{env}.env` 파일이 패키징 시 `config/application.env`로 자동 변환되어 컨테이너의 `/app/config/application.env`로 마운트됩니다.
+- **`start.sh` 실행 스크립트 로드 우선순위**:
+    - `start.sh`가 기동 시 `config/application.env`를 로드하여 JVM 힙 메모리 및 `APP_ARGS`를 Java 프로세스에 동적 주입합니다.
+    - 기존 프로젝트 호환을 위해 `config/.env` 및 루트 `.env` 폴백도 정상 지원합니다.
+
+#### 3. 🛠️ 소스 코드 품질 및 Javadoc 표준화 전면 리팩토링
+
+- **`code_quality_and_review.md` 표준 가이드라인 100% 준수**:
+    - **`@Override` 메소드 주석 규격화**: 부가 설명이나 `@param`, `@return` 중복 작성을 배제하고, 반드시 `@see`, `@author`, `@since` 3개 태그만 규격화하여 작성.
+    - **Javadoc 전수 문서화**: 모든 클래스, public/protected/private 메소드에 한글 Javadoc 설명 및 파라미터/반환값 문서화 완료.
+    - **제어문 Block 구문 준수**: 단일 라인 `if`, `for`, `while` 제어문에 빠짐없이 중괄호 `{}` 블록 적용.
+    - **Import 최적화**: 와일드카드(`*`) import 전면 제거 및 미사용 import 정리.
+
+#### 4. 📦 전체 플러그인 메타데이터 및 문서 버전 동기화
 
 - `distribution-gradle-plugin` (Gradle) & `distribution-maven-plugin` (Maven) 버전 `3.5.0` 갱신.
 - 사용자 및 개발자 가이드(`README.md`, `README_EN.md`, `DEVELOPER_GUIDE.md`) 내 플러그인 의존성 설정 버전 `3.5.0` 반영.
