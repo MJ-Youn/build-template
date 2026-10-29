@@ -20,10 +20,12 @@ fi
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 CONFIG_LOC="$PROJECT_ROOT/config/"
 
-# .env 로드 (우선순위: 루트 .env -> config/.env -> bin/.env)
+# 런타임 환경설정 로드 (루트 .env -> config/.env -> bin/.env -> config/application.env 순으로 로드하여 application.env 최종 반영)
 [ -f "$PROJECT_ROOT/.env" ] && source "$PROJECT_ROOT/.env"
 [ -f "$CONFIG_LOC/.env" ] && source "$CONFIG_LOC/.env"
 [ -f "$SCRIPT_DIR/.env" ] && source "$SCRIPT_DIR/.env"
+[ -f "$CONFIG_LOC/application.env" ] && source "$CONFIG_LOC/application.env"
+[ -f "$SCRIPT_DIR/application.env" ] && source "$SCRIPT_DIR/application.env"
 
 LOG_PATH="${LOG_PATH:-$PROJECT_ROOT/log}"
 PID_FILE="${PID_FILE:-$SCRIPT_DIR/application.pid}"

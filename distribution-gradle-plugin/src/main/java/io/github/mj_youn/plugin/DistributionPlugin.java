@@ -218,10 +218,10 @@ public class DistributionPlugin implements Plugin<Project> {
             task.doLast(t -> printDockerComparisonGuide(project));
         });
 
-        // 11. 'initEnv' 태스크 등록 (.env.example 기반 런타임 .env 파일 생성)
+        // 11. 'initEnv' 태스크 등록 (docker.profiles/.env Docker 환경변수 파일 생성)
         project.getTasks().register("initEnv", task -> {
             task.setGroup("distribution");
-            task.setDescription("프로젝트의 .env.example 템플릿을 기반으로 런타임 환경변수 설정 파일(.env)을 생성합니다.");
+            task.setDescription("Docker Compose 및 컨테이너 환경변수 설정 파일(docker.profiles/{profile}/.env-{profile})을 생성합니다.");
             task.doLast(t -> {
                 String packageType = resolvePackageType(project, extension, null);
                 Map<String, Object> tokens = createReplaceTokens(project, extension, packageType);
@@ -240,6 +240,31 @@ public class DistributionPlugin implements Plugin<Project> {
                 }
 
                 initEnvFiles(project, profile, force, tokens);
+            });
+        });
+
+        // 12. 'initApplicationEnv' 태스크 등록 (config.profiles/application.env Spring Boot 런타임 환경변수 생성)
+        project.getTasks().register("initApplicationEnv", task -> {
+            task.setGroup("distribution");
+            task.setDescription("Spring Boot 런타임 환경변수 설정 파일(config.profiles/{profile}/application-{profile}.env)을 생성합니다.");
+            task.doLast(t -> {
+                String packageType = resolvePackageType(project, extension, null);
+                Map<String, Object> tokens = createReplaceTokens(project, extension, packageType);
+
+                String profile = project.hasProperty("profile")
+                        ? String.valueOf(project.property("profile")).trim()
+                        : (project.hasProperty("env") ? String.valueOf(project.property("env")).trim() : null);
+
+                boolean force = false;
+                if (project.hasProperty("force")) {
+                    Object val = project.property("force");
+                    force = val == null || "".equals(val) || "true".equalsIgnoreCase(String.valueOf(val));
+                } else if (project.hasProperty("overwrite")) {
+                    Object val = project.property("overwrite");
+                    force = val == null || "".equals(val) || "true".equalsIgnoreCase(String.valueOf(val));
+                }
+
+                initApplicationEnvFiles(project, profile, force, tokens);
             });
         });
     }
@@ -381,7 +406,8 @@ public class DistributionPlugin implements Plugin<Project> {
                   ./gradlew initDocker               : 배포 유형(기본 설정)에 맞는 Dockerfile & docker-compose 생성
                   ./gradlew initDocker -Ptype=jar    : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
                   ./gradlew initDocker -Ptype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
-                  ./gradlew initEnv                  : .env.example 기반 .env 환경 변수 파일 생성 (옵션: -Pprofile=dev, -Pforce)
+                  ./gradlew initEnv                  : Docker Compose 환경변수(.env) 생성 (docker.profiles/dev/.env-dev)
+                  ./gradlew initApplicationEnv       : Spring Boot 런타임 설정(application.env) 생성 (config.profiles/dev/application-dev.env)
                   ./gradlew showDocker               : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
                   ./gradlew distHelp                 : 이 도움말 출력
                   ./build_deploy.sh                  : 쉘 스크립트 기반 원스탑 배포 (Windows: build_deploy.bat)
@@ -1221,46 +1247,39 @@ public class DistributionPlugin implements Plugin<Project> {
     }
 
     /**
-     * .env.example 템플릿을 기반으로 .env 파일을 생성합니다.
+     * Docker Compose 전용 .env.example 템플릿을 기반으로 docker.profiles/{profile}/.env-{profile} 파일을 생성합니다.
      *
      * @param project
      *            Gradle 프로젝트 인스턴스
      * @param profile
-     *            프로파일 이름 (dev, prod, all 등 또는 null)
+     *            대상 환경 프로파일 (null 또는 ""이면 루트 .env 단일 생성, "all"이면 주요 프로파일 일괄 생성)
      * @param force
      *            기존 파일 존재 시 덮어쓰기 여부
      * @param tokens
      *            치환용 토큰 맵
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 10. 29.
      */
     private void initEnvFiles(Project project, String profile, boolean force, Map<String, Object> tokens) {
         try {
-            // 1. 소스 템플릿 로드 (로컬 프로젝트 파일 우선 -> 클래스패스 템플릿 폴백)
-            // 💡 SERVER_PORT=@httpPort@ 등의 토큰은 빌드/패키징 시점에 application.yml 또는 CLI 옵션에 의해 동적으로 치환되므로 원형을 유지합니다.
             String templateContent = loadEnvExampleTemplate(project);
 
             project.getLogger().lifecycle("================================================================");
-            project.getLogger().lifecycle("⚙️  [Distribution] 런타임 환경설정(.env) 파일 생성");
+            project.getLogger().lifecycle("🐳 [Distribution] Docker Compose 환경설정(.env) 파일 생성");
 
             List<File> targetFiles = new ArrayList<>();
 
             if (profile == null || profile.isBlank()) {
-                // 1. 프로파일 미지정 기본값: 프로젝트 루트의 .env 단일 생성
+                // 프로파일 미지정 기본값: 프로젝트 루트 .env 생성
                 targetFiles.add(project.file(".env"));
             } else if ("all".equalsIgnoreCase(profile)) {
-                // 2. all: 루트 .env 및 config.profiles 주요 환경별 파일 일괄 생성
+                // all: 루트 .env 및 주요 환경별 docker.profiles 파일 일괄 생성
                 targetFiles.add(project.file(".env"));
-                targetFiles.add(project.file("config.profiles/dev/.env-dev"));
-                targetFiles.add(project.file("config.profiles/prod/.env-prod"));
+                targetFiles.add(project.file("docker.profiles/dev/.env-dev"));
+                targetFiles.add(project.file("docker.profiles/prod/.env-prod"));
             } else {
-                // 3. 특정 프로파일 지정 (예: dev, prod 등) -> config.profiles/{profile}/.env-{profile} 단일 생성
-                // (명시적으로 -Pdocker 또는 -Ptype=docker 지정 시에만 docker.profiles 에 생성)
-                boolean isDockerTarget = project.hasProperty("docker")
-                        || "docker".equalsIgnoreCase(String.valueOf(project.findProperty("type")));
-                if (isDockerTarget) {
-                    targetFiles.add(project.file("docker.profiles/" + profile + "/.env-" + profile));
-                } else {
-                    targetFiles.add(project.file("config.profiles/" + profile + "/.env-" + profile));
-                }
+                // 특정 프로파일 지정 -> docker.profiles/{profile}/.env-{profile} 단일 생성
+                targetFiles.add(project.file("docker.profiles/" + profile + "/.env-" + profile));
             }
 
             int createdCount = 0;
@@ -1283,39 +1302,142 @@ public class DistributionPlugin implements Plugin<Project> {
 
             project.getLogger().lifecycle("----------------------------------------------------------------");
             project.getLogger().lifecycle("📊 [결과] 생성: {}개, 스킵: {}개", createdCount, skippedCount);
-            project.getLogger().lifecycle("💡 [안내] 생성된 .env 파일에서 JVM 힙 메모리(JVM_XMS, JVM_XMX),");
-            project.getLogger().lifecycle("         서비스 포트(SERVER_PORT), 프로그램 인수(APP_ARGS) 등을 자유롭게 튜닝하세요.");
+            project.getLogger().lifecycle("💡 [안내] 생성된 .env 파일에서 컨테이너 실행 UID/GID,");
+            project.getLogger().lifecycle("         외부 서비스 포트(HTTP_PORT), 도커 이미지(DOCKER_IMAGE) 등을 설정하세요.");
             project.getLogger().lifecycle("================================================================");
 
         } catch (IOException e) {
-            throw new RuntimeException(".env 파일 생성 실패: " + e.getMessage(), e);
+            throw new RuntimeException("Docker .env 파일 생성 실패: " + e.getMessage(), e);
         }
     }
 
     /**
-     * .env.example 템플릿 내용을 로드합니다.
-     * 로컬 프로젝트의 scripts/service/.env.example 또는 docker/.env.example 또는 .env.example을 우선 탐색하고,
-     * 없을 경우 플러그인 내장 클래스패스 템플릿(template/scripts/service/.env.example)을 로드합니다.
+     * Docker Compose 전용 .env.example 템플릿 내용을 로드합니다.
+     *
+     * @param project Gradle 프로젝트 인스턴스
+     * @return 로드된 .env.example 템플릿 문자열
+     * @throws IOException 템플릿 파일을 읽을 수 없는 경우
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 10. 29.
      */
     private String loadEnvExampleTemplate(Project project) throws IOException {
         File[] candidates = new File[] {
-                project.file("scripts/service/.env.example"),
                 project.file("docker/.env.example"),
+                project.file("scripts/service/.env.example"),
                 project.file(".env.example")
         };
         for (File candidate : candidates) {
             if (candidate.exists() && candidate.isFile()) {
-                project.getLogger().lifecycle("📄 [Distribution] 로컬 템플릿 사용: {}", candidate.getPath());
+                project.getLogger().lifecycle("📄 [Distribution] 로컬 Docker 템플릿 사용: {}", candidate.getPath());
                 return Files.readString(candidate.toPath(), StandardCharsets.UTF_8);
             }
         }
 
-        InputStream stream = getClass().getClassLoader().getResourceAsStream("template/scripts/service/.env.example");
+        InputStream stream = getClass().getClassLoader().getResourceAsStream("template/docker/.env.example");
         if (stream == null) {
-            throw new IOException("내장 .env.example 템플릿 리소스를 찾을 수 없습니다.");
+            stream = getClass().getClassLoader().getResourceAsStream("template/scripts/service/.env.example");
+        }
+        if (stream == null) {
+            throw new IOException("내장 Docker .env.example 템플릿 리소스를 찾을 수 없습니다.");
+        }
+        try (InputStream is = stream) {
+            project.getLogger().lifecycle("📄 [Distribution] 플러그인 내장 템플릿 사용: template/docker/.env.example");
+            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    /**
+     * Spring Boot 런타임 전용 application.env.example 템플릿을 기반으로 config.profiles/{profile}/application-{profile}.env 파일을 생성합니다.
+     *
+     * @param project
+     *            Gradle 프로젝트 인스턴스
+     * @param profile
+     *            대상 환경 프로파일 (null 또는 ""이면 dev 기본 생성, "all"이면 주요 프로파일 일괄 생성)
+     * @param force
+     *            기존 파일 존재 시 덮어쓰기 여부
+     * @param tokens
+     *            치환용 토큰 맵
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 10. 29.
+     */
+    private void initApplicationEnvFiles(Project project, String profile, boolean force, Map<String, Object> tokens) {
+        try {
+            String templateContent = loadApplicationEnvExampleTemplate(project);
+
+            project.getLogger().lifecycle("================================================================");
+            project.getLogger().lifecycle("☕ [Distribution] Spring Boot 런타임 환경설정(application.env) 파일 생성");
+
+            List<File> targetFiles = new ArrayList<>();
+
+            if (profile == null || profile.isBlank()) {
+                // 프로파일 미지정 기본값: config.profiles/dev/application-dev.env 단일 생성
+                targetFiles.add(project.file("config.profiles/dev/application-dev.env"));
+            } else if ("all".equalsIgnoreCase(profile)) {
+                // all: 주요 환경별 config.profiles 파일 일괄 생성
+                targetFiles.add(project.file("config.profiles/dev/application-dev.env"));
+                targetFiles.add(project.file("config.profiles/prod/application-prod.env"));
+            } else {
+                // 특정 프로파일 지정 -> config.profiles/{profile}/application-{profile}.env 단일 생성
+                targetFiles.add(project.file("config.profiles/" + profile + "/application-" + profile + ".env"));
+            }
+
+            int createdCount = 0;
+            int skippedCount = 0;
+
+            for (File targetFile : targetFiles) {
+                if (targetFile.exists() && !force) {
+                    project.getLogger().lifecycle("   ⚠️ [SKIP] 이미 파일이 존재합니다: {} (덮어쓰려면 -Pforce 옵션 사용)",
+                            targetFile.getPath());
+                    skippedCount++;
+                } else {
+                    if (targetFile.getParentFile() != null) {
+                        targetFile.getParentFile().mkdirs();
+                    }
+                    Files.writeString(targetFile.toPath(), templateContent, StandardCharsets.UTF_8);
+                    project.getLogger().lifecycle("   ✅ [생성 완료] {}", targetFile.getAbsolutePath());
+                    createdCount++;
+                }
+            }
+
+            project.getLogger().lifecycle("----------------------------------------------------------------");
+            project.getLogger().lifecycle("📊 [결과] 생성: {}개, 스킵: {}개", createdCount, skippedCount);
+            project.getLogger().lifecycle("💡 [안내] 생성된 application.env 파일에서 JVM 힙 메모리(JVM_XMS, JVM_XMX),");
+            project.getLogger().lifecycle("         추가 JVM 옵션(EXTRA_JAVA_OPTS), 프로그램 인수(APP_ARGS) 등을 설정하세요.");
+            project.getLogger().lifecycle("================================================================");
+
+        } catch (IOException e) {
+            throw new RuntimeException("Spring Boot application.env 파일 생성 실패: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Spring Boot 런타임 전용 application.env.example 템플릿 내용을 로드합니다.
+     *
+     * @param project Gradle 프로젝트 인스턴스
+     * @return 로드된 application.env.example 템플릿 문자열
+     * @throws IOException 템플릿 파일을 읽을 수 없는 경우
+     * @author 윤명준 (MJ Yun)
+     * @since 2026. 10. 29.
+     */
+    private String loadApplicationEnvExampleTemplate(Project project) throws IOException {
+        File[] candidates = new File[] {
+                project.file("scripts/service/application.env.example"),
+                project.file("config/application.env.example"),
+                project.file("application.env.example")
+        };
+        for (File candidate : candidates) {
+            if (candidate.exists() && candidate.isFile()) {
+                project.getLogger().lifecycle("📄 [Distribution] 로컬 application.env 템플릿 사용: {}", candidate.getPath());
+                return Files.readString(candidate.toPath(), StandardCharsets.UTF_8);
+            }
+        }
+
+        InputStream stream = getClass().getClassLoader().getResourceAsStream("template/scripts/service/application.env.example");
+        if (stream == null) {
+            throw new IOException("내장 application.env.example 템플릿 리소스를 찾을 수 없습니다.");
         }
         try (stream) {
-            project.getLogger().lifecycle("📄 [Distribution] 플러그인 내장 템플릿 사용: template/scripts/service/.env.example");
+            project.getLogger().lifecycle("📄 [Distribution] 플러그인 내장 템플릿 사용: template/scripts/service/application.env.example");
             return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
         }
     }

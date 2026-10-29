@@ -183,7 +183,8 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
       ./gradlew initDocker               : 배포 유형에 맞는 Dockerfile & docker-compose 생성
       ./gradlew initDocker -Ptype=jar    : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
       ./gradlew initDocker -Ptype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
-      ./gradlew initEnv                  : .env.example 기반 .env 환경 변수 파일 생성 (옵션: -Pprofile=dev, -Pforce)
+      ./gradlew initEnv                  : Docker Compose 환경변수(.env) 생성 (docker.profiles/dev/.env-dev)
+      ./gradlew initApplicationEnv       : Spring Boot 런타임 설정(application.env) 생성 (config.profiles/dev/application-dev.env)
       ./gradlew showDocker               : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
       ./gradlew distHelp                 : 이 도움말 출력
       ./build_deploy.sh                  : 쉘 스크립트 기반 원스탑 배포
@@ -246,7 +247,8 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
       mvn distribution:initDocker             : 배포 유형에 맞는 Dockerfile & docker-compose 생성
       mvn distribution:initDocker -Dtype=jar  : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
       mvn distribution:initDocker -Dtype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
-      mvn distribution:initEnv                : .env.example 기반 .env 환경 변수 파일 생성 (옵션: -Dprofile=dev, -Dforce=true)
+      mvn distribution:initEnv                : Docker Compose 환경변수(.env) 생성 (docker.profiles/dev/.env-dev)
+      mvn distribution:initApplicationEnv     : Spring Boot 런타임 설정(application.env) 생성 (config.profiles/dev/application-dev.env)
       mvn distribution:showDocker             : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
       mvn distribution:help                   : 이 도움말 출력 (또는 mvn distribution:distHelp)
       ./build_deploy.sh                       : 쉘 스크립트 기반 원스탑 배포
@@ -411,24 +413,40 @@ mvn distribution:showDocker               # JAR vs Tomcat Dockerfile 비교 콘�
 
 ---
 
-### ⚙️ 런타임 환경설정 파일 생성 (`initEnv`)
+### ⚙️ 환경설정 파일 생성 (`initEnv` & `initApplicationEnv`)
 
-프로젝트 내 `.env.example` 템플릿(또는 플러그인 내장 템플릿)을 기반으로 애플리케이션 실행/배포 시 필요한 환경 변수 파일(`.env`)을 원클릭으로 자동 생성합니다.
+인프라(Docker) 환경변수와 애플리케이션(Spring Boot) 런타임 환경변수를 명확히 분리하여 각각 목적에 맞는 표준 파일로 생성합니다.
 
-#### 1) 명령어 사용법
-
+#### 1) 🐳 Docker Compose 환경설정 생성 (`initEnv`)
+호스트 및 Docker Compose 구동에 필요한 환경변수 파일(`.env`)을 생성합니다:
 ```bash
 # 🐘 Gradle 환경
 ./gradlew initEnv                     # 프로젝트 루트에 기본 .env 파일 생성
-./gradlew initEnv -Pprofile=dev       # dev 환경 프로파일 전용 .env 파일 생성
-./gradlew initEnv -Pprofile=all       # 루트 및 config.profiles, docker.profiles 환경별 파일 일괄 생성
-./gradlew initEnv -Pforce             # 이미 존재하는 .env 파일을 강제로 덮어쓰기
+./gradlew initEnv -Pprofile=dev       # docker.profiles/dev/.env-dev 생성
+./gradlew initEnv -Pprofile=all       # 루트 및 docker.profiles 환경별 파일 일괄 생성
+./gradlew initEnv -Pforce             # 이미 존재하는 파일을 강제로 덮어쓰기
 
 # 🪶 Maven 환경
 mvn distribution:initEnv                    # 프로젝트 루트에 기본 .env 파일 생성
-mvn distribution:initEnv -Dprofile=dev      # dev 환경 프로파일 전용 .env 파일 생성
-mvn distribution:initEnv -Dprofile=all      # 루트 및 config/docker 프로파일 환경별 파일 일괄 생성
-mvn distribution:initEnv -Dforce=true       # 이미 존재하는 .env 파일을 강제로 덮어쓰기
+mvn distribution:initEnv -Dprofile=dev      # docker.profiles/dev/.env-dev 생성
+mvn distribution:initEnv -Dprofile=all      # 루트 및 docker.profiles 환경별 파일 일괄 생성
+mvn distribution:initEnv -Dforce=true       # 이미 존재하는 파일을 강제로 덮어쓰기
+```
+
+#### 2) ☕ Spring Boot 런타임 환경설정 생성 (`initApplicationEnv`)
+컨테이너 내부 및 Java 애플리케이션 실행을 위한 런타임 파일(`application.env`)을 생성합니다:
+```bash
+# 🐘 Gradle 환경
+./gradlew initApplicationEnv                # config.profiles/dev/application-dev.env 생성
+./gradlew initApplicationEnv -Pprofile=prod  # config.profiles/prod/application-prod.env 생성
+./gradlew initApplicationEnv -Pprofile=all   # config.profiles 환경별 파일 일괄 생성
+./gradlew initApplicationEnv -Pforce        # 이미 존재하는 파일을 강제로 덮어쓰기
+
+# 🪶 Maven 환경
+mvn distribution:initApplicationEnv               # config.profiles/dev/application-dev.env 생성
+mvn distribution:initApplicationEnv -Dprofile=prod # config.profiles/prod/application-prod.env 생성
+mvn distribution:initApplicationEnv -Dprofile=all  # config.profiles 환경별 파일 일괄 생성
+mvn distribution:initApplicationEnv -Dforce=true  # 이미 존재하는 파일을 강제로 덮어쓰기
 ```
 
 #### 2) 주요 특징 및 안전 장치

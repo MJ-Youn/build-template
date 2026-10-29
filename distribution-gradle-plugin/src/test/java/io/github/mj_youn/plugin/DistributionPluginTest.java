@@ -36,7 +36,11 @@ class DistributionPluginTest {
         Task dockerBuildTask = project.getTasks().findByName("dockerBuild");
         assertNull(dockerBuildTask, "독립적인 dockerBuild 태스크는 등록되지 않아야 합니다.");
 
-        // 5. Extension DSL 프로퍼티 확인
+        // 5. 신규 환경변수 생성 태스크 확인
+        assertNotNull(project.getTasks().findByName("initEnv"), "initEnv 태스크가 등록되어 있어야 합니다.");
+        assertNotNull(project.getTasks().findByName("initApplicationEnv"), "initApplicationEnv 태스크가 등록되어 있어야 합니다.");
+
+        // 6. Extension DSL 프로퍼티 확인
         DistributionExtension extension = project.getExtensions().findByType(DistributionExtension.class);
         assertNotNull(extension, "distribution extension이 존재해야 합니다.");
 
@@ -110,8 +114,8 @@ class DistributionPluginTest {
     }
 
     @Test
-    @DisplayName("initEnv 태스크는 .env.example을 기반으로 루트 .env 파일을 정상 생성해야 한다.")
-    void testInitEnvBasic() throws Exception {
+    @DisplayName("initEnv 태스크는 Docker Compose용 .env 파일을 정상 생성해야 한다.")
+    void testInitEnv() throws Exception {
         Project project = ProjectBuilder.builder().build();
         project.getPlugins().apply("java");
         project.getPlugins().apply("io.github.mj-youn.distribution");
@@ -119,59 +123,51 @@ class DistributionPluginTest {
         Task initEnvTask = project.getTasks().findByName("initEnv");
         assertNotNull(initEnvTask, "initEnv 태스크가 등록되어 있어야 합니다.");
 
+        // 1. 프로파일 미지정 시 루트 .env 생성
         initEnvTask.getActions().get(0).execute(initEnvTask);
 
         java.io.File rootEnv = project.file(".env");
         assertTrue(rootEnv.exists(), "프로젝트 루트에 .env 파일이 생성되어야 합니다.");
-
         String content = java.nio.file.Files.readString(rootEnv.toPath());
-        assertTrue(content.contains("JVM_XMS"), "JVM_XMS 설정이 포함되어 있어야 합니다.");
-        assertTrue(content.contains("SERVER_PORT=@httpPort@"), "SERVER_PORT는 빌드 시점 치환을 위해 @httpPort@ 원형을 유지해야 합니다.");
-    }
+        assertTrue(content.contains("APP_UID"), "Docker 실행을 위한 APP_UID 설정이 포함되어 있어야 합니다.");
+        assertTrue(content.contains("HTTP_PORT"), "HTTP_PORT 설정이 포함되어 있어야 합니다.");
 
-    @Test
-    @DisplayName("initEnv 태스크는 파일이 이미 존재할 때 force 옵션 없이 스킵하고, force 옵션 시 덮어써야 한다.")
-    void testInitEnvForce() throws Exception {
-        Project project = ProjectBuilder.builder().build();
-        project.getPlugins().apply("java");
-        project.getPlugins().apply("io.github.mj-youn.distribution");
-
-        java.io.File rootEnv = project.file(".env");
-        java.nio.file.Files.writeString(rootEnv.toPath(), "CUSTOM_CONFIG=existing_value\n");
-
-        Task initEnvTask = project.getTasks().findByName("initEnv");
-        initEnvTask.getActions().get(0).execute(initEnvTask);
-
-        // force 없이 실행했으므로 기존 내용 유지
-        String contentWithoutForce = java.nio.file.Files.readString(rootEnv.toPath());
-        assertTrue(contentWithoutForce.contains("CUSTOM_CONFIG=existing_value"), "force 옵션이 없으면 기존 내용이 보존되어야 합니다.");
-
-        // force 옵션 활성화 후 재실행
-        project.getExtensions().getExtraProperties().set("force", "true");
-        initEnvTask.getActions().get(0).execute(initEnvTask);
-
-        String contentWithForce = java.nio.file.Files.readString(rootEnv.toPath());
-        assertTrue(contentWithForce.contains("JVM_XMS"), "force 옵션 실행 시 템플릿 내용으로 덮어써져야 합니다.");
-    }
-
-    @Test
-    @DisplayName("initEnv 태스크는 profile 옵션 지정 시 프로파일 디렉토리에 .env 파일을 생성해야 한다.")
-    void testInitEnvWithProfile() {
-        Project project = ProjectBuilder.builder().build();
-        project.getPlugins().apply("java");
-        project.getPlugins().apply("io.github.mj-youn.distribution");
-
+        // 2. profile 옵션 지정 시 docker.profiles/{profile}/.env-{profile} 생성
         project.getExtensions().getExtraProperties().set("profile", "dev");
-
-        Task initEnvTask = project.getTasks().findByName("initEnv");
         initEnvTask.getActions().get(0).execute(initEnvTask);
 
-        java.io.File configProfileEnv = project.file("config.profiles/dev/.env-dev");
         java.io.File dockerProfileEnv = project.file("docker.profiles/dev/.env-dev");
-        java.io.File rootEnv = project.file(".env");
+        java.io.File configProfileEnv = project.file("config.profiles/dev/.env-dev");
+        assertTrue(dockerProfileEnv.exists(), "docker.profiles/dev/.env-dev 파일이 생성되어야 합니다.");
+        assertFalse(configProfileEnv.exists(), "initEnv 실행 시 config.profiles에는 생성되지 않아야 합니다.");
+    }
 
-        assertTrue(configProfileEnv.exists(), "config.profiles/dev/.env-dev 파일이 생성되어야 합니다.");
-        assertFalse(dockerProfileEnv.exists(), "기본 실행 시 docker.profiles 에는 생성되지 않아야 합니다.");
-        assertFalse(rootEnv.exists(), "profile 지정 시 루트 .env 는 중복 생성되지 않아야 합니다.");
+    @Test
+    @DisplayName("initApplicationEnv 태스크는 Spring Boot 런타임용 application.env 파일을 정상 생성해야 한다.")
+    void testInitApplicationEnv() throws Exception {
+        Project project = ProjectBuilder.builder().build();
+        project.getPlugins().apply("java");
+        project.getPlugins().apply("io.github.mj-youn.distribution");
+
+        Task initAppEnvTask = project.getTasks().findByName("initApplicationEnv");
+        assertNotNull(initAppEnvTask, "initApplicationEnv 태스크가 등록되어 있어야 합니다.");
+
+        // 1. 프로파일 미지정 시 기본 config.profiles/dev/application-dev.env 생성
+        initAppEnvTask.getActions().get(0).execute(initAppEnvTask);
+
+        java.io.File devAppEnv = project.file("config.profiles/dev/application-dev.env");
+        assertTrue(devAppEnv.exists(), "config.profiles/dev/application-dev.env 파일이 생성되어야 합니다.");
+
+        String content = java.nio.file.Files.readString(devAppEnv.toPath());
+        assertTrue(content.contains("JVM_XMS"), "JVM_XMS 설정이 포함되어 있어야 합니다.");
+        assertTrue(content.contains("JVM_XMX"), "JVM_XMX 설정이 포함되어 있어야 합니다.");
+        assertTrue(content.contains("APP_ARGS"), "APP_ARGS 설정이 포함되어 있어야 합니다.");
+
+        // 2. profile=prod 지정 시 config.profiles/prod/application-prod.env 생성
+        project.getExtensions().getExtraProperties().set("profile", "prod");
+        initAppEnvTask.getActions().get(0).execute(initAppEnvTask);
+
+        java.io.File prodAppEnv = project.file("config.profiles/prod/application-prod.env");
+        assertTrue(prodAppEnv.exists(), "config.profiles/prod/application-prod.env 파일이 생성되어야 합니다.");
     }
 }

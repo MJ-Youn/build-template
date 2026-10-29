@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class InitEnvMojoTest {
 
     @Test
-    @DisplayName("InitEnvMojo 실행 시 .env.example을 기반으로 루트 .env 파일이 정상 생성되어야 한다.")
+    @DisplayName("InitEnvMojo 실행 시 Docker Compose용 루트 .env 파일이 정상 생성되어야 한다.")
     void testInitEnvBasic(@TempDir File tempDir) throws Exception {
         InitEnvMojo mojo = new InitEnvMojo();
 
@@ -33,8 +33,8 @@ class InitEnvMojoTest {
         assertTrue(rootEnv.exists(), "프로젝트 루트에 .env 파일이 생성되어야 합니다.");
 
         String content = Files.readString(rootEnv.toPath());
-        assertTrue(content.contains("JVM_XMS"), "JVM_XMS 설정이 포함되어 있어야 합니다.");
-        assertTrue(content.contains("SERVER_PORT=@httpPort@"), "SERVER_PORT는 빌드 시점 치환을 위해 @httpPort@ 원형을 유지해야 합니다.");
+        assertTrue(content.contains("APP_UID"), "Docker 실행용 APP_UID 설정이 포함되어 있어야 합니다.");
+        assertTrue(content.contains("HTTP_PORT"), "HTTP_PORT 설정이 포함되어 있어야 합니다.");
     }
 
     @Test
@@ -61,11 +61,11 @@ class InitEnvMojoTest {
         mojo.execute();
 
         String contentWithForce = Files.readString(rootEnv.toPath());
-        assertTrue(contentWithForce.contains("JVM_XMS"), "force=true 시 템플릿 내용으로 덮어써져야 합니다.");
+        assertTrue(contentWithForce.contains("APP_UID"), "force=true 시 템플릿 내용으로 덮어써져야 합니다.");
     }
 
     @Test
-    @DisplayName("InitEnvMojo 실행 시 profile 옵션 지정 시 프로파일 디렉토리에 .env 파일이 생성되어야 한다.")
+    @DisplayName("InitEnvMojo 실행 시 profile 옵션 지정 시 docker.profiles 디렉토리에 .env 파일이 생성되어야 한다.")
     void testInitEnvWithProfile(@TempDir File tempDir) throws Exception {
         InitEnvMojo mojo = new InitEnvMojo();
 
@@ -76,12 +76,12 @@ class InitEnvMojoTest {
 
         mojo.execute();
 
-        File configProfileEnv = new File(tempDir, "config.profiles/dev/.env-dev");
         File dockerProfileEnv = new File(tempDir, "docker.profiles/dev/.env-dev");
+        File configProfileEnv = new File(tempDir, "config.profiles/dev/.env-dev");
         File rootEnv = new File(tempDir, ".env");
 
-        assertTrue(configProfileEnv.exists(), "config.profiles/dev/.env-dev 파일이 생성되어야 합니다.");
-        assertFalse(dockerProfileEnv.exists(), "기본 실행 시 docker.profiles 에는 생성되지 않아야 합니다.");
+        assertTrue(dockerProfileEnv.exists(), "docker.profiles/dev/.env-dev 파일이 생성되어야 합니다.");
+        assertFalse(configProfileEnv.exists(), "initEnv 실행 시 config.profiles에는 생성되지 않아야 합니다.");
         assertFalse(rootEnv.exists(), "profile 지정 시 루트 .env 는 중복 생성되지 않아야 합니다.");
     }
 

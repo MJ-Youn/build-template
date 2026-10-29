@@ -84,7 +84,8 @@ public class HelpMojo extends AbstractMojo {
           mvn distribution:initDocker             : 배포 유형에 맞는 Dockerfile & docker-compose 생성
           mvn distribution:initDocker -Dtype=jar  : JAR 배포용 Dockerfile 생성 (libs/ + bin/start.sh)
           mvn distribution:initDocker -Dtype=tomcat : Tomcat 배포용 Dockerfile 생성 (Apache Tomcat + webapps/ROOT)
-          mvn distribution:initEnv                : .env.example 기반 .env 환경 변수 파일 생성 (옵션: -Dprofile=dev, -Dforce=true)
+          mvn distribution:initEnv                : Docker Compose 환경변수(.env) 생성 (docker.profiles/dev/.env-dev)
+          mvn distribution:initApplicationEnv     : Spring Boot 런타임 설정(application.env) 생성 (config.profiles/dev/application-dev.env)
           mvn distribution:showDocker             : JAR vs Tomcat Dockerfile 구조 및 차이점 콘솔 출력
           mvn distribution:help                   : 이 도움말 출력 (또는 mvn distribution:distHelp)
           ./build_deploy.sh                       : 쉘 스크립트 기반 원스탑 배포 (Windows: build_deploy.bat)

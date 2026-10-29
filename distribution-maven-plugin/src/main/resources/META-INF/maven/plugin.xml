@@ -371,6 +371,89 @@
       </configuration>
     </mojo>
     <mojo>
+      <goal>initApplicationEnv</goal>
+      <description>Spring Boot 런타임 환경변수 설정 파일(config.profiles/{profile}/application-{profile}.env)을 생성합니다.</description>
+      <requiresDirectInvocation>false</requiresDirectInvocation>
+      <requiresProject>true</requiresProject>
+      <requiresReports>false</requiresReports>
+      <aggregator>false</aggregator>
+      <requiresOnline>false</requiresOnline>
+      <inheritedByDefault>true</inheritedByDefault>
+      <implementation>io.github.mj_youn.plugin.InitApplicationEnvMojo</implementation>
+      <language>java</language>
+      <instantiationStrategy>per-lookup</instantiationStrategy>
+      <executionStrategy>once-per-lookup</executionStrategy>
+      <threadSafe>true</threadSafe>
+      <parameters>
+        <parameter>
+          <name>project</name>
+          <type>org.apache.maven.project.MavenProject</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>MavenProject 인스턴스</description>
+        </parameter>
+        <parameter>
+          <name>basedir</name>
+          <type>java.io.File</type>
+          <required>true</required>
+          <editable>false</editable>
+          <description>프로젝트 루트 디렉토리</description>
+        </parameter>
+        <parameter>
+          <name>profile</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>환경설정 프로파일 (dev, prod, all 등)</description>
+        </parameter>
+        <parameter>
+          <name>env</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>profile 파라미터의 별칭</description>
+        </parameter>
+        <parameter>
+          <name>force</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>기존 파일이 존재할 경우 강제 덮어쓰기 여부</description>
+        </parameter>
+        <parameter>
+          <name>overwrite</name>
+          <type>boolean</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>force 파라미터의 별칭</description>
+        </parameter>
+        <parameter>
+          <name>appName</name>
+          <type>java.lang.String</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>서비스 애플리케이션 이름</description>
+        </parameter>
+        <parameter>
+          <name>httpPort</name>
+          <type>int</type>
+          <required>false</required>
+          <editable>true</editable>
+          <description>서비스 HTTP 포트</description>
+        </parameter>
+      </parameters>
+      <configuration>
+        <project default-value="${project}" />
+        <basedir default-value="${project.basedir}" />
+        <profile default-value="${profile}" />
+        <env default-value="${env}" />
+        <force default-value="false">${force}</force>
+        <overwrite default-value="false">${overwrite}</overwrite>
+        <appName default-value="${project.artifactId}" />
+        <httpPort default-value="8443">${httpPort}</httpPort>
+      </configuration>
+    </mojo>
+    <mojo>
       <goal>help</goal>
       <description>배포 플러그인 사용 가이드 및 명령어 안내를 출력합니다.</description>
       <requiresDirectInvocation>false</requiresDirectInvocation>
@@ -521,7 +604,7 @@
     </mojo>
     <mojo>
       <goal>initEnv</goal>
-      <description>프로젝트에 .env.example 템플릿을 기반으로 런타임 환경변수 설정 파일(.env)을 생성합니다.</description>
+      <description>Docker Compose 및 컨테이너 환경변수 설정 파일(docker.profiles/{profile}/.env-{profile})을 생성합니다.</description>
       <requiresDirectInvocation>false</requiresDirectInvocation>
       <requiresProject>true</requiresProject>
       <requiresReports>false</requiresReports>

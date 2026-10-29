@@ -42,7 +42,8 @@ build_template (루트 / SSOT)
 │   │   ├── DistHelpMojo.java           # distHelp goal (help alias)
 │   │   ├── InitDeployScriptMojo.java   # initDeployScript goal (build_deploy.sh 및 build_deploy.bat 생성)
 │   │   ├── InitDockerMojo.java         # initDocker goal (Dockerfile/compose 자동 생성)
-│   │   ├── InitEnvMojo.java            # initEnv goal (.env.example 기반 .env 자동 생성)
+│   │   ├── InitEnvMojo.java            # initEnv goal (Docker 전용 .env 생성)
+│   │   ├── InitApplicationEnvMojo.java # initApplicationEnv goal (Spring Boot 전용 application.env 생성)
 │   │   └── ShowDockerMojo.java         # showDocker goal (JAR vs Tomcat 비교 가이드)
 │   ├── src/main/resources/META-INF/maven/plugin.xml # Maven 플러그인 디스크립터
 │   └── build.gradle                    # Sonatype Central Portal 배포 및 GPG 서명 설정
@@ -83,7 +84,8 @@ build_template (루트 / SSOT)
 | **배포 가이드 출력**   | `./gradlew distHelp`         | `mvn distribution:help` (또는 `distHelp`)      | 명령어 및 옵션 도움말 출력                       |
 | **배포 스크립트 생성** | `./gradlew initDeployScript` | `mvn distribution:initDeployScript`            | 현재 OS에 맞는 `build_deploy.sh`(.bat) 자동 생성 |
 | **Docker 환경 초기화** | `./gradlew initDocker`       | `mvn distribution:initDocker`                  | 배포 유형에 맞는 Dockerfile & Compose 생성       |
-| **런타임 .env 생성**   | `./gradlew initEnv`          | `mvn distribution:initEnv`                     | `.env.example` 기반 `.env` 환경변수 파일 생성    |
+| **Docker .env 생성**   | `./gradlew initEnv`          | `mvn distribution:initEnv`                     | Docker Compose 전용 `.env` 생성 (docker.profiles) |
+| **Spring Boot env 생성** | `./gradlew initApplicationEnv` | `mvn distribution:initApplicationEnv`        | Spring Boot 런타임 `application.env` 생성 (config.profiles) |
 
 ---
 
