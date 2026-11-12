@@ -1142,14 +1142,44 @@ install_docker_mode() {
     log_header "설치 완료"
 }
 
-# @description Docker 설치 사전 요구사항 점검
+# @description Docker 설치 및 실행 권한 사전 요구사항 점검
 check_docker_prerequisites() {
     log_step "사전 요구사항 확인"
     if ! command -v docker &> /dev/null; then
         log_error "Docker가 설치되어 있지 않습니다. Docker를 먼저 설치해주세요."
         exit 1
     fi
-    log_success "Docker 설치 확인 완료."
+
+    # Docker 데몬 접근 권한 점검 (sudo 없이 docker 실행 가능 여부)
+    if ! docker ps >/dev/null 2>&1; then
+        echo ""
+        log_error "현재 사용자(${REAL_USER})는 sudo 없이 Docker 데몬에 접근할 권한이 없습니다."
+        echo -e "   ${YELLOW}💡 Docker 그룹 미등록 또는 User Systemd 세션 미갱신으로 인한 문제입니다.${NC}"
+        echo -e "   ${CYAN}아래 두 명령어를 순서대로 실행하여 권한을 부여한 후 다시 시도해 주세요:${NC}\n"
+        echo -e "   ${BOLD}1️⃣  Docker 그룹에 현재 사용자 추가:${NC}"
+        echo -e "      ${GREEN}sudo usermod -aG docker ${REAL_USER}${NC}\n"
+        echo -e "   ${BOLD}2️⃣  User Systemd 세션 데몬에 변경된 그룹 권한 즉시 반영 (재부팅 불필요):${NC}"
+        echo -e "      ${GREEN}sudo systemctl restart user@\$(id -u ${REAL_USER}).service${NC}\n"
+        echo -e "   ${YELLOW}※ 위 명령어 실행 후 새 터미널 세션을 열거나 스크립트를 다시 실행해 주세요.${NC}\n"
+
+        # 터미널 대화형 실행 시 자동 실행 지원
+        if [ -t 0 ] && command -v sudo >/dev/null 2>&1; then
+            read -p "❓ 지금 자동으로 위 두 명령어를 실행하시겠습니까? (y/N): " -r AUTO_FIX
+            if [[ "$AUTO_FIX" =~ ^[Yy]$ ]]; then
+                log_info "Docker 그룹 등록 및 User Systemd 세션 자동 갱신 중..."
+                if sudo usermod -aG docker "$REAL_USER" && sudo systemctl restart "user@$(id -u "$REAL_USER").service"; then
+                    log_success "권한 갱신 완료! 새 세션 권한을 적용하기 위해 스크립트를 재기동합니다..."
+                    exec sg docker -c "$0 $*"
+                else
+                    log_warning "자동 갱신에 실패했습니다. 위의 안내된 명령어를 수동으로 실행해 주세요."
+                    exit 1
+                fi
+            fi
+        fi
+        exit 1
+    fi
+
+    log_success "Docker 설치 및 실행 권한 확인 완료."
 }
 
 # @description Docker 배포 시 설치 경로 결정
@@ -1532,6 +1562,7 @@ Wants=network-online.target
 [Service]
 User=$REAL_USER
 Group=$SERVICE_GROUP
+SupplementaryGroups=docker
 Type=simple
 WorkingDirectory=$DEST_DIR
 ExecStart=$START_SCRIPT

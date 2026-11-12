@@ -160,6 +160,9 @@ public class DistributionMojo extends AbstractMojo {
         return "tomcat".equalsIgnoreCase(pt) || "war".equalsIgnoreCase(pt);
     }
 
+    /** 플러그인의 현재 릴리즈 버전 문자열입니다. */
+    public static final String CURRENT_VERSION = "3.5.2";
+
     /**
      * @see org.apache.maven.plugin.Mojo#execute()
      * @author 윤명준 (MJ Yun)
@@ -167,15 +170,18 @@ public class DistributionMojo extends AbstractMojo {
      */
     @Override
     public void execute() throws MojoExecutionException {
+        // 0. 플러그인 최신 버전 백그라운드 확인 및 업데이트 알림
+        VersionChecker.check(msg -> getLog().info(msg), CURRENT_VERSION);
+
         this.httpPort = resolveHttpPort();
         boolean tomcatMode = isTomcat();
         String resolvedType = resolvePackageType();
         String targetOs = (os != null && !os.isBlank()) ? os.trim().toLowerCase() : "linux";
 
-        File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
+        File targetZip = resolveArchiveZipFile(isTomcat());
 
         getLog().info("================================================================");
-        getLog().info("🚀 [Distribution 3.5.0] 배포 패키지 생성 시작");
+        getLog().info("🚀 [Distribution 3.5.2] 배포 패키지 생성 시작");
         getLog().info(
                 "   - 대상 프로젝트    : " + (appName != null && !appName.isBlank() ? appName : project.getArtifactId()));
         getLog().info("   - 배포 유형       : " + resolvedType.toUpperCase() + " ("
@@ -306,7 +312,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeInMb = targetZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("✅ [Distribution 3.5.0] 배포 패키지 생성 완료!");
+        getLog().info("✅ [Distribution 3.5.2] 배포 패키지 생성 완료!");
         getLog().info("   - 산출물 경로: " + targetZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeInMb + " MB (" + targetZip.length() + " bytes)");
         getLog().info("================================================================");
@@ -708,8 +714,10 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * 환경별 .env 파일 및 설정 파일에서 추가 포함 대상 디렉토리(EXTRA_DIRS)를 분석하여 반환합니다.
      *
-     * @param projectBasedir 프로젝트 기준 경로
-     * @param currentEnv 현재 빌드 환경 프로파일
+     * @param projectBasedir
+     *            프로젝트 기준 경로
+     * @param currentEnv
+     *            현재 빌드 환경 프로파일
      * @return 추가 포함할 디렉토리 경로 셋
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 15.
@@ -971,8 +979,10 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * 쉘 스크립트 및 텍스트 파일의 줄바꿈 개행문자를 Unix 표준(LF)으로 정규화합니다.
      *
-     * @param input 원본 파일 바이트 배열
-     * @param fileName 파일 이름
+     * @param input
+     *            원본 파일 바이트 배열
+     * @param fileName
+     *            파일 이름
      * @return 개행문자가 정규화된 바이트 배열
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 07.
@@ -989,8 +999,10 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * 텍스트 템플릿 파일의 @token@ 플레이스홀더를 매핑된 값으로 치환합니다.
      *
-     * @param input 원본 템플릿 바이트 배열
-     * @param tokens 치환할 토큰 키-값 매핑
+     * @param input
+     *            원본 템플릿 바이트 배열
+     * @param tokens
+     *            치환할 토큰 키-값 매핑
      * @return 토큰이 치환된 결과 바이트 배열
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 07.
@@ -1006,7 +1018,8 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * 플러그인 JAR 내에 내장된 배포 템플릿 리소스들을 임시 작업 디렉토리에 추출합니다.
      *
-     * @param targetDir 리소스를 추출할 대상 디렉토리
+     * @param targetDir
+     *            리소스를 추출할 대상 디렉토리
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 07.
      */
@@ -1070,8 +1083,10 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * 지정된 디렉토리 내의 모든 자바 소스 파일(.java)을 재귀적으로 검색하여 목록에 추가합니다.
      *
-     * @param dir 검색할 루트 디렉토리
-     * @param result 발견된 자바 파일들을 저장할 결과 리스트
+     * @param dir
+     *            검색할 루트 디렉토리
+     * @param result
+     *            발견된 자바 파일들을 저장할 결과 리스트
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 15.
      */
@@ -1117,7 +1132,7 @@ public class DistributionMojo extends AbstractMojo {
      *             Docker 빌드 또는 패키징 중 오류 발생 시
      */
     public void executePackageDocker() throws MojoExecutionException {
-        File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
+        File targetZip = resolveArchiveZipFile(isTomcat());
         if (!targetZip.exists()) {
             execute();
         }
@@ -1142,7 +1157,12 @@ public class DistributionMojo extends AbstractMojo {
         copyDirIfExists(new File(ctx.dockerContextDir, "deploy"), new File(dockerDistDir, "deploy"));
 
         // 3. Zip 압축
-        File outputZip = new File(outputDirectory, ctx.appName + "-docker-" + resolvedEnv + ".zip");
+        String version = project != null ? project.getVersion() : getProjectVersion();
+        if (version == null)
+            version = "";
+        boolean hasVersion = !version.isBlank() && !"unspecified".equalsIgnoreCase(version);
+        String versionSuffix = hasVersion ? "-" + version : "";
+        File outputZip = new File(outputDirectory, ctx.appName + versionSuffix + "-docker-" + resolvedEnv + ".zip");
         if (outputZip.exists()) {
             outputZip.delete();
         }
@@ -1155,7 +1175,7 @@ public class DistributionMojo extends AbstractMojo {
 
         long sizeMb = outputZip.length() / (1024 * 1024);
         getLog().info("================================================================");
-        getLog().info("✅ [Distribution 3.5.0 - Maven] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
+        getLog().info("✅ [Distribution 3.5.2 - Maven] packageDocker 생성 완료 (Strategy 1 - 오프라인 패키지)");
         getLog().info("   - 산출물 경로: " + outputZip.getAbsolutePath());
         getLog().info("   - 파일 크기  : " + sizeMb + " MB (" + outputZip.length() + " bytes)");
         getLog().info("   - 배포 방법  : 서버에 zip 전송 -> unzip -> sudo ./deploy/install_service.sh");
@@ -1169,7 +1189,7 @@ public class DistributionMojo extends AbstractMojo {
      *             Docker 빌드 또는 이미지 푸시 중 오류 발생 시
      */
     public void executePackageDockerRemote() throws MojoExecutionException {
-        File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
+        File targetZip = resolveArchiveZipFile(isTomcat());
         if (!targetZip.exists()) {
             execute();
         }
@@ -1233,7 +1253,7 @@ public class DistributionMojo extends AbstractMojo {
      * Docker 이미지 빌드 공통 내부 로직을 수행합니다.
      */
     private DockerBuildContext buildDockerImageInternal(boolean requireRegistry) throws MojoExecutionException {
-        File targetZip = new File(outputDirectory, project.getArtifactId() + "-" + project.getVersion() + ".zip");
+        File targetZip = resolveArchiveZipFile(isTomcat());
         if (!targetZip.exists()) {
             throw new MojoExecutionException("배포 패키지 파일이 존재하지 않습니다: " + targetZip.getAbsolutePath());
         }
@@ -1342,8 +1362,10 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * 디렉토리 내에서 주어진 조건에 일치하는 파일들을 재귀적으로 삭제합니다.
      *
-     * @param dir 탐색 대상 디렉토리
-     * @param predicate 삭제 대상 판별 조건식
+     * @param dir
+     *            탐색 대상 디렉토리
+     * @param predicate
+     *            삭제 대상 판별 조건식
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 21.
      */
@@ -1366,10 +1388,14 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * 외부 명령어를 하위 프로세스로 실행하고 정상 종료 여부를 확인합니다.
      *
-     * @param command 실행할 명령어 및 인자 리스트
-     * @param workDir 명령어 실행 작업 디렉토리
-     * @param taskDesc 실행 작업에 대한 설명 문구
-     * @throws MojoExecutionException 프로세스 실행 실패 또는 오류 종료 시
+     * @param command
+     *            실행할 명령어 및 인자 리스트
+     * @param workDir
+     *            명령어 실행 작업 디렉토리
+     * @param taskDesc
+     *            실행 작업에 대한 설명 문구
+     * @throws MojoExecutionException
+     *             프로세스 실행 실패 또는 오류 종료 시
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 21.
      */
@@ -1394,9 +1420,12 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * 지정된 소스 디렉토리를 UTF-8 인코딩 및 Unix 파일 권한(0755, 0644)을 보존하여 Zip 아카이브로 압축합니다.
      *
-     * @param sourceDir 압축 대상 소스 디렉토리
-     * @param zipFile 생성될 대상 Zip 파일
-     * @throws MojoExecutionException Zip 아카이브 압축 생성 실패 시
+     * @param sourceDir
+     *            압축 대상 소스 디렉토리
+     * @param zipFile
+     *            생성될 대상 Zip 파일
+     * @throws MojoExecutionException
+     *             Zip 아카이브 압축 생성 실패 시
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 21.
      */
@@ -1412,10 +1441,14 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * ZipArchiveOutputStream에 파일 또는 디렉토리를 추가하고 파일 유형별 Unix 권한을 설정합니다.
      *
-     * @param zos Zip 아카이브 출력 스트림
-     * @param currentFile 현재 등록할 파일 또는 디렉토리
-     * @param rootDir 상대 경로 기준 루트 디렉토리
-     * @throws IOException 입출력 실패 시
+     * @param zos
+     *            Zip 아카이브 출력 스트림
+     * @param currentFile
+     *            현재 등록할 파일 또는 디렉토리
+     * @param rootDir
+     *            상대 경로 기준 루트 디렉토리
+     * @throws IOException
+     *             입출력 실패 시
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 21.
      */
@@ -1446,8 +1479,10 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * 소스 디렉토리 또는 파일이 존재하는 경우 대상 디렉토리로 재귀 복사하고 쉘 스크립트 실행 권한을 부여합니다.
      *
-     * @param src 원본 파일 또는 디렉토리
-     * @param dest 복사 대상 파일 또는 디렉토리
+     * @param src
+     *            원본 파일 또는 디렉토리
+     * @param dest
+     *            복사 대상 파일 또는 디렉토리
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 21.
      */
@@ -1480,8 +1515,10 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * Docker 배포 패키지에 docker-compose.yml 파일만을 단독으로 복사합니다.
      *
-     * @param dockerContextDir 원본 Docker 컨텍스트 디렉토리
-     * @param destDistDir 배포 산출물 대상 디렉토리
+     * @param dockerContextDir
+     *            원본 Docker 컨텍스트 디렉토리
+     * @param destDistDir
+     *            배포 산출물 대상 디렉토리
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 21.
      */
@@ -1501,8 +1538,10 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * Docker 이미지 Push 완료 후 운영 서버 배포 가이드라인 배너를 콘솔에 출력합니다.
      *
-     * @param ctx Docker 빌드 컨텍스트 정보
-     * @param distDir 배포 파일 디렉토리
+     * @param ctx
+     *            Docker 빌드 컨텍스트 정보
+     * @param distDir
+     *            배포 파일 디렉토리
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 21.
      */
@@ -1542,7 +1581,8 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * 원격 레지스트리 URL 문자열에서 프로토콜 접두사 및 끝 슬래시를 정제합니다.
      *
-     * @param raw 원본 레지스트리 URL 문자열
+     * @param raw
+     *            원본 레지스트리 URL 문자열
      * @return 정제된 레지스트리 경로
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 21.
@@ -1561,9 +1601,12 @@ public class DistributionMojo extends AbstractMojo {
     /**
      * 배포 디렉토리 내의 설정 파일 및 스크립트에서 Docker 이미지 태그를 변경된 원격 이미지명으로 일괄 갱신합니다.
      *
-     * @param dir 변경 대상 디렉토리
-     * @param oldImage 기존 이미지명
-     * @param newImage 새로운 원격 이미지명
+     * @param dir
+     *            변경 대상 디렉토리
+     * @param oldImage
+     *            기존 이미지명
+     * @param newImage
+     *            새로운 원격 이미지명
      * @author 윤명준 (MJ Yun)
      * @since 2026. 09. 21.
      */
@@ -1593,6 +1636,28 @@ public class DistributionMojo extends AbstractMojo {
                 }
             }
         }
+    }
+
+    /**
+     * 배포 패키지 Zip 파일 경로를 산출물 명명 규칙에 따라 결정합니다. 패턴: {appName}-{version}[-type]-{env}.zip
+     *
+     * @param tomcatMode
+     *            Tomcat 모드 여부
+     * @return 배포 Zip 파일
+     */
+    public File resolveArchiveZipFile(boolean tomcatMode) {
+        String name = (appName != null && !appName.isBlank()) ? appName
+                : (project != null ? project.getArtifactId() : getProjectArtifactId());
+        String version = project != null ? project.getVersion() : getProjectVersion();
+        if (version == null) {
+            version = "";
+        }
+        boolean hasVersion = !version.isBlank() && !"unspecified".equalsIgnoreCase(version);
+        String versionSuffix = hasVersion ? "-" + version : "";
+        String currentEnv = (env != null && !env.isBlank()) ? env : "dev";
+        String typeSuffix = tomcatMode ? "-tomcat" : "";
+        File outDir = outputDirectory != null ? outputDirectory : getOutputDirectory();
+        return new File(outDir, name + versionSuffix + typeSuffix + "-" + currentEnv + ".zip");
     }
 
     private static class DockerBuildContext {

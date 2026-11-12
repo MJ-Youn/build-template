@@ -7,7 +7,7 @@
 - **JDK Requirement**: Java 25 이상
 - **GroupId**: `io.github.mj-youn`
 - **ArtifactId**: `distribution-maven-plugin`
-- **Version**: `3.5.0`
+- **Version**: `3.5.2`
 - **Goals**:
     - `package`: 표준 배포 Zip 아카이브 생성 (JAR / Tomcat 통합 지원)
     - `packageJar`: Spring Boot Executable JAR 배포 전용 Zip 아카이브 생성
@@ -45,7 +45,7 @@
 생성된 아카이브(`.zip`)는 다음과 같은 표준 구조를 가집니다:
 
 ```text
-📦 {project.artifactId}-{project.version}.zip
+📦 {project.artifactId}-{project.version}-{env}.zip
 ├── 📁 deploy/                  # 서비스 등록 및 설치 스크립트
 │   ├── install_service.sh      (Linux/macOS 설치 스크립트)
 │   ├── install_service.bat     (Windows Docker 컨테이너 배포 스크립트)
@@ -83,7 +83,7 @@
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>3.5.0</version>
+            <version>3.5.2</version>
             <executions>
                 <execution>
                     <phase>package</phase>
@@ -122,7 +122,7 @@ mvn clean package -Denv=dev
 mvn clean package -Denv=prod
 ```
 
-- **산출물**: `target/{project.artifactId}-{project.version}.zip`
+- **산출물**: `target/{project.artifactId}-{project.version}-{env}.zip`
 - 서버 배포 시 압축 해제 후 `deploy/install_service.sh`를 실행하면 Systemd/SysVinit 서비스 또는 Docker 컨테이너 방식으로 즉시 설치됩니다.
 
 #### 🚀 [원스탑 빌드 및 서비스 자동 배포]

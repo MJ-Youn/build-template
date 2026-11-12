@@ -51,6 +51,36 @@ class DistributionPluginTest {
     }
 
     @Test
+    @DisplayName("package 및 packageTomcat 태스크의 산출물 파일명이 {appName}-{version}[-type]-{env}.zip 표준 패턴을 따라야 한다.")
+    void testPackageArchiveNamingPattern() {
+        Project project = ProjectBuilder.builder().build();
+        project.setVersion("0.1.0");
+        project.getPlugins().apply("java");
+        project.getPlugins().apply("io.github.mj-youn.distribution");
+
+        org.gradle.api.tasks.bundling.Zip packageTask = (org.gradle.api.tasks.bundling.Zip) project.getTasks()
+                .findByName("package");
+        assertNotNull(packageTask);
+        // 기본 env=dev
+        assertEquals("test-0.1.0-dev.zip", packageTask.getArchiveFileName().get());
+
+        // env=stage 지정 시
+        Project stageProject = ProjectBuilder.builder().build();
+        stageProject.setVersion("0.1.0");
+        stageProject.getExtensions().getExtraProperties().set("env", "stage");
+        stageProject.getPlugins().apply("java");
+        stageProject.getPlugins().apply("io.github.mj-youn.distribution");
+
+        org.gradle.api.tasks.bundling.Zip stagePackageTask = (org.gradle.api.tasks.bundling.Zip) stageProject.getTasks()
+                .findByName("package");
+        assertEquals("test-0.1.0-stage.zip", stagePackageTask.getArchiveFileName().get());
+
+        org.gradle.api.tasks.bundling.Zip tomcatPackageTask = (org.gradle.api.tasks.bundling.Zip) stageProject
+                .getTasks().findByName("packageTomcat");
+        assertEquals("test-0.1.0-tomcat-stage.zip", tomcatPackageTask.getArchiveFileName().get());
+    }
+
+    @Test
     @DisplayName("initDeployScript 태스크는 OS 및 옵션에 따라 필요한 배포 스크립트만 생성해야 한다.")
     void testInitDeployScriptByOs() {
         Project project = ProjectBuilder.builder().build();

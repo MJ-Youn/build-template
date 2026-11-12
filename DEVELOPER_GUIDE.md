@@ -179,7 +179,7 @@ export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-25.jdk/Contents/Home
 
 #### ② 플러그인이 적용된 개별 Spring Boot 프로젝트 사용자 명령어
 
-`plugins { id 'io.github.mj-youn.distribution' version '3.5.0' }`를 적용한 실제 프로젝트에서 실행하는 명령어:
+`plugins { id 'io.github.mj-youn.distribution' version '3.5.2' }`를 적용한 실제 프로젝트에서 실행하는 명령어:
 
 ```bash
 # 🐘 Gradle 환경
@@ -461,7 +461,7 @@ Docker 전용 태스크는 주로 **어디서 빌드하고 어떻게 서버에 �
 |  **핵심 목적**  | 외부 서버 전송을 위한 **단일 Zip 패키지 생성**   | 원격 저장소를 활용한 **표준 파이프라인 구성**                                                                     | 배포 서버에서 런타임에 직접 실행 방식 선택    |
 |  **타겟 환경**  | 인터넷/레지스트리 접근이 불가한 **폐쇄망 환경**  | AWS ECR, Docker Hub 등 **원격 레지스트리 환경**                                                                   | 서버에서 소스를 클론받아 바로 띄우는 환경     |
 |  **작업 내용**  | 이미지 빌드 + `.tar` 추출 + Zip 파일 압축        | 이미지 빌드 + 원격 레지스트리로 `docker push`                                                                     | Jar 빌드 + Dockerfile + 스크립트 압축         |
-| **주요 산출물** | `build/distributions/{appName}-docker-{env}.zip` | Remote Registry Image + `build/distributions/docker-dist/`<br>_(경량 배포 디렉토리: `docker-compose.yml`만 포함)_ | `build/distributions/{appName}-{version}.zip` |
+| **주요 산출물** | `build/distributions/{appName}-{version}-docker-{env}.zip` | Remote Registry Image + `build/distributions/docker-dist/`<br>_(경량 배포 디렉토리: `docker-compose.yml`만 포함)_ | `build/distributions/{appName}-{version}-{env}.zip` |
 |  **전송 방식**  | 수동 전송 필요 (Zip 파일을 복사)                 | 서버에 `docker-dist/` 전송 후 스크립트 실행 시 **이미지 자동 Pull**                                               | 소스 pull 또는 Zip 복사                       |
 |  **실행 예시**  | `./gradlew packageDocker -Penv=prod`             | `./gradlew packageDockerRemote -Penv=prod -PdockerRegistry=...`<br>_(별칭: dockerBuildRemote)_                    | `./gradlew package -Penv=prod`                |
 
@@ -479,7 +479,7 @@ sequenceDiagram
     Gradle->>Gradle: Docker 이미지 빌드 (linux/amd64)
     Gradle->>Gradle: docker save → image.tar 추출
     Gradle->>Gradle: tar + docker-compose.yml + 스크립트 압축
-    Gradle-->>Dev: {appName}-docker-prod.zip 생성
+    Gradle-->>Dev: {appName}-{version}-docker-prod.zip 생성
     deactivate Gradle
 
     Dev->>Server: scp + unzip

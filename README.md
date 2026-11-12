@@ -16,7 +16,7 @@
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '3.5.0'
+    id 'io.github.mj-youn.distribution' version '3.5.2'
 }
 ```
 
@@ -68,7 +68,7 @@ For complete English documentation, see [**distribution-gradle-plugin/README.md*
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '3.5.0'
+    id 'io.github.mj-youn.distribution' version '3.5.2'
 }
 ```
 
@@ -90,7 +90,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>3.5.0</version>
+            <version>3.5.2</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -136,7 +136,7 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
     ```text
     > Task :distHelp
     ================================================================================
-    🚀 [Distribution Plugin 3.5.0] 빌드 및 배포 가이드
+    🚀 [Distribution Plugin 3.5.2] 빌드 및 배포 가이드
     ================================================================================
 
     [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -208,9 +208,9 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
 - **실행 결과 샘플**:
 
     ```text
-    [INFO] --- distribution:3.5.0:help (default-cli) @ my-service ---
+    [INFO] --- distribution:3.5.2:help (default-cli) @ my-service ---
     [INFO] ================================================================================
-    🚀 [Distribution Maven Plugin 3.5.0] 빌드 및 배포 가이드
+    🚀 [Distribution Maven Plugin 3.5.2] 빌드 및 배포 가이드
     ================================================================================
 
     [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -472,7 +472,7 @@ mvn distribution:initApplicationEnv -Dforce=true  # 이미 존재하는 파일�
 mvn distribution:package-docker -Denv=prod
 ```
 
-- **결과물**: `build/dist/{APP_NAME}-docker-prod.zip` 또는 `target/{APP_NAME}-docker-prod.zip`
+- **결과물**: `build/distributions/{APP_NAME}-{version}-docker-prod.zip` 또는 `target/{APP_NAME}-{version}-docker-prod.zip`
 - **포함 내용**:
     - `image.tar`: Docker 이미지 (linux/amd64)
     - `docker-compose.yml`: 실행 설정 (표준 변수 사용)
@@ -481,14 +481,24 @@ mvn distribution:package-docker -Denv=prod
     - `deploy/uninstall_service.sh`: 서비스 제거 스크립트
     - `utils.sh`: 공통 스크립트
 
+> [!TIP]
+> **🐧 Ubuntu/Debian 일반 사용자(Non-root) Docker 배포 사전 준비**:
+> 일반 사용자가 sudo 없이 Docker 및 `systemctl --user`를 안전하게 구동하려면 다음 두 명령어를 1회 실행해 주세요:
+> ```bash
+> # 1. 사용자를 docker 그룹에 추가
+> sudo usermod -aG docker $USER
+> # 2. User Systemd 데몬에 새 그룹 권한 즉시 반영 (재부팅 불필요)
+> sudo systemctl restart user@$(id -u).service
+> ```
+
 **2. 배포 (Production Server)**
 
 ```bash
 # 1. 파일 전송 (scp 등)
-scp build/dist/{APP_NAME}-docker-prod.zip user@server:/home/user/
+scp build/distributions/{APP_NAME}-{version}-docker-prod.zip user@server:/home/user/
 
 # 2. 서버 접속 후 압축 해제 및 설치
-unzip {APP_NAME}-docker-prod.zip -d deploy
+unzip {APP_NAME}-{version}-docker-prod.zip -d deploy
 cd deploy
 sudo ./deploy/install_service.sh
 ```
@@ -591,13 +601,13 @@ Docker 없이 Java(JDK)만 설치된 서버에 배포하는 방식입니다.
 
 - **Gradle**: `./gradlew packageJar -Penv=prod` (또는 `package -Ptype=jar`)
 - **Maven**: `mvn distribution:packageJar -Denv=prod` (또는 `package -DpackageType=jar`)
-- **결과물**: `build/distributions/{APP_NAME}-{version}.zip` 또는 `target/{APP_NAME}-{version}.zip`
+- **결과물**: `build/distributions/{APP_NAME}-{version}-{env}.zip` 또는 `target/{APP_NAME}-{version}-{env}.zip`
 
 🔸 **Tomcat 배포 (Standalone Apache Tomcat)**
 
 - **Gradle**: `./gradlew packageTomcat -Penv=prod` (또는 `package -Ptype=tomcat`)
 - **Maven**: `mvn distribution:packageTomcat -Denv=prod` (또는 `package -DpackageType=tomcat`)
-- **결과물**: `build/distributions/{APP_NAME}-{version}.zip` (내부: `webapps/ROOT/`, `tomcat/conf/`)
+- **결과물**: `build/distributions/{APP_NAME}-{version}-tomcat-{env}.zip` 또는 `target/{APP_NAME}-{version}-tomcat-{env}.zip` (내부: `webapps/ROOT/`, `tomcat/conf/`)
 - **사전 조건**: `Application.java`가 `SpringBootServletInitializer`를 상속해야 합니다.
 
 **2. 배포 (Server) — 수동 아카이브 전송 시**

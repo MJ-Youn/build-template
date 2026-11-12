@@ -2,6 +2,58 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [3.5.2] - 2026-11-12
+
+> 🚀 **Minor Release** — Ubuntu/Linux 환경 일반 사용자(Non-root) Docker 배포 사전 권한 자동 감지 및 User Systemd 세션 갱신 대화형 복구 지원, 배포 산출물 아카이브 파일명 명명 규칙 표준화(`{appName}-{version}[-type]-{env}.zip`), 빌드 구성(Configuration) 단계 기본 `.env` 자동 생성 경로 결함 수정(`mkdirs()`), 플러그인 최신 버전 백그라운드 자동 감지 및 업데이트 알림(Update Notifier) 신규 탑재.
+
+### ✨ 신규 기능 및 개선 사항 (Features & Improvements)
+
+#### 1. 🐳 Linux 일반 사용자(Non-root) Docker 배포 권한 자동 감지 및 원클릭 복구 가이드
+
+- **Docker 데몬 접근 및 User Systemd 세션 권한 자동 진단**:
+    - 리눅스/우분투 환경에서 일반 사용자로 Docker 서비스를 설치할 때, `sudo` 없이 Docker 소켓에 접근 가능한지 사전에 자동 점검합니다.
+    - 권한이 없는 경우(Docker 그룹 미등록 또는 백그라운드 `systemd --user` 데몬에 새 그룹 권한 미반영 상태), 원인을 명확히 진단하고 필수 2단계 명령어를 친절하게 안내합니다:
+        1. `sudo usermod -aG docker $USER` (Docker 그룹에 사용자 추가)
+        2. `sudo systemctl restart user@$(id -u).service` (User Systemd 세션 데몬에 새 그룹 권한 즉시 반영)
+- **대화형 원클릭 자동 갱신 지원**:
+    - 대화형 터미널에서 실행 중인 경우 `"❓ 지금 자동으로 위 두 명령어를 실행하시겠습니까? (y/N)"` 질의를 통해, `sudo` 권한으로 두 명령어를 즉시 실행하고 새 그룹 세션으로 스크립트를 자동 재기동(`exec sg docker`)하여 사용자 번거로움을 완전히 해소했습니다.
+- **시스템 모드(`--sudo`) 배포 시 `SupplementaryGroups=docker` 보장**:
+    - 루트 권한으로 `/etc/systemd/system/`에 서비스를 등록할 때도 서비스 유닛 파일에 `SupplementaryGroups=docker`를 자동 명시하여 실행 안정성을 극대화했습니다.
+
+#### 2. 📦 배포 패키지 산출물 Zip 파일명 명명 규칙 표준화 및 패턴 일치
+
+- **산출물 명명 규칙 통일 (`{appName}-{version}[-type]-{env}.zip`)**:
+    - 기존에 `./gradlew package`는 환경 프로파일(`-Penv`)이 누락되고, `./gradlew packageDocker`는 버전 정보(`version`)가 누락되어 산출물 파일명 패턴이 불일치하던 문제를 완벽하게 해결했습니다.
+    - 배포 유형별 표준 산출물 파일명:
+        - **표준/JAR 배포 (`package`, `packageJar`)**: `{appName}-{version}-{env}.zip` (예: `mo-service-0.1.0-stage.zip`)
+        - **Tomcat 배포 (`packageTomcat`)**: `{appName}-{version}-tomcat-{env}.zip` (예: `mo-service-0.1.0-tomcat-stage.zip`)
+        - **Docker 오프라인 배포 (`packageDocker`)**: `{appName}-{version}-docker-{env}.zip` (예: `mo-service-0.1.0-docker-stage.zip`)
+    - Gradle 플러그인(`DistributionPlugin`) 및 Maven 플러그인(`DistributionMojo`, `DeployMojo`) 양쪽 모두 100% 동일한 규칙으로 일치화 완료.
+
+#### 3. 💡 플러그인 최신 버전 자동 감지 및 업데이트 알림 (Update Notifier) 신규 탑재
+
+- **무중단 백그라운드 비동기 버전 확인**:
+    - 플러그인 실행 시 원격 저장소(Maven Central / GitHub Releases API)의 최신 릴리즈 버전을 안전하게 감지하여, 구버전을 사용 중인 경우 콘솔에 업데이트 안내 배너를 출력합니다.
+- **빌드 지연 0ms & 폐쇄망/오프라인 100% 안전 보장**:
+    - **로컬 24시간 캐시(`~/.distribution/version-cache.properties`)**: 빌드마다 원격을 조회하지 않고 하루 1회만 비동기 데몬 스레드로 갱신하여 메인 빌드 속도에 전혀 영향을 주지 않습니다.
+    - **초단기 타임아웃(500ms) 및 완전 격리(Silent Fail)**: 오프라인이나 폐쇄망 환경에서도 에러 없이 조용히 무시되므로 빌드가 절대 중단되지 않습니다.
+    - **비활성화 옵션 제공**: `-Ddistribution.checkUpdates=false` 또는 환경변수 `DISTRIBUTION_CHECK_UPDATES=false`를 통해 즉시 기능을 비활성화할 수 있습니다.
+
+#### 4. 🐛 빌드 시 기본 `.env` 템플릿 생성 실패 경고 결함 긴급 패치
+
+- **`dist-template-builtin/.default.env` 생성 경로 보장**:
+    - 대상 프로젝트에 사전 정의된 `.env` 파일이 없는 경우, 플러그인이 빌드 아카이브 루트에 기본 `.env` 템플릿을 탑재하기 위해 `build/tmp/dist-template-builtin/.default.env` 작성을 시도합니다.
+    - 이때 Gradle 태스크 구성(Configuration) 단계에서 아직 디스크에 생성되지 않은 부모 디렉토리로 인해 `NoSuchFileException`(`기본 .env 파일 생성 실패`) 경고가 콘솔에 출력되던 결함을 수정했습니다.
+    - 파일 작성 전 부모 디렉토리 생성을 보장(`mkdirs()`)하도록 로직을 보완하여 빌드 시 불필요한 경고 로그를 완전히 제거했습니다.
+
+#### 5. 📦 전체 플러그인 메타데이터 및 문서 버전 동기화
+
+- `distribution-gradle-plugin` (Gradle) & `distribution-maven-plugin` (Maven) 버전 `3.5.2` 갱신.
+- 사용자 및 개발자 가이드(`README.md`, `README_EN.md`, `DEVELOPER_GUIDE.md`, 플러그인별 README) 내 의존성 버전 및 산출물 파일명 패턴 `3.5.2` 전면 반영.
+- 신규 파일명 규칙 및 버전 체커 단위 테스트(`testPackageArchiveNamingPattern`, `VersionCheckerTest`) 추가.
+
+---
+
 ## 🎯 [3.5.0] - 2026-10-29
 
 > 🚀 **Minor Release** — Docker 인프라 환경변수(`.env`)와 Spring Boot 애플리케이션 런타임 환경설정(`application.env`)의 완전한 분리 및 전용 생성 명령어(`initEnv`, `initApplicationEnv` / `mvn distribution:initEnv`, `mvn distribution:initApplicationEnv`) 신규 탑재, 프로젝트 및 환경 프로파일별 스마트 타겟팅, 기존 파일 보존 안심 스킵 및 강제 덮어쓰기(`-Pforce` / `-Dforce=true`) 지원, 전 소스 코드 품질 및 Javadoc 표준화 전면 리팩토링 완료.
@@ -45,7 +97,7 @@
 - `distribution-gradle-plugin` (Gradle) & `distribution-maven-plugin` (Maven) 버전 `3.5.0` 갱신.
 - 사용자 및 개발자 가이드(`README.md`, `README_EN.md`, `DEVELOPER_GUIDE.md`) 내 플러그인 의존성 설정 버전 `3.5.0` 반영.
 
----
+---ㅈ
 
 ## 🎯 [3.4.2] - 2026-10-27
 

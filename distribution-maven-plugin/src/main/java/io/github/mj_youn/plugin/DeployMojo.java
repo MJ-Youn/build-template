@@ -40,7 +40,7 @@ public class DeployMojo extends DistributionMojo {
         super.execute();
 
         File outputDirectory = getOutputDirectory();
-        File targetZip = new File(outputDirectory, getProjectArtifactId() + "-" + getProjectVersion() + ".zip");
+        File targetZip = resolveArchiveZipFile(isTomcat());
         File unpackDir = new File(outputDirectory, "unpacked");
 
         getLog().info("================================================================");
@@ -96,10 +96,8 @@ public class DeployMojo extends DistributionMojo {
             boolean isRoot = "root".equals(System.getProperty("user.name"));
             // 기본 배포는 일반 사용자(User) 모드
             // -Dsudo, -Droot, -Dsystem 또는 환경변수 SUDO=true, ROOT_MODE=true 등이 지정되었을 때만 시스템(root/sudo) 모드로 전환
-            boolean isSudoMode = System.getProperty("sudo") != null
-                    || System.getProperty("root") != null
-                    || System.getProperty("system") != null
-                    || "true".equalsIgnoreCase(System.getenv("SUDO"))
+            boolean isSudoMode = System.getProperty("sudo") != null || System.getProperty("root") != null
+                    || System.getProperty("system") != null || "true".equalsIgnoreCase(System.getenv("SUDO"))
                     || "true".equalsIgnoreCase(System.getenv("SUDO_MODE"))
                     || "true".equalsIgnoreCase(System.getenv("ROOT_MODE"));
 

@@ -35,7 +35,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.2.0' // or your Spring Boot version
     // ⭐️ Distribution Plugin
-    id 'io.github.mj-youn.distribution' version '3.5.0'
+    id 'io.github.mj-youn.distribution' version '3.5.2'
 }
 
 // (Optional) Plugin configuration
@@ -57,7 +57,7 @@ distribution {
   ./gradlew package -Penv=dev    # Build development package
   ./gradlew package -Penv=prod   # Build production package
   ```
-  The packaged zip file will be generated at: `build/distributions/{appName}-{version}.zip`.
+  The packaged zip file will be generated at: `build/distributions/{appName}-{version}-{env}.zip`.
 
 - **One-stop Build & Auto Deploy**:
   ```bash
@@ -67,7 +67,7 @@ distribution {
 ### 📦 Output Package Structure
 
 ```text
-📦 {appName}-{version}.zip
+📦 {appName}-{version}-{env}.zip
 ├── 📁 deploy/                  # Service installation & uninstallation scripts
 │   ├── install_service.sh
 │   ├── uninstall_service.sh
@@ -124,7 +124,7 @@ distribution {
 생성된 아카이브(`.zip`)는 다음과 같은 표준 구조를 가집니다:
 
 ```text
-📦 {project.name}-{project.version}.zip
+📦 {project.name}-{project.version}-{env}.zip
 ├── 📁 deploy/                  # 서비스 등록 및 설치 스크립트
 │   ├── install_service.sh
 │   ├── uninstall_service.sh
@@ -158,7 +158,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.4.1' // 또는 프로젝트 버전
     // ⭐️ 배포 플러그인 추가
-    id 'io.github.mj-youn.distribution' version '3.5.0'
+    id 'io.github.mj-youn.distribution' version '3.5.2'
 }
 
 // (선택 사항) 앱 이름 커스텀 및 사용자 정의 토큰/추가 디렉토리 지정
@@ -203,7 +203,7 @@ distribution {
 
 - 📦 **`package` (일반 서버 배포용 Zip 패키징)**
     - 일반 서버(Legacy / Docker 선택 가능) 배포용 Zip 생성
-    - **산출물**: `build/distributions/{APP_NAME}-{version}.zip`
+    - **산출물**: `build/distributions/{APP_NAME}-{version}-{env}.zip`
     - **포함 내용**: `JAR` + `Scripts (deploy/, bin/)` + `Config` + `Docker (Dockerfile, docker-compose.yml)`
     - 서버 배포 시 수동 압축 해제 후 `deploy/install_service.sh`를 실행하여 Legacy 또는 Docker 방식을 대화형으로 선택 설치할 수 있습니다.
 
