@@ -51,6 +51,12 @@ else
         return 0
     }
     detect_docker_compose_cmd() { return 1; }
+    detect_docker_runtime_mode() {
+        DOCKER_RUNTIME_MODE="unavailable"
+        DOCKER_CMD="docker"
+        return 1
+    }
+    ensure_compose_user_setting() { return 1; }
     is_docker_container() { return 1; }
     wait_for_condition() {
         local condition_cmd="$1"

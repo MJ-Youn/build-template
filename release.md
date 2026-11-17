@@ -2,6 +2,38 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [3.5.3] - 2026-11-17
+
+> 🚀 **Patch Release** — Rootless Docker 환경 자동 판별 및 지원(sudo 불필요 환경 및 `.env` `APP_UID`/`APP_GID` `0:0` 자동 분기), `docker-compose.yml` 내 `user: "0:0"` 기본 설정 및 미기재 서비스 자동 보정 기능 추가, Rootless Docker 대상 User Mode Systemd `DOCKER_HOST` 자동 주입.
+
+### ✨ 신규 기능 및 개선 사항 (Features & Improvements)
+
+#### 1. 🐳 Rootless Docker / Docker 그룹 / Sudo 환경 자동 판별 및 `.env` 동적 설정
+
+- **Docker 런타임 모드 정밀 감지 (`detect_docker_runtime_mode`)**:
+    - `scripts/common/utils.sh`에 Docker 실행 환경을 4가지 상태(`rootless`, `rootful_group`, `rootful_sudo`, `unavailable`)로 자동 판별하는 공통 유틸리티 함수를 추가했습니다.
+    - `docker info --format '{{.SecurityOptions}}'`의 `rootless` 여부 확인 및 `$XDG_RUNTIME_DIR/docker.sock`(`/run/user/$UID/docker.sock`) 자동 보정을 지원하며, 소켓 접근 권한 부족 시 `sudo` 필요 여부를 정확히 구분합니다.
+- **환경별 `.env` `APP_UID`/`APP_GID` 동적 분기 (`install_service.sh`)**:
+    - **Rootless Docker 환경**: 컨테이너 내부 `0:0`이 호스트 현재 사용자 권한으로 매핑되는 User Namespace 특성에 맞춰, `.env` 생성 시 `APP_UID=0`, `APP_GID=0`을 자동으로 설정합니다.
+    - **일반 Docker(Rootful) 환경**: 기존과 동일하게 호스트 실행 유저(`id -u`, `id -g`)의 UID/GID를 설정하여 호스트 마운트 볼륨 권한을 일치시킵니다.
+- **User Mode Systemd `DOCKER_HOST` 자동 주입**:
+    - Rootless Docker 환경에서 `systemctl --user` 기반 서비스를 등록할 때, 감지된 `DOCKER_HOST` 값을 서비스 유닛 파일(`Environment="DOCKER_HOST=..."`)에 자동 반영하여 비대화형 세션에서도 안정적으로 데몬에 연결되도록 개선했습니다.
+
+#### 2. 📄 `docker-compose.yml` `user: "0:0"` 기본 적용 및 자동 보정
+
+- **기본 Compose 템플릿 4종 업데이트**:
+    - `docker/docker-compose-jar.yml`, `docker/docker-compose-tomcat.yml`, `docker/prod/docker-compose-prod.yml`, `docker/dev/docker-compose-dev.yml`의 `services.app`에 `user: "0:0"`을 기본 설정으로 명시했습니다.
+    - `docker/.env.example` 및 `scripts/service/.env.example`에 Rootless Docker 환경의 `APP_UID`/`APP_GID` 자동 설정 안내 주석을 보강했습니다.
+- **기존 `docker-compose.yml` 자동 보정 (`ensure_compose_user_setting`)**:
+    - `install_service.sh`의 `configure_compose()` 실행 시, 커스텀 `docker-compose.yml` 내 서비스 블록에 `user:` 항목이 누락되어 있으면 자동으로 `user: "0:0"`을 삽입합니다. (이미 `user:`가 정의된 서비스는 유지하며, 반복 실행해도 중복 삽입되지 않는 멱등성 보장)
+
+#### 3. 🧪 Bash 단위 테스트 추가 및 전체 버전 동기화
+
+- Rootless Docker 환경 판별, `docker-compose.yml` `user` 보정(단일/다중 서비스/멱등성), `configure_compose`의 `.env` 생성 분기를 검증하는 단위 테스트(`scripts/common/tests/test_docker_rootless.sh`)를 추가했습니다.
+- `distribution-gradle-plugin` (Gradle) & `distribution-maven-plugin` (Maven) 버전 `3.5.3` 패치 릴리즈 갱신 및 문서(`README.md`, `README_EN.md`, `DEVELOPER_GUIDE.md`, 플러그인별 README) 버전 동기화 완료.
+
+---
+
 ## 🎯 [3.5.2] - 2026-11-12
 
 > 🚀 **Minor Release** — Ubuntu/Linux 환경 일반 사용자(Non-root) Docker 배포 사전 권한 자동 감지 및 User Systemd 세션 갱신 대화형 복구 지원, 배포 산출물 아카이브 파일명 명명 규칙 표준화(`{appName}-{version}[-type]-{env}.zip`), 빌드 구성(Configuration) 단계 기본 `.env` 자동 생성 경로 결함 수정(`mkdirs()`), 플러그인 최신 버전 백그라운드 자동 감지 및 업데이트 알림(Update Notifier) 신규 탑재.

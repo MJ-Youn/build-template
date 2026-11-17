@@ -142,6 +142,197 @@ detect_docker_compose_cmd() {
     return 0
 }
 
+# @description Docker 실행 런타임 모드 감지 (Rootless / Docker 그룹 / Sudo 필요 / 불가)
+#              결과를 전역 변수 DOCKER_RUNTIME_MODE, DOCKER_CMD에 저장합니다.
+#              DOCKER_RUNTIME_MODE: rootless | rootful_group | rootful_sudo | unavailable
+# @return 0: 실행 가능한 Docker 환경 감지(rootless/rootful_group/rootful_sudo), 1: 미설치 또는 데몬 미실행
+detect_docker_runtime_mode() {
+    DOCKER_RUNTIME_MODE="unavailable"
+    DOCKER_CMD="docker"
+
+    local docker_bin
+    docker_bin=$(command -v docker 2>/dev/null)
+    if [ -z "$docker_bin" ]; then
+        return 1
+    fi
+
+    local sec_opts=""
+    local err_out=""
+    local tmp_err
+    tmp_err=$(mktemp 2>/dev/null || echo "/tmp/docker_detect_$$.err")
+
+    # 1. 현재 세션 환경 그대로 docker info 조회 (Rootless 또는 docker 그룹/root 권한)
+    if sec_opts=$("$docker_bin" info --format '{{.SecurityOptions}}' 2>"$tmp_err"); then
+        rm -f "$tmp_err"
+        if echo "$sec_opts" | grep -qi "rootless"; then
+            DOCKER_RUNTIME_MODE="rootless"
+        else
+            DOCKER_RUNTIME_MODE="rootful_group"
+        fi
+        DOCKER_CMD="docker"
+        return 0
+    fi
+    err_out=$(cat "$tmp_err" 2>/dev/null)
+    rm -f "$tmp_err"
+
+    # 2. Rootless 소켓이 존재하지만 DOCKER_HOST 미설정으로 실패한 경우 소켓 자동 보정 후 재확인
+    local uid_val
+    uid_val=$(id -u 2>/dev/null)
+    local rootless_sock="${XDG_RUNTIME_DIR:-/run/user/$uid_val}/docker.sock"
+    if [ -n "$uid_val" ] && [ "$uid_val" -ne 0 ] && [ -S "$rootless_sock" ]; then
+        if sec_opts=$(DOCKER_HOST="unix://$rootless_sock" "$docker_bin" info --format '{{.SecurityOptions}}' 2>/dev/null); then
+            if echo "$sec_opts" | grep -qi "rootless"; then
+                export DOCKER_HOST="unix://$rootless_sock"
+                DOCKER_RUNTIME_MODE="rootless"
+                DOCKER_CMD="docker"
+                return 0
+            fi
+        fi
+    fi
+
+    # 3. 일반 Docker 데몬 소켓 접근 권한 부족 또는 sudo -n docker info 성공 시 sudo 필요 모드로 판별
+    if echo "$err_out" | grep -qi "permission denied"; then
+        DOCKER_RUNTIME_MODE="rootful_sudo"
+        DOCKER_CMD="sudo docker"
+        return 0
+    fi
+    if command -v sudo >/dev/null 2>&1 && sudo -n "$docker_bin" info >/dev/null 2>&1; then
+        DOCKER_RUNTIME_MODE="rootful_sudo"
+        DOCKER_CMD="sudo docker"
+        return 0
+    fi
+
+    return 1
+}
+
+# @description docker-compose.yml의 각 서비스에 user: "0:0" 설정이 누락되어 있으면 자동 추가
+# @param $1 docker-compose.yml 파일 경로
+# @return 0: 정상 처리(추가됨 또는 이미 존재), 1: 파일 없음 또는 처리 실패
+ensure_compose_user_setting() {
+    local compose_file="$1"
+    if [ -z "$compose_file" ] || [ ! -f "$compose_file" ]; then
+        return 1
+    fi
+
+    local tmp_file
+    tmp_file=$(mktemp 2>/dev/null || echo "${compose_file}.tmp.$$")
+
+    awk '
+    function flush_service_block(    i, insert_after, line) {
+        if (!in_service || svc_count == 0) {
+            svc_count = 0
+            in_service = 0
+            has_user = 0
+            prop_indent = ""
+            return
+        }
+        if (has_user || prop_indent == "") {
+            for (i = 1; i <= svc_count; i++) {
+                print svc_lines[i]
+            }
+        } else {
+            insert_after = 0
+            # container_name 또는 image 라인 직후 삽입을 우선 탐색
+            for (i = 1; i <= svc_count; i++) {
+                line = svc_lines[i]
+                if (line ~ "^" prop_indent "container_name:([[:space:]]|$)") {
+                    insert_after = i
+                    break
+                }
+                if (insert_after == 0 && line ~ "^" prop_indent "image:([[:space:]]|$)") {
+                    insert_after = i
+                }
+            }
+            if (insert_after == 0) {
+                insert_after = 1
+            }
+            for (i = 1; i <= svc_count; i++) {
+                print svc_lines[i]
+                if (i == insert_after) {
+                    print prop_indent "user: \"0:0\""
+                }
+            }
+        }
+        svc_count = 0
+        in_service = 0
+        has_user = 0
+        prop_indent = ""
+    }
+    BEGIN {
+        in_services = 0
+        services_indent = 0
+        in_service = 0
+        svc_indent = -1
+        svc_count = 0
+        has_user = 0
+        prop_indent = ""
+    }
+    {
+        if (!in_services) {
+            print $0
+            if ($0 ~ /^[ ]*services:[[:space:]]*(#.*)?$/) {
+                match($0, /^[ ]*/)
+                services_indent = RLENGTH
+                in_services = 1
+            }
+            next
+        }
+
+        # 빈 줄 또는 주석 줄 처리
+        if ($0 ~ /^[[:space:]]*(#.*)?$/) {
+            if (in_service) {
+                svc_lines[++svc_count] = $0
+            } else {
+                print $0
+            }
+            next
+        }
+
+        match($0, /^[ ]*/)
+        indent_len = RLENGTH
+
+        # services 블록을 벗어난 최상위 섹션 진입 시 버퍼 출력 후 종료
+        if (indent_len <= services_indent) {
+            flush_service_block()
+            in_services = 0
+            print $0
+            next
+        }
+
+        # 새 서비스 블록 시작 판별 (services 바로 하위 레벨 키)
+        if (!in_service || indent_len == svc_indent) {
+            flush_service_block()
+            in_service = 1
+            svc_indent = indent_len
+            has_user = 0
+            prop_indent = ""
+            svc_lines[++svc_count] = $0
+            next
+        }
+
+        # 현재 서비스 내부 속성 처리
+        if (prop_indent == "") {
+            prop_indent = substr($0, 1, indent_len)
+        }
+        if (substr($0, 1, indent_len) == prop_indent && $0 ~ "^" prop_indent "user:[[:space:]]*") {
+            has_user = 1
+        }
+        svc_lines[++svc_count] = $0
+    }
+    END {
+        flush_service_block()
+    }
+    ' "$compose_file" > "$tmp_file"
+
+    if [ $? -eq 0 ] && [ -s "$tmp_file" ]; then
+        mv "$tmp_file" "$compose_file"
+        return 0
+    fi
+
+    rm -f "$tmp_file"
+    return 1
+}
+
 # @description 사용자 쉘 프로필에 PATH 추가
 # @param $1 프로필 파일 경로 (예: ~/.bashrc)
 # @param $2 추가할 bin 경로

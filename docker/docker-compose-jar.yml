@@ -2,6 +2,7 @@ services:
   app:
     image: ${DOCKER_IMAGE:-@appName@:latest}
     container_name: ${APP_NAME:-@appName@}
+    user: "0:0"
     ports:
       - "${HTTP_PORT:-@httpPort@}:@httpPort@"
     volumes:

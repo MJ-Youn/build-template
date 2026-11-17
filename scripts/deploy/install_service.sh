@@ -200,22 +200,42 @@ validate_user_mode_prerequisites() {
         exit 1
     fi
 
-    # 2. Docker 배포 모드일 때 Docker 실행 권한 검증
+    # 2. Docker 배포 모드일 때 Docker 실행 권한 및 런타임 모드 검증
     if [ "$DEPLOY_MODE" = "docker" ]; then
-        if ! docker ps >/dev/null 2>&1; then
-            echo ""
-            log_error "Docker 데몬 접근 권한 부족 (sudo 필요)"
-            echo -e "   ${YELLOW}현재 사용자($REAL_USER)는 sudo 없이 Docker 데몬을 제어할 수 없습니다.${NC}"
-            echo ""
-            echo -e "   ${BOLD}권장 해결 방법:${NC}"
-            echo -e "   1) 시스템 관리자에게 docker 그룹 등록 요청:"
-            echo -e "      ${CYAN}sudo usermod -aG docker $REAL_USER${NC}"
-            echo -e "   2) 등록 후 터미널 재접속 또는 다음 명령 실행:"
-            echo -e "      ${CYAN}newgrp docker${NC}"
-            echo ""
-            log_error "일반 사용자 모드 배포를 안전하게 중단합니다."
-            exit 1
-        fi
+        detect_docker_runtime_mode
+        case "$DOCKER_RUNTIME_MODE" in
+            rootless)
+                log_info "Docker 환경 감지: Rootless Docker (sudo 불필요)"
+                ;;
+            rootful_group)
+                log_info "Docker 환경 감지: 일반 Docker (docker 그룹 권한, sudo 불필요)"
+                ;;
+            rootful_sudo)
+                echo ""
+                log_error "Docker 데몬 접근 권한 부족 (sudo 필요)"
+                echo -e "   ${YELLOW}현재 사용자($REAL_USER)는 sudo 없이 Docker 데몬을 제어할 수 없습니다.${NC}"
+                echo ""
+                echo -e "   ${BOLD}권장 해결 방법:${NC}"
+                echo -e "   1) 시스템 관리자에게 docker 그룹 등록 요청:"
+                echo -e "      ${CYAN}sudo usermod -aG docker $REAL_USER${NC}"
+                echo -e "   2) 등록 후 터미널 재접속 또는 다음 명령 실행:"
+                echo -e "      ${CYAN}newgrp docker${NC}"
+                echo -e "   3) 또는 Rootless Docker 사용 / 시스템 모드(--sudo)로 설치:"
+                echo -e "      ${CYAN}sudo ./install_service.sh --sudo${NC}"
+                echo ""
+                log_error "일반 사용자 모드 배포를 안전하게 중단합니다."
+                exit 1
+                ;;
+            *)
+                echo ""
+                log_error "Docker 데몬이 실행 중이지 않거나 접근할 수 없습니다."
+                echo -e "   ${YELLOW}Docker 데몬 실행 상태를 확인한 후 다시 시도해 주세요.${NC}"
+                echo -e "   - 일반 Docker: ${CYAN}sudo systemctl start docker${NC}"
+                echo -e "   - Rootless Docker: ${CYAN}systemctl --user start docker${NC}"
+                echo ""
+                exit 1
+                ;;
+        esac
     fi
 
     # 3. systemd user 세션 유효성 검증 및 환경변수 보정
@@ -1150,8 +1170,23 @@ check_docker_prerequisites() {
         exit 1
     fi
 
-    # Docker 데몬 접근 권한 점검 (sudo 없이 docker 실행 가능 여부)
-    if ! docker ps >/dev/null 2>&1; then
+    # Docker 실행 런타임 모드 감지 (rootless / rootful_group / rootful_sudo / unavailable)
+    detect_docker_runtime_mode
+
+    if [ "$DOCKER_RUNTIME_MODE" = "rootless" ]; then
+        log_success "Docker 설치 및 실행 환경 확인 완료 (Rootless Docker)."
+        return 0
+    elif [ "$DOCKER_RUNTIME_MODE" = "rootful_group" ]; then
+        log_success "Docker 설치 및 실행 권한 확인 완료 (일반 Docker)."
+        return 0
+    elif [ "$DOCKER_RUNTIME_MODE" = "unavailable" ]; then
+        log_error "Docker 데몬이 실행 중이지 않거나 연결할 수 없습니다."
+        echo -e "   ${YELLOW}Docker 데몬 실행 상태를 확인해 주세요 (systemctl status docker 또는 systemctl --user status docker).${NC}"
+        exit 1
+    fi
+
+    # Docker 데몬 접근 권한 점검 (rootful_sudo: sudo 없이 docker 실행 불가)
+    if [ "$EUID" -ne 0 ]; then
         echo ""
         log_error "현재 사용자(${REAL_USER})는 sudo 없이 Docker 데몬에 접근할 권한이 없습니다."
         echo -e "   ${YELLOW}💡 Docker 그룹 미등록 또는 User Systemd 세션 미갱신으로 인한 문제입니다.${NC}"
@@ -1394,7 +1429,7 @@ configure_docker_env() {
     create_tail_log_script
 }
 
-# @description docker-compose.yml 환경변수(.env 파일) 설정
+# @description docker-compose.yml 환경변수(.env 파일) 설정 및 user 설정 보정
 configure_compose() {
     local COMPOSE_FILE="$DEST_DIR/docker-compose.yml"
     local ENV_FILE="$DEST_DIR/.env"
@@ -1405,8 +1440,28 @@ configure_compose() {
         exit 1
     fi
 
-    local REAL_UID=$(id -u "$REAL_USER")
-    local REAL_GID=$(id -g "$REAL_USER")
+    # Docker 런타임 모드가 미감지 상태인 경우 재감지
+    if [ -z "${DOCKER_RUNTIME_MODE:-}" ] || [ "${DOCKER_RUNTIME_MODE:-}" = "unavailable" ]; then
+        detect_docker_runtime_mode || true
+    fi
+
+    # docker-compose.yml에 user: "0:0" 설정이 누락된 경우 자동 추가
+    if ensure_compose_user_setting "$COMPOSE_FILE"; then
+        log_info "docker-compose.yml의 서비스 user 설정 확인/보정 완료."
+    fi
+
+    # Rootless Docker에서는 컨테이너 내부 0:0이 호스트 현재 유저로 매핑되므로 APP_UID/APP_GID를 0으로 설정
+    local REAL_UID
+    local REAL_GID
+    if [ "${DOCKER_RUNTIME_MODE:-}" = "rootless" ]; then
+        REAL_UID=0
+        REAL_GID=0
+        log_info "Rootless Docker 환경 감지: APP_UID=0, APP_GID=0 으로 설정합니다."
+    else
+        REAL_UID=$(id -u "$REAL_USER")
+        REAL_GID=$(id -g "$REAL_USER")
+        log_info "일반 Docker 환경(${DOCKER_RUNTIME_MODE:-rootful}) 감지: APP_UID=${REAL_UID}, APP_GID=${REAL_GID} 으로 설정합니다."
+    fi
 
     # HTTP 서비스 포트 안전 결정 (0 또는 빈 값 방지)
     local RESOLVED_HTTP_PORT="${HTTP_PORT:-@httpPort@}"
@@ -1428,7 +1483,7 @@ configure_compose() {
     cat <<EOF > "$ENV_FILE"
 # ==========================================================
 # Docker Compose Environment Variables
-# Generated by install_service.sh
+# Generated by install_service.sh (Docker Mode: ${DOCKER_RUNTIME_MODE:-unknown})
 # ==========================================================
 APP_UID=$REAL_UID
 APP_GID=$REAL_GID
@@ -1481,6 +1536,11 @@ register_docker_service() {
             mkdir -p "$USER_SYSTEMD_DIR"
             local SERVICE_FILE="$USER_SYSTEMD_DIR/$APP_NAME.service"
 
+            local ROOTLESS_ENV_LINE=""
+            if [ "${DOCKER_RUNTIME_MODE:-}" = "rootless" ] && [ -n "${DOCKER_HOST:-}" ]; then
+                ROOTLESS_ENV_LINE="Environment=\"DOCKER_HOST=$DOCKER_HOST\""
+            fi
+
             cat <<EOF > "$SERVICE_FILE"
 [Unit]
 Description=$APP_NAME Docker Container Service (User Mode)
@@ -1490,6 +1550,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=$DEST_DIR
+$( [ -n "$ROOTLESS_ENV_LINE" ] && echo "$ROOTLESS_ENV_LINE" )
 ExecStart=$START_SCRIPT
 ExecStop=$STOP_SCRIPT
 Restart=always
