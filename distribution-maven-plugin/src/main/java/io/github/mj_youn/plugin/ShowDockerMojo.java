@@ -27,7 +27,7 @@ public class ShowDockerMojo extends AbstractMojo {
   public void execute() throws MojoExecutionException {
     String guide = """
         ================================================================================
-        🐳 [Distribution Maven Plugin 3.5.3] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
+        🐳 [Distribution Maven Plugin 3.5.4] JAR vs Tomcat Dockerfile 아키텍처 비교 가이드
         ================================================================================
 
         ┌─────────────────┬──────────────────────────────────┬──────────────────────────────────┐

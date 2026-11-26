@@ -899,12 +899,11 @@ configure_legacy_env() {
 
     log_info "로그 경로: $LOG_PATH"
 
-    # 호스트 로그 디렉토리 및 서브 디렉토리(app, tomcat) 사전 생성
-    # Docker 데몬이 root 권한으로 하위 디렉토리를 자동 생성하는 것을 방지
-    mkdir -p "$LOG_PATH" "$LOG_PATH/app" "$LOG_PATH/tomcat"
+    # 호스트 로그 디렉토리 생성 (Legacy 모드에서는 app, tomcat 하위 디렉토리 불필요)
+    mkdir -p "$LOG_PATH"
     chown -R $REAL_USER:$SERVICE_GROUP "$LOG_PATH"
     chmod -R 775 "$LOG_PATH"
-    log_success "로그 디렉토리 준비 완료 ($LOG_PATH/app, tomcat)."
+    log_success "로그 디렉토리 준비 완료 ($LOG_PATH)."
 
     create_tail_log_script
 }
@@ -1419,12 +1418,32 @@ configure_docker_env() {
 
     log_info "로그 경로: $LOG_PATH"
 
-    # 호스트 로그 디렉토리 및 서브 디렉토리(app, tomcat) 사전 생성
-    # Docker 데몬이 root 권한으로 하위 디렉토리를 자동 생성하는 것을 방지
-    mkdir -p "$LOG_PATH" "$LOG_PATH/app" "$LOG_PATH/tomcat"
+    # 호스트 로그 디렉토리 사전 생성 (Docker 데몬이 root 권한으로 생성하는 것을 방지)
+    # docker-compose.yml에 /app, /tomcat 볼륨 마운트가 있는 경우(Tomcat 등)에만 해당 서브 디렉토리 생성
+    local COMPOSE_FILE="$DEST_DIR/docker-compose.yml"
+    local LOG_DIRS=("$LOG_PATH")
+    local CREATED_SUBDIRS=()
+
+    if [ -f "$COMPOSE_FILE" ]; then
+        if grep -qE '(\$\{?LOG_PATH[^}]*\}?|LOG_PATH)/app(:|$|[[:space:]])' "$COMPOSE_FILE"; then
+            LOG_DIRS+=("$LOG_PATH/app")
+            CREATED_SUBDIRS+=("app")
+        fi
+        if grep -qE '(\$\{?LOG_PATH[^}]*\}?|LOG_PATH)/tomcat(:|$|[[:space:]])' "$COMPOSE_FILE"; then
+            LOG_DIRS+=("$LOG_PATH/tomcat")
+            CREATED_SUBDIRS+=("tomcat")
+        fi
+    fi
+
+    mkdir -p "${LOG_DIRS[@]}"
     chown -R $REAL_USER:$SERVICE_GROUP "$LOG_PATH"
     chmod -R 775 "$LOG_PATH"
-    log_success "로그 디렉토리 준비 완료 ($LOG_PATH/app, tomcat)."
+
+    if [ ${#CREATED_SUBDIRS[@]} -gt 0 ]; then
+        log_success "로그 디렉토리 준비 완료 ($LOG_PATH: ${CREATED_SUBDIRS[*]})."
+    else
+        log_success "로그 디렉토리 준비 완료 ($LOG_PATH)."
+    fi
 
     create_tail_log_script
 }

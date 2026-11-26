@@ -7,7 +7,7 @@
 - **JDK Requirement**: Java 25 이상
 - **GroupId**: `io.github.mj-youn`
 - **ArtifactId**: `distribution-maven-plugin`
-- **Version**: `3.5.3`
+- **Version**: `3.5.4`
 - **Goals**:
     - `package`: 표준 배포 Zip 아카이브 생성 (JAR / Tomcat 통합 지원)
     - `packageJar`: Spring Boot Executable JAR 배포 전용 Zip 아카이브 생성
@@ -83,7 +83,7 @@
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>3.5.3</version>
+            <version>3.5.4</version>
             <executions>
                 <execution>
                     <phase>package</phase>

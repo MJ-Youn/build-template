@@ -300,11 +300,27 @@ remove_cron() {
 remove_logs() {
     log_step "로그 데이터 처리"
 
+    # 배포 방식에 따라 .env 파일 우선순위 결정
+    local ENV_TARGET="$PROP_FILE"
+    if [ "$DEPLOY_MODE" = "legacy" ]; then
+        if [ -f "$INSTALL_DIR/bin/.env" ]; then
+            ENV_TARGET="$INSTALL_DIR/bin/.env"
+        elif [ -f "$INSTALL_DIR/.env" ]; then
+            ENV_TARGET="$INSTALL_DIR/.env"
+        fi
+    elif [ "$DEPLOY_MODE" = "docker" ]; then
+        if [ -f "$INSTALL_DIR/.env" ]; then
+            ENV_TARGET="$INSTALL_DIR/.env"
+        elif [ -f "$INSTALL_DIR/bin/.env" ]; then
+            ENV_TARGET="$INSTALL_DIR/bin/.env"
+        fi
+    fi
+
     # 로그 경로 파악 (.env 읽기)
     local LOG_PATH=""
-    if [ -f "$PROP_FILE" ]; then
+    if [ -f "$ENV_TARGET" ]; then
         local LOG_PATH_Line
-        LOG_PATH_Line=$(grep "^LOG_PATH=" "$PROP_FILE")
+        LOG_PATH_Line=$(grep "^LOG_PATH=" "$ENV_TARGET" 2>/dev/null | head -n 1)
         if [ -n "$LOG_PATH_Line" ]; then
             LOG_PATH=$(echo "$LOG_PATH_Line" | cut -d'=' -f2 | tr -d '"' | tr -d "'")
         fi
@@ -321,8 +337,12 @@ remove_logs() {
             if is_safe_path "$LOG_PATH"; then
                 # 로그 경로가 앱 전용 디렉토리이면 전체 삭제
                 log_info "로그 디렉토리 삭제 중..."
-                rm -rf "$LOG_PATH"
-                log_success "로그 파일이 삭제되었습니다."
+                if rm -rf "$LOG_PATH" && [ ! -d "$LOG_PATH" ]; then
+                    log_success "로그 디렉토리가 삭제되었습니다: $LOG_PATH"
+                else
+                    log_error "로그 디렉토리를 완전히 삭제하지 못했습니다: $LOG_PATH"
+                    log_warning "상위 디렉토리($(dirname "$LOG_PATH"))의 쓰기 권한 부족 또는 사용 중인 파일이 있는지 확인하세요."
+                fi
             else
                 # 시스템 공유 디렉토리인 경우 APP_NAME으로 시작하는 파일만 선택 삭제
                 log_warning "'$LOG_PATH' 는 시스템 공유 디렉토리입니다."
@@ -399,7 +419,22 @@ remove_install_dir() {
         exit 1
     fi
 
-    rm -rf "$INSTALL_DIR"
+    # 현재 작업 디렉토리가 삭제 대상 내부일 경우 상위 디렉토리로 이동 후 삭제 수행
+    local PARENT_DIR
+    PARENT_DIR="$(dirname "$INSTALL_DIR")"
+    if [ -d "$PARENT_DIR" ]; then
+        cd "$PARENT_DIR" 2>/dev/null || cd /
+    else
+        cd /
+    fi
+
+    if rm -rf "$INSTALL_DIR" && [ ! -d "$INSTALL_DIR" ]; then
+        log_success "설치 디렉토리가 삭제되었습니다: $INSTALL_DIR"
+    else
+        log_error "설치 디렉토리를 완전히 삭제하지 못했습니다: $INSTALL_DIR"
+        log_warning "상위 디렉토리($PARENT_DIR)에 쓰기 권한이 없거나(sudo 필요), 사용 중인 프로세스/파일이 남아있을 수 있습니다."
+        exit 1
+    fi
 }
 
 

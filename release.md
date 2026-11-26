@@ -2,6 +2,34 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [3.5.4] - 2026-11-26
+
+> 🐛 **Patch Release** — 서비스 제거 스크립트(`uninstall_service.sh`)의 설치/로그 디렉토리 삭제 검증 및 작업 디렉토리 안전 이동 보완, 서비스 설치 스크립트(`install_service.sh`)에서 불필요한 `app`/`tomcat` 로그 하위 폴더 생성 제거.
+
+### 🛠️ 버그 수정 및 개선 사항 (Bug Fixes & Improvements)
+
+#### 1. 🗑️ 서비스 제거 스크립트(`uninstall_service.sh`) 디렉토리 삭제 안정성 및 검증 강화
+
+- **작업 디렉토리(`CWD`) 이탈 후 삭제 (`remove_install_dir`)**:
+    - 설치 경로(예: `/opt/hdrms/hdrms-web`) 내부에서 `./bin/uninstall_service.sh`를 실행할 때, `rm -rf "$INSTALL_DIR"` 전에 상위 디렉토리로 이동(`cd`)한 뒤 삭제를 수행하도록 개선했습니다.
+- **실제 삭제 여부 검증 및 원인 안내 강화 (`remove_install_dir`, `remove_logs`)**:
+    - 기존에는 `rm -rf` 실패 여부를 확인하지 않고 성공 메시지를 출력하던 문제를 수정하여, 삭제 명령 결과와 디렉토리 잔존 여부(`[ ! -d ... ]`)를 검증하고 실패 시 상위 디렉토리 쓰기 권한(`sudo` 필요) 또는 사용 중인 파일/프로세스 확인 안내를 출력합니다.
+- **배포 방식별 `.env` 탐색 우선순위 보정 (`remove_logs`)**:
+    - `legacy` 모드에서는 `$INSTALL_DIR/bin/.env`를 우선 탐색하고, `docker` 모드에서는 `$INSTALL_DIR/.env`를 우선 탐색하도록 개선하여 `LOG_PATH`를 정확히 인식합니다.
+
+#### 2. 📂 불필요한 로그 하위 폴더(`app`, `tomcat`) 생성 로직 개선 (`install_service.sh`)
+
+- **Legacy 배포 모드 (`configure_legacy_env`)**:
+    - JAR/Tomcat Legacy 배포에서는 `$LOG_PATH` 하위에 `app`, `tomcat` 폴더를 사용하지 않으므로, `$LOG_PATH` 디렉토리만 생성하도록 수정했습니다.
+- **Docker 배포 모드 (`configure_docker_env`)**:
+    - `docker-compose.yml` 내에 `LOG_PATH/app` 또는 `LOG_PATH/tomcat` 볼륨 마운트가 실제로 정의된 경우(예: `docker-compose-tomcat.yml`)에만 해당 하위 디렉토리를 사전 생성하고, 일반 JAR 배포에서는 `$LOG_PATH`만 생성하도록 개선했습니다.
+
+#### 3. 📦 전체 버전 동기화
+
+- `distribution-gradle-plugin` (Gradle) & `distribution-maven-plugin` (Maven) 버전 `3.5.4` 패치 릴리즈 갱신 및 문서(`README.md`, `README_EN.md`, `DEVELOPER_GUIDE.md`, 플러그인별 README) 버전 동기화 완료.
+
+---
+
 ## 🎯 [3.5.3] - 2026-11-17
 
 > 🚀 **Patch Release** — Rootless Docker 환경 자동 판별 및 지원(sudo 불필요 환경 및 `.env` `APP_UID`/`APP_GID` `0:0` 자동 분기), `docker-compose.yml` 내 `user: "0:0"` 기본 설정 및 미기재 서비스 자동 보정 기능 추가, Rootless Docker 대상 User Mode Systemd `DOCKER_HOST` 자동 주입.

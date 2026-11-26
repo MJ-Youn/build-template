@@ -16,7 +16,7 @@
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '3.5.3'
+    id 'io.github.mj-youn.distribution' version '3.5.4'
 }
 ```
 
@@ -68,7 +68,7 @@ For complete English documentation, see [**distribution-gradle-plugin/README.md*
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '3.5.3'
+    id 'io.github.mj-youn.distribution' version '3.5.4'
 }
 ```
 
@@ -90,7 +90,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>3.5.3</version>
+            <version>3.5.4</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -136,7 +136,7 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
     ```text
     > Task :distHelp
     ================================================================================
-    🚀 [Distribution Plugin 3.5.3] 빌드 및 배포 가이드
+    🚀 [Distribution Plugin 3.5.4] 빌드 및 배포 가이드
     ================================================================================
 
     [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -208,9 +208,9 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
 - **실행 결과 샘플**:
 
     ```text
-    [INFO] --- distribution:3.5.3:help (default-cli) @ my-service ---
+    [INFO] --- distribution:3.5.4:help (default-cli) @ my-service ---
     [INFO] ================================================================================
-    🚀 [Distribution Maven Plugin 3.5.3] 빌드 및 배포 가이드
+    🚀 [Distribution Maven Plugin 3.5.4] 빌드 및 배포 가이드
     ================================================================================
 
     [📦 JAR 모드 명령어 (Executable JAR 배포)]
