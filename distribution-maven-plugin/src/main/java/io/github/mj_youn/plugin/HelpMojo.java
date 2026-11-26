@@ -27,7 +27,7 @@ public class HelpMojo extends AbstractMojo {
   public void execute() throws MojoExecutionException {
     String msg = """
         ================================================================================
-        🚀 [Distribution Maven Plugin 3.5.4] 빌드 및 배포 가이드
+        🚀 [Distribution Maven Plugin 3.5.5] 빌드 및 배포 가이드
         ================================================================================
 
         [📦 JAR 모드 명령어 (Executable JAR 배포)]

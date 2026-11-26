@@ -2,6 +2,25 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [3.5.5] - 2026-11-26
+
+> ✨ **Patch Release** — 일반 사용자 모드(`--user`)로 `/opt`, `/log` 등 권한이 없는 경로에 배포할 때 실행 가능한 `sudo` 명령어 안내 및 대화형 자동 디렉토리 생성/소유권 부여 기능 추가.
+
+### 🛠️ 개선 사항 (Improvements)
+
+#### 1. 🔐 일반 사용자 모드(`--user`) 시스템 경로 권한 안내 및 대화형 자동 부여 (`install_service.sh`)
+
+- **경로 쓰기 권한 검증 개선 (`validate_path_writable`)**:
+    - `/opt/hdrms/hdrms-web`, `/log/hdrms/hdrms-web` 등 권한이 없는 경로에 `--user` 모드로 배포할 때, 즉시 실행 가능한 `sudo mkdir -p ... && sudo chown -R ...` 명령어 및 `--sudo` 모드 대안을 함께 안내합니다.
+    - 2단계 이상 하위 경로(예: `/opt/hdrms/hdrms-web`)의 경우 상위 그룹 폴더(`/opt/hdrms`)에 소유권을 부여하도록 안내하여, 추후 `uninstall_service.sh` 실행 시에도 서비스 폴더까지 깔끔하게 삭제되도록 유도합니다.
+    - 대화형 터미널에서 `y` 입력 시 `sudo`로 디렉토리 생성 및 소유권 부여만 일시 수행한 뒤, 이후 배포 과정은 그대로 일반 사용자 권한(`--user`)으로 계속 진행합니다.
+
+#### 2. 📦 전체 버전 동기화
+
+- `distribution-gradle-plugin` (Gradle) & `distribution-maven-plugin` (Maven) 버전 `3.5.5` 패치 릴리즈 갱신 및 문서(`README.md`, `README_EN.md`, `DEVELOPER_GUIDE.md`, 플러그인별 README) 버전 동기화 완료.
+
+---
+
 ## 🎯 [3.5.4] - 2026-11-26
 
 > 🐛 **Patch Release** — 서비스 제거 스크립트(`uninstall_service.sh`)의 설치/로그 디렉토리 삭제 검증 및 작업 디렉토리 안전 이동 보완, 서비스 설치 스크립트(`install_service.sh`)에서 불필요한 `app`/`tomcat` 로그 하위 폴더 생성 제거.

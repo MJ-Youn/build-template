@@ -125,9 +125,29 @@ validate_path_writable() {
             log_error "${path_type}에 쓰기 권한이 없습니다: $target_path"
             echo -e "   ${YELLOW}현재 사용자($REAL_USER)는 해당 경로에 파일을 쓸 권한이 없습니다.${NC}"
             if [ "$IS_USER_MODE" -eq 1 ]; then
-                echo -e "   ${CYAN}💡 일반 사용자 모드 권장 경로:${NC}"
+                echo ""
+                echo -e "   ${BOLD}권장 해결 방법:${NC}"
+                echo -e "   1) 해당 디렉토리에 현재 사용자 소유권 부여 (일반 사용자 모드 유지):"
+                echo -e "      ${GREEN}sudo chown -R $REAL_USER:$SERVICE_GROUP \"$target_path\"${NC}"
+                echo -e "   2) 또는 시스템 모드(--sudo)로 설치:"
+                echo -e "      ${CYAN}sudo ./install_service.sh --sudo${NC}"
+                echo -e "   3) 또는 일반 사용자 모드 권장 경로 사용:"
                 echo -e "      - 설치 위치: ${GREEN}$USER_HOME/apps/$APP_NAME${NC}"
                 echo -e "      - 로그 경로: ${GREEN}$USER_HOME/logs/$APP_NAME${NC}"
+                echo ""
+
+                if [ -t 0 ] && command -v sudo >/dev/null 2>&1; then
+                    read -p "   ❓ 지금 sudo 권한으로 소유권을 부여하시겠습니까? (y/N): " -r AUTO_FIX_PERM
+                    if [[ "$AUTO_FIX_PERM" =~ ^[Yy]$ ]]; then
+                        log_info "sudo 권한으로 소유권을 부여합니다: $target_path"
+                        if sudo chown -R "$REAL_USER:$SERVICE_GROUP" "$target_path" && [ -w "$target_path" ]; then
+                            log_success "소유권 부여 완료! 일반 사용자 권한으로 배포를 계속 진행합니다."
+                            return 0
+                        else
+                            log_error "소유권 부여에 실패했거나 여전히 쓰기 권한이 없습니다."
+                        fi
+                    fi
+                fi
             fi
             echo ""
             exit 1
@@ -142,13 +162,45 @@ validate_path_writable() {
     done
 
     if [ ! -w "$curr_path" ]; then
+        # /opt/hdrms/hdrms-web 처럼 2단계 이상 하위 경로이면 상위 그룹 폴더(/opt/hdrms)에 권한을 부여하여
+        # 추후 uninstall_service.sh 실행 시에도 hdrms-web 폴더까지 깔끔하게 삭제되도록 유도
+        local parent_dir
+        parent_dir=$(dirname "$target_path")
+        local grant_target="$target_path"
+        if [ "$parent_dir" != "$curr_path" ] && is_safe_path "$parent_dir"; then
+            grant_target="$parent_dir"
+        fi
+
         echo ""
         log_error "${path_type}를 생성할 권한이 없습니다: $target_path"
         echo -e "   ${YELLOW}상위 디렉토리(${curr_path})에 디렉토리 생성(쓰기) 권한이 없습니다.${NC}"
         if [ "$IS_USER_MODE" -eq 1 ]; then
-            echo -e "   ${CYAN}💡 일반 사용자 모드 권장 경로:${NC}"
+            echo ""
+            echo -e "   ${BOLD}권장 해결 방법:${NC}"
+            echo -e "   1) 디렉토리 생성 및 현재 사용자 소유권 부여 (일반 사용자 모드 유지):"
+            echo -e "      ${GREEN}sudo mkdir -p \"$grant_target\" && sudo chown -R $REAL_USER:$SERVICE_GROUP \"$grant_target\"${NC}"
+            if [ "$grant_target" = "$target_path" ]; then
+                echo -e "      ${YELLOW}※ 참고: ${curr_path} 바로 아래 경로이므로, 추후 완전 삭제 시에는 sudo 권한이 필요할 수 있습니다.${NC}"
+            fi
+            echo -e "   2) 또는 시스템 모드(--sudo)로 설치:"
+            echo -e "      ${CYAN}sudo ./install_service.sh --sudo${NC}"
+            echo -e "   3) 또는 일반 사용자 모드 권장 경로 사용:"
             echo -e "      - 설치 위치: ${GREEN}$USER_HOME/apps/$APP_NAME${NC}"
             echo -e "      - 로그 경로: ${GREEN}$USER_HOME/logs/$APP_NAME${NC}"
+            echo ""
+
+            if [ -t 0 ] && command -v sudo >/dev/null 2>&1; then
+                read -p "   ❓ 지금 sudo 권한으로 디렉토리를 생성하고 소유권을 부여하시겠습니까? (y/N): " -r AUTO_FIX_DIR
+                if [[ "$AUTO_FIX_DIR" =~ ^[Yy]$ ]]; then
+                    log_info "sudo 권한으로 디렉토리 생성 및 소유권을 부여합니다: $grant_target"
+                    if sudo mkdir -p "$grant_target" && sudo chown -R "$REAL_USER:$SERVICE_GROUP" "$grant_target" && [ -w "$grant_target" ]; then
+                        log_success "디렉토리 준비 완료! 일반 사용자 권한으로 배포를 계속 진행합니다."
+                        return 0
+                    else
+                        log_error "디렉토리 생성 또는 소유권 부여에 실패했습니다."
+                    fi
+                fi
+            fi
         fi
         echo ""
         exit 1
