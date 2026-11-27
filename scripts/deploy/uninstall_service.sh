@@ -51,6 +51,13 @@ fi
 
 for arg in "$@"; do
     case "$arg" in
+        --help|-h)
+            echo "사용법: $0 [옵션]"
+            echo "  --sudo, --root, --system   시스템(root) 모드로 설치된 서비스 제거"
+            echo "  --user, --non-root         일반 사용자(Non-root) 모드로 설치된 서비스 제거 (기본값)"
+            echo "  --help, -h                 도움말 출력"
+            exit 0
+            ;;
         --sudo|--root|--system|--system-mode)
             IS_USER_MODE=0
             ;;
@@ -395,6 +402,16 @@ remove_docker_image() {
             log_success "Docker 이미지 삭제 완료 ($IMAGE_TAG)"
         else
             log_warning "이미지 '$IMAGE_TAG'를 찾을 수 없어 삭제를 건너뜁니다."
+        fi
+
+        # 롤백용 임시 태그(${APP_NAME}:rollback-*)가 남아있으면 함께 정리
+        local ROLLBACK_TAGS
+        ROLLBACK_TAGS=$(docker images --format "{{.Repository}}:{{.Tag}}" 2>/dev/null | grep "^${APP_NAME}:rollback-" || true)
+        if [ -n "$ROLLBACK_TAGS" ]; then
+            while IFS= read -r rtag; do
+                [ -n "$rtag" ] && docker rmi "$rtag" >/dev/null 2>&1 || true
+            done <<< "$ROLLBACK_TAGS"
+            log_info "롤백용 임시 Docker 이미지 태그도 함께 정리했습니다."
         fi
     fi
 }

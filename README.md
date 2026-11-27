@@ -16,7 +16,7 @@
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '3.5.5'
+    id 'io.github.mj-youn.distribution' version '3.6.0'
 }
 ```
 
@@ -68,7 +68,7 @@ For complete English documentation, see [**distribution-gradle-plugin/README.md*
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '3.5.5'
+    id 'io.github.mj-youn.distribution' version '3.6.0'
 }
 ```
 
@@ -90,7 +90,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>3.5.5</version>
+            <version>3.6.0</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -136,7 +136,7 @@ Gradle 프레임워크 기본 내장 `help` 태스크와의 충돌을 방지하�
     ```text
     > Task :distHelp
     ================================================================================
-    🚀 [Distribution Plugin 3.5.5] 빌드 및 배포 가이드
+    🚀 [Distribution Plugin 3.6.0] 빌드 및 배포 가이드
     ================================================================================
 
     [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -208,9 +208,9 @@ Maven 플러그인은 표준 문법인 `플러그인Prefix:Goal` 형식으로 �
 - **실행 결과 샘플**:
 
     ```text
-    [INFO] --- distribution:3.5.5:help (default-cli) @ my-service ---
+    [INFO] --- distribution:3.6.0:help (default-cli) @ my-service ---
     [INFO] ================================================================================
-    🚀 [Distribution Maven Plugin 3.5.5] 빌드 및 배포 가이드
+    🚀 [Distribution Maven Plugin 3.6.0] 빌드 및 배포 가이드
     ================================================================================
 
     [📦 JAR 모드 명령어 (Executable JAR 배포)]
@@ -479,6 +479,7 @@ mvn distribution:package-docker -Denv=prod
     - `config/`: 운영 환경용 설정 파일 (Host Mount용)
     - `deploy/install_service.sh`: 서비스 등록/실행 및 `.env` 파일 생성 스크립트
     - `deploy/uninstall_service.sh`: 서비스 제거 스크립트
+    - `deploy/rollback_service.sh`: 이전 배포 스냅샷으로 서비스/설정/이미지 롤백 스크립트
     - `utils.sh`: 공통 스크립트
 
 > [!TIP]
@@ -682,8 +683,9 @@ curl -v http://localhost:8443/
 
 `/scripts` 디렉토리는 역할에 따라 명확히 하위 폴더로 구분되어 관리됩니다:
 
-- **`scripts/deploy/`** (배포/설치 및 제거)
-    - `install_service.sh`: 서비스 설치 및 Systemd/SysVinit 등록 스크립트
+- **`scripts/deploy/`** (배포/설치, 롤백 및 제거)
+    - `install_service.sh`: 서비스 설치 및 Systemd/SysVinit 등록 스크립트 (재배포 시 롤백 스냅샷 자동 백업)
+    - `rollback_service.sh`: 이전 배포 스냅샷으로 서비스·설정·Docker 이미지 복원 스크립트
     - `uninstall_service.sh`: 서비스 중지 및 제거 스크립트
 - **`scripts/service/`** (서비스 구동 및 런타임 운영)
     - `start.sh`: 백그라운드 서비스 시작 스크립트

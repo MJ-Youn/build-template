@@ -35,7 +35,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.2.0' // or your Spring Boot version
     // ⭐️ Distribution Plugin
-    id 'io.github.mj-youn.distribution' version '3.5.5'
+    id 'io.github.mj-youn.distribution' version '3.6.0'
 }
 
 // (Optional) Plugin configuration
@@ -68,8 +68,9 @@ distribution {
 
 ```text
 📦 {appName}-{version}-{env}.zip
-├── 📁 deploy/                  # Service installation & uninstallation scripts
+├── 📁 deploy/                  # Service installation, rollback & uninstallation scripts
 │   ├── install_service.sh
+│   ├── rollback_service.sh
 │   ├── uninstall_service.sh
 │   └── utils.sh / bootstrap.sh
 ├── 📁 bin/                     # Service start/stop/status scripts
@@ -125,8 +126,9 @@ distribution {
 
 ```text
 📦 {project.name}-{project.version}-{env}.zip
-├── 📁 deploy/                  # 서비스 등록 및 설치 스크립트
+├── 📁 deploy/                  # 서비스 등록, 롤백 및 제거 스크립트
 │   ├── install_service.sh
+│   ├── rollback_service.sh
 │   ├── uninstall_service.sh
 │   └── utils.sh / bootstrap.sh
 ├── 📁 bin/                     # 서비스 기동/중지 스크립트
@@ -158,7 +160,7 @@ plugins {
     id 'java'
     id 'org.springframework.boot' version '3.4.1' // 또는 프로젝트 버전
     // ⭐️ 배포 플러그인 추가
-    id 'io.github.mj-youn.distribution' version '3.5.5'
+    id 'io.github.mj-youn.distribution' version '3.6.0'
 }
 
 // (선택 사항) 앱 이름 커스텀 및 사용자 정의 토큰/추가 디렉토리 지정

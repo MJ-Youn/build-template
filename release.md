@@ -2,6 +2,45 @@
 
 `io.github.mj-youn.distribution` (Gradle) & `distribution-maven-plugin` (Maven) 빌드/배포 플러그인의 버전별 릴리즈 노트입니다. ✨
 
+## 🎯 [3.6.0] - 2026-11-27
+
+> 🚀 **Minor Release** — 재배포 시 이전 상태 스냅샷 기반 **서비스 롤백(`rollback_service.sh` / `--rollback`)** 기능 신규 탑재, 배포 스크립트(`install_service.sh`, `uninstall_service.sh`) `--help` 지원, 및 `build_deploy.sh` 프로파일 자동 분석(`--profiles`)·직전 배포 프로파일 자동 기억/재사용 기능 추가.
+
+### ✨ 신규 기능 및 개선 사항 (Features & Improvements)
+
+#### 1. ⏪ 서비스 롤백(Rollback) 스냅샷 백업 및 복구 (`install_service.sh`, `rollback_service.sh`)
+
+- **재배포 직전 자동 스냅샷 생성 (`create_rollback_snapshot`)**:
+    - 초기 배포가 아닌 덮어쓰기 재배포(`OVERWRITE_EXISTING="Y"`) 시, 기존 운영 파일과 설정을 `$DEST_DIR/.rollback/<rev_id>/`에 자동 백업합니다.
+    - 백업 대상: 애플리케이션/설정/스크립트 아카이브(`app_files.tar.gz`), 배포 메타데이터(`meta.env`: `DEPLOY_MODE`, `RUNTIME_ENGINE`, `IS_USER_MODE`, `INIT_SYSTEM`, `CATALINA_HOME` 등), Systemd(User/System)/SysVinit 서비스 유닛, Cron 설정, `tail-log` 스크립트, Tomcat 호스트 설정(`setenv.sh`, `conf/`).
+    - **Docker 모드 이미지 보존**: 재배포 시 동일 이미지 태그 덮어쓰기에 대비해 기존 이미지 ID를 `${APP_NAME}:rollback-<rev_id>` 태그로 로컬 보존합니다.
+    - **보관 개수 제한 및 자동 정리 (`prune_rollback_snapshots`)**: 기본 최대 3개(`MAX_ROLLBACK_COUNT=3`)를 유지하며 초과된 스냅샷과 Docker 임시 태그를 자동 정리합니다.
+- **전용 롤백 스크립트 (`rollback_service.sh`) 및 `--rollback` 연동**:
+    - `$DEST_DIR/bin/rollback_service.sh` 및 배포 패키지 `deploy/rollback_service.sh` 모두에 배치되며, `install_service.sh --rollback` 실행도 지원합니다.
+    - `--list`(스냅샷 목록 조회), `--rev=<REV_ID>`(특정 리비전 지정), `--yes/-y`(비대화형 즉시 롤백), `--sudo/--user` 옵션을 지원합니다.
+    - 초기 배포 상태(스냅샷 없음) 거부 및 System Mode 스냅샷의 비-root 롤백 차단, 복원 실패 시 `.pre_rollback_tmp.tar.gz` 기반 긴급 복구 안전장치를 제공합니다.
+- **제거 스크립트 보완 (`uninstall_service.sh`)**:
+    - Docker 이미지 정리 시 남아있는 `${APP_NAME}:rollback-*` 임시 태그도 함께 삭제하도록 개선했습니다.
+
+#### 2. ℹ️ 배포 스크립트 `--help` / `-h` 지원 (`install_service.sh`, `uninstall_service.sh`)
+
+- `install_service.sh --help` 및 `uninstall_service.sh --help` 실행 시 지원 옵션(`--sudo`, `--user`, `--mode`, `--type`, `--tomcat-home`, `--rollback` 등)과 사용법을 출력하도록 추가했습니다.
+
+#### 3. 📋 `build_deploy.sh` 프로파일 자동 분석(`--profiles`) 및 직전 프로파일 기억/재사용
+
+- **사용 가능한 프로파일 자동 분석 (`--profiles`)**:
+    - `config.profiles/<profile>` 디렉토리와 `config/application-<profile>.(yml|yaml|properties)` 파일을 분석해 사용 가능한 프로파일 목록을 출력합니다.
+    - 최초 배포 시 프로파일을 지정하지 않으면 사용 가능한 프로파일 목록과 사용법을 안내하고 안전 종료합니다.
+- **직전 배포 프로파일 자동 기억 (`.build_deploy.env`)**:
+    - `clean package` 시 삭제되지 않는 프로젝트 루트의 `.build_deploy.env`에 마지막 성공 프로파일을 저장하며, 이후 프로파일 지정 없이 `./build_deploy.sh`만 실행해도 직전 프로파일로 자동 빌드·배포합니다.
+
+#### 4. 🧪 테스트 추가 및 전체 버전 동기화
+
+- `scripts/common/tests/test_rollback.sh` (23개 케이스) 및 `scripts/common/tests/test_build_deploy.sh` (12개 케이스) 단위/통합 테스트를 추가했습니다.
+- `distribution-gradle-plugin` (Gradle) & `distribution-maven-plugin` (Maven) 버전 `3.6.0` 마이너 릴리즈 갱신 및 문서(`README.md`, `README_EN.md`, `DEVELOPER_GUIDE.md`, 플러그인별 README) 버전 동기화 완료.
+
+---
+
 ## 🎯 [3.5.5] - 2026-11-26
 
 > ✨ **Patch Release** — 일반 사용자 모드(`--user`)로 `/opt`, `/log` 등 권한이 없는 경로에 배포할 때 실행 가능한 `sudo` 명령어 안내 및 대화형 자동 디렉토리 생성/소유권 부여 기능 추가.

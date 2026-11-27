@@ -33,8 +33,88 @@ NC=$'\033[0m' # No Color
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # -----------------------------------------------------------------------------
-# 도움말 출력 함수
+# 사용 가능한 Profile 분석 및 이전 배포 상태 관리
 # -----------------------------------------------------------------------------
+STATE_FILE="${SCRIPT_DIR}/.build_deploy.env"
+AVAILABLE_PROFILES=()
+
+# @description config 및 config.profiles 디렉토리를 분석하여 사용 가능한 Profile 목록 수집
+detect_available_profiles() {
+    AVAILABLE_PROFILES=()
+    local SEEN_PROFILES=""
+
+    # 1. config.profiles/<profile> 디렉토리 탐색
+    if [ -d "${SCRIPT_DIR}/config.profiles" ]; then
+        local dir
+        for dir in "${SCRIPT_DIR}/config.profiles"/*; do
+            if [ -d "$dir" ]; then
+                local pname
+                pname=$(basename "$dir")
+                if [[ " $SEEN_PROFILES " != *" $pname "* ]]; then
+                    AVAILABLE_PROFILES+=("$pname")
+                    SEEN_PROFILES="$SEEN_PROFILES $pname"
+                fi
+            fi
+        done
+    fi
+
+    # 2. config/application-<profile>.(yml|yaml|properties) 파일 탐색
+    if [ -d "${SCRIPT_DIR}/config" ]; then
+        local cfg
+        for cfg in "${SCRIPT_DIR}/config"/application-*.yml "${SCRIPT_DIR}/config"/application-*.yaml "${SCRIPT_DIR}/config"/application-*.properties; do
+            if [ -f "$cfg" ]; then
+                local fname pname
+                fname=$(basename "$cfg")
+                pname="${fname#application-}"
+                pname="${pname%.*}"
+                if [ -n "$pname" ] && [[ " $SEEN_PROFILES " != *" $pname "* ]]; then
+                    AVAILABLE_PROFILES+=("$pname")
+                    SEEN_PROFILES="$SEEN_PROFILES $pname"
+                fi
+            fi
+        done
+    fi
+}
+
+# @description 사용 가능한 Profile 목록을 보기 좋게 출력
+print_available_profiles() {
+    detect_available_profiles
+
+    local LAST_SAVED_PROFILE=""
+    if [ -f "${STATE_FILE}" ]; then
+        LAST_SAVED_PROFILE=$(grep "^LAST_PROFILE=" "${STATE_FILE}" 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+    fi
+
+    echo -e "${CYAN}================================================================${NC}"
+    echo -e "📋 ${BOLD}사용 가능한 배포 프로파일(Profile) 목록${NC}"
+    echo -e "${CYAN}================================================================${NC}"
+
+    if [ ${#AVAILABLE_PROFILES[@]} -eq 0 ]; then
+        echo -e "   ${YELLOW}⚠️  config 또는 config.profiles에서 프로파일을 찾지 못했습니다.${NC}"
+        echo -e "   ℹ️  기본 설정(config/application.yml)만 존재하거나 프로파일 디렉토리가 비어 있습니다."
+    else
+        local p
+        for p in "${AVAILABLE_PROFILES[@]}"; do
+            local SRC_INFO=""
+            [ -d "${SCRIPT_DIR}/config.profiles/$p" ] && SRC_INFO="config.profiles/$p"
+            for ext in yml yaml properties; do
+                if [ -f "${SCRIPT_DIR}/config/application-${p}.${ext}" ]; then
+                    [ -n "$SRC_INFO" ] && SRC_INFO="${SRC_INFO}, "
+                    SRC_INFO="${SRC_INFO}config/application-${p}.${ext}"
+                fi
+            done
+
+            local MARK=""
+            if [ "$p" = "$LAST_SAVED_PROFILE" ]; then
+                MARK=" ${GREEN}← (이전 배포 프로파일)${NC}"
+            fi
+            echo -e "   🔹 ${GREEN}${BOLD}${p}${NC}  ${CYAN}(${SRC_INFO})${NC}${MARK}"
+        done
+    fi
+    echo -e "${CYAN}================================================================${NC}"
+}
+
+# @description 도움말 출력 함수
 show_help() {
     cat << EOF
 
@@ -45,14 +125,17 @@ ${BOLD}=========================================================================
 ${YELLOW}${BOLD}사용법:${NC}
   ./build_deploy.sh <환경명> [옵션...]
   ./build_deploy.sh -Penv=<환경명> [옵션...]
+  ./build_deploy.sh                  (이전 배포 이력이 있으면 직전 프로파일로 자동 재배포)
 
-${YELLOW}${BOLD}주요 배포 환경 (필수):${NC}
-  dev | prod | local | test | stage | qa
+${YELLOW}${BOLD}주요 배포 환경 (Profile):${NC}
+  config / config.profiles 기반 자동 감지 (예: dev, prod, local, test, stage, qa)
+  * ${GREEN}--profiles${NC} 옵션으로 현재 프로젝트에서 사용 가능한 프로파일 목록을 확인할 수 있습니다.
 
 ${YELLOW}${BOLD}주요 지원 파라미터 (Gradle -P / Maven -D 호환):${NC}
+  ${GREEN}--profiles${NC}             : config 및 config.profiles 기반 사용 가능한 프로파일 목록 출력
   ${GREEN}--sudo, --root${NC}         : 시스템 모드로 배포 (sudo 필요, /opt 및 /etc/systemd 시스템 데몬 배포)
   ${GREEN}--user${NC}                 : 일반 사용자 모드로 배포 (기본값, sudo 없이 ~/apps 및 systemctl --user 배포)
-  ${GREEN}-Penv=<환경>${NC}           : 활성화할 배포 환경 프로파일 (기본값: 위치인자)
+  ${GREEN}-Penv=<환경>${NC}           : 활성화할 배포 환경 프로파일 (기본값: 위치인자 또는 직전 배포 프로파일)
   ${GREEN}-Ptype=jar|tomcat${NC}     : 배포 유형 오버라이드 (기본값: jar)
                            - jar    : Spring Boot Executable JAR 기반 배포
                            - tomcat : Standalone Apache Tomcat 11 기반 배포
@@ -63,17 +146,20 @@ ${YELLOW}${BOLD}주요 지원 파라미터 (Gradle -P / Maven -D 호환):${NC}
   ${GREEN}-h, --help${NC}            : 이 도움말 출력
 
 ${YELLOW}${BOLD}실행 예시:${NC}
+  ${CYAN}# 0. 사용 가능한 프로파일 목록 확인${NC}
+  ./build_deploy.sh --profiles
+
   ${CYAN}# 1. 개발 환경 일반 사용자 모드 배포 (기본값, sudo 불필요)${NC}
   ./build_deploy.sh dev
 
-  ${CYAN}# 2. 운영 환경 시스템(sudo/root) 모드 배포 (sudo 필요)${NC}
+  ${CYAN}# 2. 최초 배포 이후 동일 프로파일로 재배포 (프로파일 생략 가능)${NC}
+  ./build_deploy.sh
+
+  ${CYAN}# 3. 운영 환경 시스템(sudo/root) 모드 배포 (sudo 필요)${NC}
   ./build_deploy.sh prod --sudo
 
-  ${CYAN}# 3. 운영 환경 외장 Tomcat 일반 사용자 배포 (포트 8443)${NC}
+  ${CYAN}# 4. 운영 환경 외장 Tomcat 일반 사용자 배포 (포트 8443)${NC}
   ./build_deploy.sh prod -Ptype=tomcat
-
-  ${CYAN}# 4. 개발 환경 커스텀 포트 8082 변경 배포${NC}
-  ./build_deploy.sh dev -Pport=8082
 
   ${CYAN}# 5. Git pull 없이 즉시 톰캣 8081 시스템 모드 배포${NC}
   ./build_deploy.sh prod -Ptype=tomcat -Pport=8081 --sudo --no-pull
@@ -103,6 +189,10 @@ for ARG in "$@"; do
     case "${ARG}" in
         -h|--help|help)
             show_help
+            exit 0
+            ;;
+        --profiles|--list-profiles)
+            print_available_profiles
             exit 0
             ;;
         --no-pull)
@@ -160,16 +250,31 @@ for ARG in "$@"; do
             # Gradle 호환을 위해 -D를 -P로 변환하여 전달
             GRADLE_EXTRA_ARGS+=("-P${ARG#-D}")
             ;;
+        -*)
+            ;;
+        *)
+            if [ -z "${ENV_VALUE}" ]; then
+                ENV_VALUE="${ARG}"
+            fi
+            ;;
     esac
 done
 
-# 위치 인자로 지정된 경우 지원 (예: ./build_deploy.sh dev)
-if [ -z "${ENV_VALUE}" ] && [ -n "$1" ] && [[ "$1" != -* ]]; then
-    ENV_VALUE="$1"
+# 위치 인자 등으로 지정된 환경값이 없으면 이전 배포 Profile 이력 확인
+if [ -z "${ENV_VALUE}" ] && [ -f "${STATE_FILE}" ]; then
+    SAVED_PROFILE=$(grep "^LAST_PROFILE=" "${STATE_FILE}" 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+    if [ -n "${SAVED_PROFILE}" ]; then
+        ENV_VALUE="${SAVED_PROFILE}"
+        echo -e "${CYAN}ℹ️  프로파일이 지정되지 않아 이전 배포 프로파일(${GREEN}${BOLD}${ENV_VALUE}${NC}${CYAN})을 자동으로 사용합니다.${NC}"
+        echo -e "${CYAN}   (다른 프로파일로 배포하려면 ./build_deploy.sh <프로파일명> 으로 지정하세요)${NC}"
+    fi
 fi
 
 if [ -z "${ENV_VALUE}" ]; then
-    echo -e "${RED}❌ 환경 파라미터가 필요합니다.${NC}"
+    echo -e "${RED}❌ 환경(Profile) 파라미터가 지정되지 않았으며, 이전 배포 이력도 없습니다.${NC}"
+    echo ""
+    print_available_profiles
+    echo ""
     echo -e "${YELLOW}사용법: ./build_deploy.sh <환경명> [옵션...]  또는  ./build_deploy.sh --help${NC}"
     echo -e "${YELLOW}예시:   ./build_deploy.sh dev --user -Ptype=tomcat -Pport=8443${NC}"
     exit 1
@@ -315,6 +420,12 @@ else
     echo -e "${RED}❌ Gradle(gradlew) 또는 Maven(pom.xml) 프로젝트를 찾을 수 없습니다.${NC}"
     exit 1
 fi
+
+# 배포 성공 시 현재 실행한 Profile 상태 저장 (다음 실행 시 Profile 미지정 자동 재사용)
+cat <<EOF > "${STATE_FILE}"
+LAST_PROFILE="${ENV_VALUE}"
+LAST_DEPLOYED_AT="$(date '+%Y-%m-%d %H:%M:%S')"
+EOF
 
 echo ""
 echo -e "${CYAN}======================================================${NC}"

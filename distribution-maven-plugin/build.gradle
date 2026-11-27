@@ -6,7 +6,7 @@ plugins {
 }
 
 group = 'io.github.mj-youn'
-version = '3.5.5'
+version = '3.6.0'
 description = 'Maven distribution packaging plugin with JAR/Tomcat dual deployment support'
 
 java {

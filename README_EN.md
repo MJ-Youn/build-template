@@ -38,7 +38,7 @@ Apply the appropriate plugin according to your project's build tool:
 
 ```groovy
 plugins {
-    id 'io.github.mj-youn.distribution' version '3.5.5'
+    id 'io.github.mj-youn.distribution' version '3.6.0'
 }
 ```
 
@@ -60,7 +60,7 @@ plugins {
         <plugin>
             <groupId>io.github.mj-youn</groupId>
             <artifactId>distribution-maven-plugin</artifactId>
-            <version>3.5.5</version>
+            <version>3.6.0</version>
             <executions>
                 <execution>
                     <goals><goal>package</goal></goals>
@@ -220,8 +220,9 @@ Deploys directly on servers with JDK installed (no Docker required).
 
 The `/scripts` directory is organized into distinct subdirectories based on responsibility:
 
-- **`scripts/deploy/`** (Installation & Removal):
-    - `install_service.sh`: Installs service and registers Systemd/SysVinit daemon.
+- **`scripts/deploy/`** (Installation, Rollback & Removal):
+    - `install_service.sh`: Installs service and registers Systemd/SysVinit daemon (creates rollback snapshot on overwrite).
+    - `rollback_service.sh`: Restores previous deployment snapshot (files, configs, Docker image tag, and service unit).
     - `uninstall_service.sh`: Stops and unregisters the service.
 - **`scripts/service/`** (Runtime Daemon Control):
     - `start.sh`: Starts background service process.

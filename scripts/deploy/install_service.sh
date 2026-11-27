@@ -47,9 +47,37 @@ TARGET_CATALINA_HOME="${CATALINA_HOME:-}"
 SYSTEMD_EXTRA_ENV=""
 POSITIONAL_INSTALL_DIR=""
 
-# CLI 인자 분석 (--sudo, --root, --user, --type=..., --mode=..., --tomcat-home=...)
+# CLI 인자 분석 (--sudo, --root, --user, --type=..., --mode=..., --tomcat-home=..., --rollback, --help)
 for arg in "$@"; do
     case "$arg" in
+        --help|-h)
+            echo "사용법: $0 [옵션] [설치_경로]"
+            echo "  --sudo, --root, --system   시스템(root) 모드로 설치 (기본 설치 경로: /opt/<appName>)"
+            echo "  --user, --non-root         일반 사용자(Non-root) 모드로 설치 (기본값, ~/apps/<appName>)"
+            echo "  --mode=<legacy|docker>     배포 방식 지정 (legacy 또는 docker)"
+            echo "  --type=<jar|tomcat>        런타임 엔진 지정 (jar 또는 tomcat)"
+            echo "  --tomcat-home=<경로>       호스트 Apache Tomcat 설치 경로(CATALINA_HOME) 지정"
+            echo "  --rollback                 이전 배포 스냅샷으로 롤백 (rollback_service.sh 실행)"
+            echo "  --help, -h                 도움말 출력"
+            exit 0
+            ;;
+        --rollback)
+            ROLLBACK_SCRIPT="$SCRIPT_DIR/rollback_service.sh"
+            if [ ! -f "$ROLLBACK_SCRIPT" ]; then
+                ROLLBACK_SCRIPT="$PKG_ROOT/deploy/rollback_service.sh"
+            fi
+            if [ -f "$ROLLBACK_SCRIPT" ]; then
+                # --rollback 인자를 제외한 나머지 인자를 전달하여 롤백 스크립트 실행
+                ROLLBACK_ARGS=()
+                for r_arg in "$@"; do
+                    [ "$r_arg" != "--rollback" ] && ROLLBACK_ARGS+=("$r_arg")
+                done
+                exec bash "$ROLLBACK_SCRIPT" "${ROLLBACK_ARGS[@]}"
+            else
+                echo "❌ rollback_service.sh 스크립트를 찾을 수 없습니다: $ROLLBACK_SCRIPT" >&2
+                exit 1
+            fi
+            ;;
         --sudo|--root|--system|--system-mode)
             IS_USER_MODE=0
             ;;
@@ -98,6 +126,7 @@ EXISTING_SERVICE_FOUND=0
 OVERWRITE_EXISTING=""
 PREVIOUS_INSTALL_LOC=""
 PREVIOUS_LOG_PATH=""
+MAX_ROLLBACK_COUNT="${MAX_ROLLBACK_COUNT:-3}"
 
 # --- [Functions] ---
 
@@ -572,6 +601,209 @@ check_and_handle_existing_service() {
     fi
 }
 
+# @description 재배포(덮어쓰기) 직전 현재 운영 중인 상태를 롤백 스냅샷으로 저장
+create_rollback_snapshot() {
+    # 초기 배포이거나 대상 디렉토리가 없으면 스냅샷을 생성하지 않음
+    if [ "$OVERWRITE_EXISTING" != "Y" ] || [ -z "$DEST_DIR" ] || [ ! -d "$DEST_DIR" ]; then
+        return 0
+    fi
+
+    # 기존 설치 디렉토리에 실제 배포 파일이 존재하는지 확인 (빈 디렉토리면 초기 배포로 간주)
+    if [ ! -d "$DEST_DIR/bin" ] && [ ! -f "$DEST_DIR/docker-compose.yml" ] && [ ! -d "$DEST_DIR/libs" ] && [ ! -d "$DEST_DIR/webapps" ]; then
+        return 0
+    fi
+
+    log_step "이전 배포 상태 롤백 스냅샷 생성 중..."
+
+    local ROLLBACK_BASE="$DEST_DIR/.rollback"
+    local REV_ID="rev_$(date +%Y%m%d_%H%M%S)"
+    local SNAP_DIR="$ROLLBACK_BASE/$REV_ID"
+    local SUFFIX=1
+    while [ -d "$SNAP_DIR" ]; do
+        REV_ID="rev_$(date +%Y%m%d_%H%M%S)_${SUFFIX}"
+        SNAP_DIR="$ROLLBACK_BASE/$REV_ID"
+        SUFFIX=$((SUFFIX + 1))
+    done
+
+    mkdir -p "$SNAP_DIR/system"
+
+    # 1. 이전 배포 상태(메타데이터) 정확한 역추적 (새 배포 옵션과 무관하게 기존 상태 보존)
+    local PREV_DEPLOY_MODE="legacy"
+    if [ -f "$DEST_DIR/docker-compose.yml" ]; then
+        PREV_DEPLOY_MODE="docker"
+    fi
+
+    local PREV_RUNTIME_ENGINE="jar"
+    if [ "$PREV_DEPLOY_MODE" = "docker" ]; then
+        PREV_RUNTIME_ENGINE="docker"
+    elif [ -d "$DEST_DIR/webapps" ] || [ -d "$DEST_DIR/tomcat" ]; then
+        PREV_RUNTIME_ENGINE="tomcat"
+    fi
+
+    local PREV_IS_USER_MODE="$IS_USER_MODE"
+    local PREV_INIT_SYSTEM="none"
+    local PREV_SERVICE_FILE=""
+    local USER_SVC="$USER_HOME/.config/systemd/user/$APP_NAME.service"
+    local SYS_SVC="/etc/systemd/system/$APP_NAME.service"
+    local INIT_SVC="/etc/init.d/$APP_NAME"
+
+    if [ -f "$USER_SVC" ]; then
+        PREV_IS_USER_MODE=1
+        PREV_INIT_SYSTEM="systemd-user"
+        PREV_SERVICE_FILE="$USER_SVC"
+    elif [ -f "$SYS_SVC" ]; then
+        PREV_IS_USER_MODE=0
+        PREV_INIT_SYSTEM="systemd-system"
+        PREV_SERVICE_FILE="$SYS_SVC"
+    elif [ -f "$INIT_SVC" ]; then
+        PREV_IS_USER_MODE=0
+        PREV_INIT_SYSTEM="sysvinit"
+        PREV_SERVICE_FILE="$INIT_SVC"
+    fi
+
+    # 기존 로그 경로 및 Tomcat/Docker 정보 추출
+    local PREV_LOG="$LOG_PATH"
+    local PREV_CATALINA_HOME=""
+    local PREV_CATALINA_BASE=""
+    local PREV_DOCKER_IMAGE=""
+    local PREV_ENV_FILE=""
+    if [ -f "$DEST_DIR/.env" ]; then
+        PREV_ENV_FILE="$DEST_DIR/.env"
+    elif [ -f "$DEST_DIR/bin/.env" ]; then
+        PREV_ENV_FILE="$DEST_DIR/bin/.env"
+    fi
+
+    if [ -n "$PREV_ENV_FILE" ]; then
+        local val
+        val=$(grep "^LOG_PATH=" "$PREV_ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+        [ -n "$val" ] && PREV_LOG="$val"
+        PREV_CATALINA_HOME=$(grep "^CATALINA_HOME=" "$PREV_ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+        PREV_CATALINA_BASE=$(grep "^CATALINA_BASE=" "$PREV_ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+        PREV_DOCKER_IMAGE=$(grep "^DOCKER_IMAGE=" "$PREV_ENV_FILE" 2>/dev/null | head -n 1 | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+    fi
+
+    # 2. 시스템 서비스 / Cron / 유틸리티 스크립트 백업
+    if [ -n "$PREV_SERVICE_FILE" ] && [ -f "$PREV_SERVICE_FILE" ]; then
+        cp -p "$PREV_SERVICE_FILE" "$SNAP_DIR/system/service.unit" 2>/dev/null || cp "$PREV_SERVICE_FILE" "$SNAP_DIR/system/service.unit"
+    fi
+
+    if [ "$PREV_IS_USER_MODE" -eq 1 ]; then
+        if command -v crontab >/dev/null 2>&1; then
+            local USER_CRON_LINE
+            USER_CRON_LINE=$(crontab -l 2>/dev/null | grep "$APP_NAME" | head -n 1 || true)
+            if [ -n "$USER_CRON_LINE" ]; then
+                echo "$USER_CRON_LINE" > "$SNAP_DIR/system/cron.entry"
+                echo "user" > "$SNAP_DIR/system/cron.type"
+            fi
+        fi
+    else
+        if [ -f "/etc/cron.d/$APP_NAME" ]; then
+            cp -p "/etc/cron.d/$APP_NAME" "$SNAP_DIR/system/cron.entry" 2>/dev/null || cp "/etc/cron.d/$APP_NAME" "$SNAP_DIR/system/cron.entry"
+            echo "system" > "$SNAP_DIR/system/cron.type"
+        fi
+    fi
+
+    local TAIL_SCRIPT="$USER_HOME/bin/tail-log-${APP_NAME}.sh"
+    if [ -f "$TAIL_SCRIPT" ]; then
+        cp -p "$TAIL_SCRIPT" "$SNAP_DIR/system/tail-log.sh" 2>/dev/null || cp "$TAIL_SCRIPT" "$SNAP_DIR/system/tail-log.sh"
+    fi
+
+    # Tomcat 호스트 설정 백업 (외부 CATALINA_HOME 사용 시)
+    if [ "$PREV_RUNTIME_ENGINE" = "tomcat" ] && [ -n "$PREV_CATALINA_HOME" ] && [ -d "$PREV_CATALINA_HOME" ] && [ "$PREV_CATALINA_HOME" != "$DEST_DIR/tomcat" ]; then
+        mkdir -p "$SNAP_DIR/system/tomcat_host"
+        [ -f "$PREV_CATALINA_HOME/bin/setenv.sh" ] && cp -p "$PREV_CATALINA_HOME/bin/setenv.sh" "$SNAP_DIR/system/tomcat_host/setenv.sh" 2>/dev/null || true
+        if [ -d "$PREV_CATALINA_HOME/conf" ]; then
+            mkdir -p "$SNAP_DIR/system/tomcat_host/conf"
+            cp -r "$PREV_CATALINA_HOME/conf/." "$SNAP_DIR/system/tomcat_host/conf/" 2>/dev/null || true
+        fi
+    fi
+
+    # 3. Docker 이미지 태그 백업 (Docker 모드인 경우)
+    local ROLLBACK_DOCKER_TAG=""
+    if [ "$PREV_DEPLOY_MODE" = "docker" ] && command -v docker >/dev/null 2>&1; then
+        local SRC_IMAGE="${PREV_DOCKER_IMAGE:-${APP_NAME}:latest}"
+        local TARGET_TAG="${APP_NAME}:rollback-${REV_ID}"
+        local CONTAINER_IMG_ID=""
+        CONTAINER_IMG_ID=$(docker inspect --format='{{.Image}}' "$APP_NAME" 2>/dev/null || true)
+
+        if [ -n "$CONTAINER_IMG_ID" ] && docker image inspect "$CONTAINER_IMG_ID" >/dev/null 2>&1; then
+            if docker tag "$CONTAINER_IMG_ID" "$TARGET_TAG" 2>/dev/null; then
+                ROLLBACK_DOCKER_TAG="$TARGET_TAG"
+                log_info "이전 Docker 이미지 태그 보존: $TARGET_TAG"
+            fi
+        elif docker image inspect "$SRC_IMAGE" >/dev/null 2>&1; then
+            if docker tag "$SRC_IMAGE" "$TARGET_TAG" 2>/dev/null; then
+                ROLLBACK_DOCKER_TAG="$TARGET_TAG"
+                log_info "이전 Docker 이미지 태그 보존: $TARGET_TAG"
+            fi
+        fi
+    fi
+
+    # 4. 애플리케이션 파일 아카이브 (.rollback, run, logs 제외)
+    if ! tar --exclude='.rollback' --exclude='./.rollback' --exclude='run' --exclude='./run' --exclude='logs' --exclude='./logs' -czf "$SNAP_DIR/app_files.tar.gz" -C "$DEST_DIR" . 2>/dev/null; then
+        log_warning "롤백 스냅샷 아카이브 생성에 실패했습니다. 스냅샷 없이 배포를 계속합니다."
+        rm -rf "$SNAP_DIR"
+        return 1
+    fi
+
+    # 5. 메타데이터 저장
+    cat <<EOF > "$SNAP_DIR/meta.env"
+REV_ID="$REV_ID"
+CREATED_AT="$(date '+%Y-%m-%d %H:%M:%S')"
+APP_NAME="$APP_NAME"
+DEST_DIR="$DEST_DIR"
+LOG_PATH="$PREV_LOG"
+REAL_USER="$REAL_USER"
+SERVICE_GROUP="$SERVICE_GROUP"
+DEPLOY_MODE="$PREV_DEPLOY_MODE"
+RUNTIME_ENGINE="$PREV_RUNTIME_ENGINE"
+IS_USER_MODE="$PREV_IS_USER_MODE"
+INIT_SYSTEM="$PREV_INIT_SYSTEM"
+CATALINA_HOME="$PREV_CATALINA_HOME"
+CATALINA_BASE="$PREV_CATALINA_BASE"
+DOCKER_IMAGE="$PREV_DOCKER_IMAGE"
+ROLLBACK_DOCKER_TAG="$ROLLBACK_DOCKER_TAG"
+EOF
+
+    chown -R "$REAL_USER:$SERVICE_GROUP" "$ROLLBACK_BASE" 2>/dev/null || true
+    ln -sfn "$REV_ID" "$ROLLBACK_BASE/latest"
+    log_success "롤백 스냅샷 생성 완료: $REV_ID ($PREV_DEPLOY_MODE / $PREV_RUNTIME_ENGINE)"
+
+    prune_rollback_snapshots "$ROLLBACK_BASE"
+}
+
+# @description 최대 보관 개수를 초과한 오래된 롤백 스냅샷 정리
+prune_rollback_snapshots() {
+    local ROLLBACK_BASE="$1"
+    [ ! -d "$ROLLBACK_BASE" ] && return 0
+
+    local MAX_KEEP="${MAX_ROLLBACK_COUNT:-3}"
+    local REVS=()
+    while IFS= read -r d; do
+        [ -n "$d" ] && REVS+=("$d")
+    done < <(find "$ROLLBACK_BASE" -maxdepth 1 -mindepth 1 -type d -name "rev_*" -exec basename {} \; | sort)
+
+    local TOTAL=${#REVS[@]}
+    if [ "$TOTAL" -gt "$MAX_KEEP" ]; then
+        local REMOVE_COUNT=$((TOTAL - MAX_KEEP))
+        local i=0
+        while [ "$i" -lt "$REMOVE_COUNT" ]; do
+            local OLD_REV="${REVS[$i]}"
+            local OLD_DIR="$ROLLBACK_BASE/$OLD_REV"
+            if [ -f "$OLD_DIR/meta.env" ]; then
+                local OLD_TAG
+                OLD_TAG=$(grep "^ROLLBACK_DOCKER_TAG=" "$OLD_DIR/meta.env" 2>/dev/null | cut -d'=' -f2- | tr -d '"' | tr -d "'")
+                if [ -n "$OLD_TAG" ] && command -v docker >/dev/null 2>&1; then
+                    docker rmi "$OLD_TAG" >/dev/null 2>&1 || true
+                fi
+            fi
+            rm -rf "$OLD_DIR"
+            log_info "오래된 롤백 스냅샷 정리: $OLD_REV"
+            i=$((i + 1))
+        done
+    fi
+}
+
 # @description 서비스 설치 메인 함수
 install_service() {
     log_header "서비스 설치 시작 ($APP_NAME)"
@@ -615,6 +847,9 @@ install_legacy_mode() {
 
     # 설치 위치 결정 (기존 설치 감지 포함)
     determine_install_dir
+
+    # 재배포 시 이전 상태 롤백 스냅샷 저장
+    create_rollback_snapshot
 
     # 이전 Docker 배포 잔재 파일 정리
     cleanup_docker_artifacts
@@ -842,8 +1077,8 @@ copy_legacy_files() {
         cp -rf "$SCRIPT_DIR/cron" "$DEST_DIR/bin/"
     fi
 
-    # 관리 및 유틸리티 스크립트 복사 (uninstall_service.sh, utils.sh, bootstrap.sh)
-    local MGMT_SCRIPTS=("uninstall_service.sh" "utils.sh" "bootstrap.sh")
+    # 관리 및 유틸리티 스크립트 복사 (uninstall_service.sh, rollback_service.sh, utils.sh, bootstrap.sh)
+    local MGMT_SCRIPTS=("uninstall_service.sh" "rollback_service.sh" "utils.sh" "bootstrap.sh")
     for script in "${MGMT_SCRIPTS[@]}"; do
         if [ -f "$SCRIPT_DIR/$script" ]; then
             cp -f "$SCRIPT_DIR/$script" "$DEST_DIR/bin/"
@@ -1195,6 +1430,9 @@ install_docker_mode() {
     # 설치 위치 결정
     determine_docker_install_dir
 
+    # 재배포 시 이전 상태 롤백 스냅샷 저장
+    create_rollback_snapshot
+
     # docker-compose 및 관련 파일 복사
     copy_docker_files
 
@@ -1382,7 +1620,7 @@ copy_docker_files() {
 
     # 2. Bin Scripts
     # Docker 실행 및 관리에 필요한 스크립트 복사 (Legacy와 일관된 인터페이스 제공)
-    local MGMT_SCRIPTS=("start.sh" "stop.sh" "status.sh" "uninstall_service.sh" "utils.sh" "bootstrap.sh")
+    local MGMT_SCRIPTS=("start.sh" "stop.sh" "status.sh" "uninstall_service.sh" "rollback_service.sh" "utils.sh" "bootstrap.sh")
     for script in "${MGMT_SCRIPTS[@]}"; do
         if [ -f "$SCRIPT_DIR/$script" ]; then
             cp -rf "$SCRIPT_DIR/$script" "$DEST_DIR/bin/"
